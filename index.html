@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SHADOW BUNKER 3D // Tactical Horror Escape</title>
+  <title>PROJECT ECLIPSE // Shadow Bunker 3D</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -12,14 +12,14 @@
   <!-- LOBBY SCREEN -->
   <section id="lobby-screen" class="screen active">
     <div class="lobby-card">
-      <div class="badge-top">3D TACTICAL HORROR // 1–4 PLAYERS</div>
+      <div class="badge-top">PROJECT ECLIPSE // SECTOR-09</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">कंक्रीट बंकर में छुपे <strong>3 Secret Notes</strong> ढूंढें, <strong>Pulse Stun Gun</strong> से राक्षस को रोकें, और सभी लॉक खोलकर बाहर निकलें!</p>
+      <p class="subtitle">1998 में सील हुई अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। बिजली चालू करें, <strong>Dr. Verma</strong> के गुप्त लॉग्स डिकोड करें, और <strong>Subject-0</strong> से बचकर बाहर निकलें!</p>
 
       <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
 
       <div id="lobby-actions" class="action-grid">
-        <button id="create-room-btn" class="btn primary">➕ CREATE 3D BUNKER</button>
+        <button id="create-room-btn" class="btn primary">➕ CREATE MISSION</button>
         <div class="join-row">
           <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
           <button id="join-room-btn" class="btn secondary">JOIN</button>
@@ -28,20 +28,30 @@
 
       <div id="waiting-room" class="waiting-box hidden">
         <div class="code-banner">
-          <span>BUNKER CODE:</span>
+          <span>SQUAD CODE:</span>
           <strong id="display-code">----</strong>
           <button id="copy-code-btn" class="mini-btn">COPY</button>
         </div>
 
         <div class="squad-header">
-          <span>SQUAD (<span id="player-count">1</span>/4)</span>
-          <span class="flex-note">1 से 4 खिलाड़ी — कभी भी शुरू करें</span>
+          <span>RESCUE TEAM (<span id="player-count">1</span>/4)</span>
+          <span class="flex-note">1–4 खिलाड़ी</span>
         </div>
         <ul id="squad-list" class="squad-list"></ul>
 
-        <button id="start-game-btn" class="btn start-btn">🚀 ENTER 3D BUNKER</button>
-        <p id="wait-msg" class="wait-msg hidden">Host के मिशन शुरू करने का इंतज़ार करें...</p>
+        <button id="start-game-btn" class="btn start-btn">🚀 DEPLOY TO SECTOR-09</button>
+        <p id="wait-msg" class="wait-msg hidden">Squad Leader के मिशन शुरू करने का इंतज़ार करें...</p>
       </div>
+    </div>
+  </section>
+
+  <!-- CINEMATIC STORY INTRO OVERLAY -->
+  <section id="story-intro" class="story-screen hidden">
+    <div class="story-box">
+      <div class="paper-stamp">CLASSIFIED BRIEFING // 11:48 PM</div>
+      <h2>SECTOR-09: THE LOST LAB</h2>
+      <p id="story-typewriter" class="story-lines"></p>
+      <button id="enter-bunker-btn" class="btn primary" style="width:100%; margin-top:16px;">🔦 MISSION START</button>
     </div>
   </section>
 
@@ -52,29 +62,32 @@
 
     <!-- Center Crosshair & Interaction Prompt -->
     <div id="crosshair" class="crosshair">+</div>
-    <div id="interact-hint" class="interact-hint hidden">✋ USE दबाकर जाँच करें</div>
+    <div id="interact-hint" class="interact-hint hidden">✋ USE दबाएं</div>
 
     <!-- Top HUD -->
     <header class="game-hud">
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
-        <span id="locks-status" class="locks-badge">🔒 0/3</span>
-        <span id="stun-status" class="stun-badge">⚡ 3/3</span>
+        <span id="locks-status" class="locks-badge">⚡ POWER OFF</span>
+        <span id="stun-status" class="stun-badge">🔫 3/3</span>
       </div>
-      <div id="objective-banner" class="clue-banner">3 Secret Notes ढूंढें</div>
+      <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
+
+    <!-- Story Objective Strip -->
+    <div id="objective-banner" class="objective-strip">CHAPTER 1: कमरे से नीला POWER FUSE ढूंढें</div>
 
     <!-- Live Motion Radar -->
     <div class="radar-wrap">
-      <canvas id="radar-canvas" width="110" height="110"></canvas>
+      <canvas id="radar-canvas" width="106" height="106"></canvas>
     </div>
 
     <!-- Walkie-Talkie Radio -->
     <div class="radio-bar">
-      <button class="radio-btn" data-msg="⚠️ खतरा पास है! छिप जाओ!">⚠️ Danger</button>
-      <button class="radio-btn" data-msg="📄 मुझे एक Secret Code मिल गया!">📄 Code</button>
+      <button class="radio-btn" data-msg="⚠️ Subject-0 पास है! लॉकर में छुपो!">⚠️ Monster</button>
+      <button class="radio-btn" data-msg="🔋 Power Fuse मिल गया! जनरेटर पर आओ!">🔋 Fuse</button>
+      <button class="radio-btn" data-msg="📄 डायरी से सीक्रेट कोड मिल गया!">📄 Code</button>
       <button class="radio-btn" data-msg="🆘 मैं घायल हूँ! मुझे Revive करो!">🆘 Help</button>
-      <button class="radio-btn" data-msg="🚪 Exit Gate खुल गया, भागो!">🚪 Escape</button>
     </div>
     <div id="radio-toast" class="radio-toast hidden"></div>
 
@@ -96,14 +109,14 @@
       <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>
     </div>
 
-    <!-- Secret Note Modal -->
+    <!-- Dr. Verma Diary / Secret Note Modal -->
     <div id="note-modal" class="modal hidden">
       <div class="modal-box paper-box">
-        <div class="paper-stamp">TOP SECRET // 3D BUNKER LOG</div>
-        <h3 id="note-title">CLASSIFIED NOTE #1</h3>
+        <div class="paper-stamp">DR. VERMA'S AUDIO LOG</div>
+        <h3 id="note-title">LOG #1</h3>
         <p id="note-body" class="note-text">...</p>
         <div id="note-code-reveal" class="code-reveal">---</div>
-        <button id="close-note-btn" class="btn primary" style="width:100%">याद रख लिया (CLOSE)</button>
+        <button id="close-note-btn" class="btn primary" style="width:100%">समझ गया (CONTINUE)</button>
       </div>
     </div>
 
@@ -111,7 +124,7 @@
     <div id="puzzle-modal" class="modal hidden">
       <div class="modal-box">
         <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
-        <p id="puzzle-hint">बंकर में मिले Secret Note का 3-अंकों का कोड डालें</p>
+        <p id="puzzle-hint">Dr. Verma के लॉग में मिला 3-अंकों का कोड डालें</p>
         <div id="keypad-display" class="keypad-display">_ _ _</div>
         <div class="keypad-grid">
           <button class="key">1</button><button class="key">2</button><button class="key">3</button>
@@ -126,7 +139,7 @@
     <div id="end-modal" class="modal hidden">
       <div class="modal-box">
         <h2 id="end-title">MISSION COMPLETE</h2>
-        <p id="end-desc">...</p>
+        <p id="end-desc" style="margin: 12px 0; font-size: 0.88rem; color: #cbd5e1;">...</p>
         <button onclick="location.reload()" class="btn primary" style="width:100%">🔄 PLAY AGAIN</button>
       </div>
     </div>

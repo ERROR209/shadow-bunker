@@ -24,6 +24,10 @@ const SFX = {
     setTimeout(() => this.tone(420, 'square', 0.25, 0.14), 80);
     navigator.vibrate?.([60, 40, 80]);
   },
+  siren() {
+    this.tone(520, 'sawtooth', 0.35, 0.14);
+    setTimeout(() => this.tone(380, 'sawtooth', 0.35, 0.14), 350);
+  },
   step(sprinting) {
     const now = performance.now();
     if (now - this.lastStep < (sprinting ? 260 : 420)) return;
@@ -41,7 +45,6 @@ const SFX = {
   }
 };
 
-// Procedural Texture Generator (Creates real concrete, floor tiles & hazard stripes without external images)
 function makeTexture(type) {
   const c = document.createElement('canvas');
   c.width = 256;
@@ -55,12 +58,11 @@ function makeTexture(type) {
       ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.16)';
       ctx.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
     }
-    // Horizontal bunker panel seams & rust streaks
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, 252, 252);
     ctx.beginPath(); ctx.moveTo(0, 128); ctx.lineTo(256, 128); ctx.stroke();
-    ctx.fillStyle = 'rgba(120, 53, 15, 0.25)';
+    ctx.fillStyle = 'rgba(120, 53, 15, 0.28)';
     ctx.fillRect(40, 128, 18, 95);
     ctx.fillRect(190, 0, 14, 80);
   } else if (type === 'floor') {
@@ -72,10 +74,6 @@ function makeTexture(type) {
     ctx.strokeRect(128, 128, 128, 128);
     ctx.strokeRect(128, 0, 128, 128);
     ctx.strokeRect(0, 128, 128, 128);
-    for (let i = 0; i < 1500; i++) {
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
-    }
   } else if (type === 'locker') {
     ctx.fillStyle = '#0369a1';
     ctx.fillRect(0, 0, 256, 256);
@@ -103,12 +101,18 @@ const Game3D = {
   stunBeamMesh: null,
   running: false,
 
+  // Story State
+  hasFuse: false,
+  powerRestored: false,
+  selfDestructActive: false,
+  escapeTimeLeft: 60,
+  lastTick: 0,
+
   codes: ['123', '456', '789'],
   activeLockIdx: -1,
   enteredPin: '',
   sprinting: false,
   stunCharges: 3,
-  stunCooldown: 0,
   joy: { x: 0, y: 0, active: false },
   lookTouchId: null,
   lastLookX: 0,
@@ -126,6 +130,9 @@ const Game3D = {
     { x: -17, z: 4, w: 12, d: 1.2 }
   ],
 
+  fuseObj: null,
+  generatorPos: { x: -19, z: -12 },
+  generatorMesh: null,
   notes: [],
   terminals: [],
   lockers: [
@@ -141,21 +148,42 @@ const Game3D = {
   bobTimer: 0,
   radarAngle: 0,
 
-  start(codes, noteSpots) {
+  start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
     document.getElementById('lobby-screen').classList.add('hidden');
-    document.getElementById('game-screen').classList.remove('hidden');
+    document.getElementById('story-intro').classList.remove('hidden');
 
-    const me = Net.players[Net.myId];
-    document.getElementById('role-badge').textContent = me.role;
+    // Typewriter Story Intro
+    const storyText = 'साल 1998 में अंडरग्राउंड लैब SECTOR-09 को अचानक सील कर दिया गया था।\n\nजैसे ही आपकी रेस्क्यू टीम अंदर उतरी, मेन लिफ्ट की केबल टूट गई और बिजली कट गई!\n\nअंधेरे गलियारों में "Subject-0" घूम रहा है। पहले POWER FUSE ढूंढकर जनरेटर चालू करें, फिर Dr. Verma के गुप्त लॉग्स डिकोड करके बाहर निकलें!';
+    let idx = 0;
+    const el = document.getElementById('story-typewriter');
+    el.innerHTML = '';
+    const typeInt = setInterval(() => {
+      if (idx < storyText.length) {
+        el.innerHTML += storyText[idx] === '\n' ? '<br>' : storyText[idx];
+        idx++;
+      } else {
+        clearInterval(typeInt);
+      }
+    }, 22);
 
-    this.initThree(noteSpots);
-    this.setupControls();
-    this.running = true;
-    requestAnimationFrame(() => this.loop());
+    document.getElementById('enter-bunker-btn').onclick = () => {
+      clearInterval(typeInt);
+      SFX.init();
+      document.getElementById('story-intro').classList.add('hidden');
+      document.getElementById('game-screen').classList.remove('hidden');
+
+      const me = Net.players[Net.myId];
+      document.getElementById('role-badge').textContent = me.role;
+
+      this.initThree(noteSpots, fuseSpot);
+      this.setupControls();
+      this.running = true;
+      requestAnimationFrame(() => this.loop());
+    };
   },
 
-  initThree(noteSpots) {
+  initThree(noteSpots, fuseSpot) {
     const container = document.getElementById('three-container');
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x070b14);
@@ -171,12 +199,11 @@ const Game3D = {
     container.innerHTML = '';
     container.appendChild(this.renderer.domElement);
 
-    // Lighting
-    const hemiLight = new THREE.HemisphereLight(0x475569, 0x0f172a, 1.05);
+    const hemiLight = new THREE.HemisphereLight(0x475569, 0x0f172a, 1.0);
     this.scene.add(hemiLight);
 
     [[-16, -16], [0, 0], [16, 16], [18, -18], [-16, 16]].forEach(([lx, lz]) => {
-      const pLight = new THREE.PointLight(0xdc2626, 2.4, 18);
+      const pLight = new THREE.PointLight(0xdc2626, 2.3, 18);
       pLight.position.set(lx, 3.6, lz);
       this.scene.add(pLight);
 
@@ -188,59 +215,60 @@ const Game3D = {
       this.scene.add(bulb);
     });
 
-    // 3D First-Person Hands: Tactical Flashlight (Left) + Pulse Stun Gun (Right)
+    // Clearly Visible 3D First-Person Hands (Left Flashlight + Right Pulse Stun Gun)
     this.handGroup = new THREE.Group();
 
+    const leftArm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b })
+    );
+    leftArm.position.set(-0.24, -0.22, -0.35);
+
     const torchBody = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.04, 0.045, 0.32, 10),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 })
+      new THREE.CylinderGeometry(0.035, 0.04, 0.28, 12),
+      new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 })
     );
     torchBody.rotation.x = Math.PI / 2;
-    torchBody.position.set(-0.32, -0.26, -0.48);
+    torchBody.position.set(-0.24, -0.20, -0.52);
 
-    const torchLens = new THREE.Mesh(
-      new THREE.CircleGeometry(0.042, 10),
-      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    const rightArm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b })
     );
-    torchLens.position.set(-0.32, -0.26, -0.645);
-    torchLens.rotation.y = Math.PI;
+    rightArm.position.set(0.24, -0.22, -0.35);
 
     const gunBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.09, 0.13, 0.38),
+      new THREE.BoxGeometry(0.08, 0.12, 0.34),
       new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
     );
-    gunBody.position.set(0.32, -0.26, -0.48);
+    gunBody.position.set(0.24, -0.19, -0.52);
 
     const gunCore = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.04, 0.28),
-      new THREE.MeshBasicMaterial({ color: 0xa855f7 })
+      new THREE.BoxGeometry(0.09, 0.035, 0.24),
+      new THREE.MeshBasicMaterial({ color: 0xc084fc })
     );
-    gunCore.position.set(0.32, -0.21, -0.48);
+    gunCore.position.set(0.24, -0.14, -0.52);
 
-    // Electric Stun Beam (Visible when firing!)
     this.stunBeamMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(0.03, 0.06, 12, 8),
       new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.85 })
     );
     this.stunBeamMesh.rotation.x = Math.PI / 2;
-    this.stunBeamMesh.position.set(0.32, -0.22, -6.5);
+    this.stunBeamMesh.position.set(0.24, -0.16, -6.5);
     this.stunBeamMesh.visible = false;
 
-    this.handGroup.add(torchBody, torchLens, gunBody, gunCore, this.stunBeamMesh);
+    this.handGroup.add(leftArm, torchBody, rightArm, gunBody, gunCore, this.stunBeamMesh);
     this.camera.add(this.handGroup);
 
-    // 3D Flashlight Spotlight
     this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 30, Math.PI / 4, 0.45, 1);
     this.flashTarget = new THREE.Object3D();
     this.scene.add(this.flashlight);
     this.scene.add(this.flashTarget);
     this.flashlight.target = this.flashTarget;
 
-    // Textured Concrete Floor & Walls
-    const floorTex = makeTexture('floor');
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
-      new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.8 })
+      new THREE.MeshStandardMaterial({ map: makeTexture('floor'), roughness: 0.8 })
     );
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
@@ -261,7 +289,6 @@ const Game3D = {
       this.scene.add(mesh);
     });
 
-    // Textured Hiding Lockers
     const lockerMat = new THREE.MeshStandardMaterial({ map: makeTexture('locker'), metalness: 0.5 });
     this.lockers.forEach(lk => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.4, 1.1), lockerMat);
@@ -269,24 +296,37 @@ const Game3D = {
       this.scene.add(mesh);
     });
 
-    // 3D Glowing Secret Notes
+    // Chapter 1: Glowing Cyan Power Fuse & Main Generator Box
+    const fuseMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    fuseMesh.position.set(fuseSpot.x, 1.1, fuseSpot.z);
+    this.scene.add(fuseMesh);
+    const fuseGlow = new THREE.PointLight(0x38bdf8, 2.2, 7);
+    fuseGlow.position.set(fuseSpot.x, 1.5, fuseSpot.z);
+    this.scene.add(fuseGlow);
+    this.fuseObj = { x: fuseSpot.x, z: fuseSpot.z, mesh: fuseMesh, light: fuseGlow, picked: false };
+
+    this.generatorMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 2.2, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x475569, emissive: 0x7f1d1d })
+    );
+    this.generatorMesh.position.set(this.generatorPos.x, 1.1, this.generatorPos.z);
+    this.scene.add(this.generatorMesh);
+
+    // Chapter 2: Dr. Verma's 3 Story Logs
     const logs = [
-      'जनरेटर ओवरराइड लॉग #1: पहले सिक्योरिटी गेट का पासवर्ड नीचे है:',
-      'सावधान! Shadow Hunter पास आए तो ⚡ STUN बटन से उसे 5 सेकंड के लिए फ्रीज़ कर दें! गेट #2 कोड:',
-      'नीले मेटल लॉकर के पास जाकर USE दबाने से आप छुप सकते हैं! गेट #3 कोड:'
+      'Dr. Verma (14 Oct 1998): "Subject-0 अब इंसान नहीं रहा! वह रोशनी से चिढ़ता है। मैंने मेन एग्ज़िट लॉक #1 का कोड नीचे लिखा है:"',
+      'Dr. Verma (15 Oct 1998): "हमारी Pulse Stun Gun उसे केवल 5 सेकंड के लिए रोक पाती है! सिक्योरिटी लॉक #2 का कोड:"',
+      'Dr. Verma (16 Oct 1998): "तीनों लॉक खुलते ही लैब का Self-Destruct सिस्टम चालू हो जाएगा—60 सेकंड में लिफ्ट तक भागना होगा! लॉक #3 कोड:"'
     ];
     this.notes = noteSpots.map((pos, i) => {
-      const ped = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ map: wallTex })
-      );
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: wallTex }));
       ped.position.set(pos.x, 0.5, pos.z);
       this.scene.add(ped);
 
-      const paper = new THREE.Mesh(
-        new THREE.BoxGeometry(0.55, 0.08, 0.7),
-        new THREE.MeshBasicMaterial({ color: 0xfacc15 })
-      );
+      const paper = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.7), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
       paper.position.set(pos.x, 1.08, pos.z);
       this.scene.add(paper);
 
@@ -294,22 +334,22 @@ const Game3D = {
       glow.position.set(pos.x, 1.6, pos.z);
       this.scene.add(glow);
 
-      return { id: i, x: pos.x, z: pos.z, mesh: paper, found: false, title: `SECRET FILE #${i + 1}`, text: logs[i], code: this.codes[i] };
+      return { id: i, x: pos.x, z: pos.z, mesh: paper, found: false, title: `DR. VERMA LOG #${i + 1}`, text: logs[i], code: this.codes[i] };
     });
 
-    // 3D Security Terminals
+    // Security Terminals
     const termCoords = [{ x: -19, z: 19 }, { x: 0, z: -21 }, { x: 19, z: 19 }];
     this.terminals = termCoords.map((pos, i) => {
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(1.2, 2.1, 0.8),
-        new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0x7c2d12 })
+        new THREE.MeshStandardMaterial({ color: 0x334155 })
       );
       mesh.position.set(pos.x, 1.05, pos.z);
       this.scene.add(mesh);
       return { id: i, x: pos.x, z: pos.z, unlocked: false, mesh };
     });
 
-    // Exit Gate Portal
+    // Extraction Lift Portal
     this.exitMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(1.8, 1.8, 3.6, 16, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
@@ -317,7 +357,7 @@ const Game3D = {
     this.exitMesh.position.set(this.exitPos.x, 1.8, this.exitPos.z);
     this.scene.add(this.exitMesh);
 
-    // 3D Shadow Hunter
+    // Subject-0 (Shadow Hunter)
     const hunterGroup = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.45, 0.65, 2.6, 12),
@@ -346,6 +386,20 @@ const Game3D = {
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
+  },
+
+  restorePower() {
+    if (this.powerRestored) return;
+    this.powerRestored = true;
+    this.generatorMesh.material.emissive.setHex(0x16a34a);
+    this.terminals.forEach(t => {
+      t.mesh.material.color.setHex(0xf97316);
+      t.mesh.material.emissive.setHex(0x7c2d12);
+    });
+    document.getElementById('locks-status').textContent = '🔒 0/3';
+    document.getElementById('objective-banner').textContent = 'CHAPTER 2: Dr. Verma के 3 लॉग्स ढूंढें और टर्मिनल खोलें';
+    SFX.tone(660, 'triangle', 0.3, 0.14);
+    this.showRadioToast('SYSTEM', '⚡ जनरेटर चालू! अब तीनों सिक्योरिटी टर्मिनल अनलॉक करें!');
   },
 
   setupControls() {
@@ -401,26 +455,24 @@ const Game3D = {
       }
     }, { passive: true });
 
-    // Pulse Stun Gun Fire!
     document.getElementById('stun-btn').addEventListener('click', () => {
       SFX.init();
       const me = Net.players[Net.myId];
       if (!me || me.downed || me.hiding || this.stunCharges <= 0) return;
 
       this.stunCharges--;
-      document.getElementById('stun-status').textContent = `⚡ ${this.stunCharges}/3`;
+      document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/3`;
       SFX.stunZap();
 
       this.stunBeamMesh.visible = true;
       setTimeout(() => { this.stunBeamMesh.visible = false; }, 220);
 
-      // Check if Shadow Hunter is in front within 13 meters
       const dist = Math.hypot(this.hunter.x - me.x, this.hunter.z - me.z);
       if (dist < 13) {
         this.hunter.stunnedUntil = performance.now() + 5000;
-        this.showRadioToast('STUN GUN', '⚡ Shadow Hunter 5 सेकंड के लिए फ्रीज़ हो गया! भागो!');
+        this.showRadioToast('STUN GUN', '⚡ Subject-0 5 सेकंड के लिए फ्रीज़ हो गया!');
       } else {
-        this.showRadioToast('STUN GUN', '⚡ निशाना चूक गया! पास आने पर चलाएं!');
+        this.showRadioToast('STUN GUN', '⚡ निशाना चूक गया!');
       }
     });
 
@@ -443,11 +495,11 @@ const Game3D = {
       const me = Net.players[Net.myId];
       if (!me || me.downed) return;
 
+      // 1. Locker Hide
       if (me.hiding) {
         me.hiding = false;
         me.torch = true;
         this.flashlight.visible = true;
-        document.getElementById('objective-banner').textContent = 'लॉकर से बाहर आ गए';
         return;
       }
       for (const lk of this.lockers) {
@@ -455,11 +507,36 @@ const Game3D = {
           me.hiding = true;
           me.torch = false;
           this.flashlight.visible = false;
-          document.getElementById('objective-banner').textContent = '🔒 लॉकर में छुपे हैं';
+          this.showRadioToast('STEALTH', '🔒 आप मेटल लॉकर के अंदर छुप गए हैं');
           return;
         }
       }
 
+      // 2. Pick Up Power Fuse
+      if (this.fuseObj && !this.fuseObj.picked && Math.hypot(this.fuseObj.x - me.x, this.fuseObj.z - me.z) < 2.8) {
+        this.fuseObj.picked = true;
+        this.fuseObj.mesh.visible = false;
+        this.fuseObj.light.visible = false;
+        this.hasFuse = true;
+        SFX.tone(780, 'sine', 0.15, 0.1);
+        document.getElementById('objective-banner').textContent = '🔋 फ्यूज़ मिल गया! अब मेन जनरेटर पर जाकर USE दबाएं';
+        this.showRadioToast('MISSION', '🔋 Power Fuse उठा लिया! जनरेटर पर लगाएं!');
+        return;
+      }
+
+      // 3. Install Fuse into Generator
+      if (!this.powerRestored && Math.hypot(this.generatorPos.x - me.x, this.generatorPos.z - me.z) < 3) {
+        if (this.hasFuse) {
+          this.restorePower();
+          if (Net.isHost) Net.broadcast({ type: 'POWER_ON' });
+          else Net.sendToHost({ type: 'POWER_ON' });
+        } else {
+          this.showRadioToast('GENERATOR', '❌ जनरेटर खाली है! पहले नीला Power Fuse ढूंढें!');
+        }
+        return;
+      }
+
+      // 4. Read Dr. Verma's Diary Log
       for (const n of this.notes) {
         if (Math.hypot(n.x - me.x, n.z - me.z) < 2.8) {
           n.found = true;
@@ -469,12 +546,11 @@ const Game3D = {
           document.getElementById('note-body').textContent = n.text;
           document.getElementById('note-code-reveal').textContent = n.code;
           document.getElementById('note-modal').classList.remove('hidden');
-          const count = this.notes.filter(x => x.found).length;
-          document.getElementById('objective-banner').textContent = `📄 Notes मिले: ${count}/3`;
           return;
         }
       }
 
+      // 5. Revive Teammate
       for (const p of Object.values(Net.players)) {
         if (p.id !== Net.myId && p.downed && Math.hypot(p.x - me.x, p.z - me.z) < 3) {
           p.downed = false;
@@ -484,8 +560,13 @@ const Game3D = {
         }
       }
 
+      // 6. Security Terminal Keypad
       this.terminals.forEach((t, idx) => {
         if (!t.unlocked && Math.hypot(t.x - me.x, t.z - me.z) < 3) {
+          if (!this.powerRestored) {
+            this.showRadioToast('TERMINAL', '⚠️ बिजली बंद है! पहले जनरेटर चालू करें!');
+            return;
+          }
           this.activeLockIdx = idx;
           this.enteredPin = '';
           document.getElementById('puzzle-title').textContent = `SECURITY TERMINAL #${idx + 1}`;
@@ -549,10 +630,16 @@ const Game3D = {
     }
     const count = this.terminals.filter(x => x.unlocked).length;
     document.getElementById('locks-status').textContent = `🔒 ${count}/3`;
-    this.showRadioToast('SYSTEM', `🔓 Security Terminal #${idx + 1} खुल गया!`);
-    if (count === 3 && this.exitMesh) {
-      this.exitMesh.material.color.setHex(0x22c55e);
-      document.getElementById('objective-banner').textContent = '🚪 EXIT GATE खुल गया! हरे पोर्टल में भागें!';
+    this.showRadioToast('SYSTEM', `🔓 Security Lock #${idx + 1} अनलॉक हो गया!`);
+
+    // Trigger Chapter 3: 60-Second Self-Destruct Final Escape!
+    if (count === 3 && !this.selfDestructActive) {
+      this.selfDestructActive = true;
+      this.lastTick = performance.now();
+      document.getElementById('timer-badge').classList.remove('hidden');
+      if (this.exitMesh) this.exitMesh.material.color.setHex(0x22c55e);
+      document.getElementById('objective-banner').textContent = '☢️ CHAPTER 3: SELF-DESTRUCT शुरू! 60 सेकंड में लिफ्ट तक भागो!';
+      SFX.siren();
     }
   },
 
@@ -574,49 +661,49 @@ const Game3D = {
     const rc = document.getElementById('radar-canvas');
     if (!rc) return;
     const ctx = rc.getContext('2d');
-    const r = 55;
-    ctx.clearRect(0, 0, 110, 110);
+    const r = 53;
+    ctx.clearRect(0, 0, 106, 106);
 
-    // Radar sweep line
     this.radarAngle += 0.05;
     ctx.strokeStyle = 'rgba(34, 197, 94, 0.25)';
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(r, r, 24, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(r, r, 46, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r, r, 23, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r, r, 45, 0, Math.PI * 2); ctx.stroke();
 
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
     ctx.beginPath();
     ctx.moveTo(r, r);
-    ctx.lineTo(r + Math.cos(this.radarAngle) * 52, r + Math.sin(this.radarAngle) * 52);
+    ctx.lineTo(r + Math.cos(this.radarAngle) * 50, r + Math.sin(this.radarAngle) * 50);
     ctx.stroke();
 
-    // Helper to project relative world coords onto rotated radar
     const plot = (wx, wz, color, size = 3.5) => {
       const dx = wx - me.x;
       const dz = wz - me.z;
       const cos = Math.cos(me.yaw);
       const sin = Math.sin(me.yaw);
-      const rx = (dx * cos - dz * sin) * 2.1;
-      const rz = (dx * sin + dz * cos) * 2.1;
-      if (Math.hypot(rx, rz) > 48) return;
+      const rx = (dx * cos - dz * sin) * 2.0;
+      const rz = (dx * sin + dz * cos) * 2.0;
+      if (Math.hypot(rx, rz) > 46) return;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(r + rx, r + rz, size, 0, Math.PI * 2);
       ctx.fill();
     };
 
-    // Plot unfound Secret Notes (Yellow)
-    this.notes.forEach(n => { if (!n.found) plot(n.x, n.z, '#facc15', 3); });
-    // Plot Terminals (Orange)
-    this.terminals.forEach(t => { if (!t.unlocked) plot(t.x, t.z, '#fb923c', 3); });
-    // Plot Teammates (Cyan)
+    if (!this.powerRestored) {
+      if (this.fuseObj && !this.fuseObj.picked) plot(this.fuseObj.x, this.fuseObj.z, '#38bdf8', 4);
+      plot(this.generatorPos.x, this.generatorPos.z, '#f43f5e', 4);
+    } else {
+      this.notes.forEach(n => { if (!n.found) plot(n.x, n.z, '#facc15', 3); });
+      this.terminals.forEach(t => { if (!t.unlocked) plot(t.x, t.z, '#fb923c', 3); });
+    }
+    if (this.selfDestructActive) plot(this.exitPos.x, this.exitPos.z, '#4ade80', 5);
+
     Object.values(Net.players).forEach(p => { if (p.id !== Net.myId) plot(p.x, p.z, '#38bdf8', 3.5); });
-    // Plot Shadow Hunter (Blinking Red)
     if (Math.sin(performance.now() * 0.012) > -0.3) {
       plot(this.hunter.x, this.hunter.z, '#ef4444', 4.5);
     }
 
-    // Center Player Triangle
     ctx.fillStyle = '#4ade80';
     ctx.beginPath();
     ctx.moveTo(r, r - 5);
@@ -629,6 +716,21 @@ const Game3D = {
   update() {
     const me = Net.players[Net.myId];
     if (!me) return;
+
+    // 60-Second Self-Destruct Countdown
+    if (this.selfDestructActive) {
+      const now = performance.now();
+      if (now - this.lastTick >= 1000) {
+        this.lastTick = now;
+        this.escapeTimeLeft--;
+        document.getElementById('timer-badge').textContent = `☢️ ${this.escapeTimeLeft}s`;
+        if (this.escapeTimeLeft % 5 === 0) SFX.siren();
+        if (this.escapeTimeLeft <= 0 && Net.isHost) {
+          Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'समय खत्म! Sector-09 बंकर Self-Destruct में तबाह हो गया!' });
+          this.triggerEnd(false, 'समय खत्म! Sector-09 बंकर Self-Destruct में तबाह हो गया!');
+        }
+      }
+    }
 
     if (!me.downed && !me.hiding && this.joy.active) {
       const speed = (this.sprinting ? 0.14 : 0.085) * (me.role === 'SCOUT' ? 1.15 : 1);
@@ -652,7 +754,6 @@ const Game3D = {
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = me.yaw;
 
-    // Weapon & Torch Sway
     if (this.handGroup) {
       this.handGroup.position.y = Math.sin(this.bobTimer) * 0.015;
       this.handGroup.position.x = Math.cos(this.bobTimer * 0.5) * 0.015;
@@ -666,14 +767,16 @@ const Game3D = {
     );
 
     const nearSomething =
+      (this.fuseObj && !this.fuseObj.picked && Math.hypot(this.fuseObj.x - me.x, this.fuseObj.z - me.z) < 2.8) ||
+      (!this.powerRestored && Math.hypot(this.generatorPos.x - me.x, this.generatorPos.z - me.z) < 3) ||
       this.notes.some(n => Math.hypot(n.x - me.x, n.z - me.z) < 2.8) ||
       this.terminals.some(t => !t.unlocked && Math.hypot(t.x - me.x, t.z - me.z) < 3) ||
       this.lockers.some(lk => Math.hypot(lk.x - me.x, lk.z - me.z) < 2.6);
     document.getElementById('interact-hint').classList.toggle('hidden', !nearSomething);
 
+    if (this.fuseObj && this.fuseObj.mesh) this.fuseObj.mesh.rotation.y += 0.05;
     this.notes.forEach(n => { if (n.mesh) n.mesh.rotation.y += 0.03; });
 
-    // Host updates 3D Shadow Hunter AI (respects Stun Freeze!)
     const isStunned = performance.now() < this.hunter.stunnedUntil;
     if (Net.isHost && !isStunned) {
       let nearest = null;
@@ -682,7 +785,7 @@ const Game3D = {
       Object.values(Net.players).forEach(p => {
         if (p.downed || p.hiding) return;
         const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
-        const range = p.torch ? 16 : 7;
+        const range = this.selfDestructActive ? 28 : (p.torch ? 16 : 7);
         if (d < range && d < minDist) {
           minDist = d;
           nearest = p;
@@ -691,8 +794,9 @@ const Game3D = {
 
       if (nearest) {
         this.hunter.yaw = Math.atan2(nearest.x - this.hunter.x, nearest.z - this.hunter.z);
-        const hx = this.hunter.x + Math.sin(this.hunter.yaw) * 0.082;
-        const hz = this.hunter.z + Math.cos(this.hunter.yaw) * 0.082;
+        const hSpeed = this.selfDestructActive ? 0.095 : 0.08;
+        const hx = this.hunter.x + Math.sin(this.hunter.yaw) * hSpeed;
+        const hz = this.hunter.z + Math.cos(this.hunter.yaw) * hSpeed;
         if (!this.collides3D(hx, this.hunter.z, 0.7)) this.hunter.x = hx;
         if (!this.collides3D(this.hunter.x, hz, 0.7)) this.hunter.z = hz;
 
@@ -712,15 +816,15 @@ const Game3D = {
 
       const allPlayers = Object.values(Net.players);
       if (allPlayers.length > 0 && allPlayers.every(p => p.downed)) {
-        Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'Shadow Hunter ने पूरी टीम को पकड़ लिया!' });
-        this.triggerEnd(false, 'Shadow Hunter ने पूरी टीम को पकड़ लिया!');
+        Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'Subject-0 ने पूरी रेस्क्यू टीम को खत्म कर दिया!' });
+        this.triggerEnd(false, 'Subject-0 ने पूरी रेस्क्यू टीम को खत्म कर दिया!');
       }
 
       const allUnlocked = this.terminals.every(t => t.unlocked);
       const atExit = allPlayers.some(p => !p.downed && Math.hypot(p.x - this.exitPos.x, p.z - this.exitPos.z) < 2.6);
       if (allUnlocked && atExit) {
-        Net.broadcast({ type: 'GAMEOVER', win: true, reason: 'सभी 3D लॉक खुल गए और टीम सुरक्षित बाहर निकल गई!' });
-        this.triggerEnd(true, 'सभी 3D लॉक खुल गए और टीम सुरक्षित बाहर निकल गई!');
+        Net.broadcast({ type: 'GAMEOVER', win: true, reason: 'शाबाश! आपकी टीम ने Sector-09 का रहस्य सुलझाया और आखिरी सेकंड में बच निकले!' });
+        this.triggerEnd(true, 'शाबाश! आपकी टीम ने Sector-09 का रहस्य सुलझाया और आखिरी सेकंड में बच निकले!');
       }
 
       Net.broadcast({ type: 'STATE', players: Net.players, hunter: { x: this.hunter.x, z: this.hunter.z, yaw: this.hunter.yaw } });
@@ -760,10 +864,10 @@ const Game3D = {
 
     const distToHunter = Math.hypot(me.x - this.hunter.x, me.z - this.hunter.z);
     const overlay = document.getElementById('danger-overlay');
-    if (distToHunter < 14 && !me.hiding && !isStunned) {
-      const intensity = Math.floor((1 - distToHunter / 14) * 110);
+    if ((distToHunter < 14 && !me.hiding && !isStunned) || this.selfDestructActive) {
+      const intensity = this.selfDestructActive ? 85 : Math.floor((1 - distToHunter / 14) * 110);
       overlay.style.boxShadow = `inset 0 0 ${intensity}px rgba(220, 38, 38, 0.9)`;
-      SFX.heartbeat(distToHunter);
+      if (distToHunter < 14 && !me.hiding && !isStunned) SFX.heartbeat(distToHunter);
     } else {
       overlay.style.boxShadow = 'none';
     }
@@ -771,7 +875,7 @@ const Game3D = {
 
   triggerEnd(win, reason) {
     this.running = false;
-    document.getElementById('end-title').textContent = win ? '🎉 3D BUNKER ESCAPED!' : '💀 SQUAD ELIMINATED';
+    document.getElementById('end-title').textContent = win ? '🚁 SECTOR-09 ESCAPED!' : '💀 MISSION FAILED';
     document.getElementById('end-title').style.color = win ? '#4ade80' : '#ef4444';
     document.getElementById('end-desc').textContent = reason;
     document.getElementById('end-modal').classList.remove('hidden');
