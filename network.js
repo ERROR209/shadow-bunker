@@ -32,11 +32,13 @@ const Net = {
         name: this.myName,
         role: this.roles[0],
         color: this.colors[0],
-        x: 160,
-        y: 160,
+        x: 150,
+        y: 150,
         angle: 0,
         torch: true,
-        downed: false
+        hiding: false,
+        downed: false,
+        walkPhase: 0
       };
       this.updateLobbyUI();
     });
@@ -89,11 +91,13 @@ const Net = {
         name: data.name,
         role: this.roles[idx % 4],
         color: this.colors[idx % 4],
-        x: 160 + idx * 35,
-        y: 160,
+        x: 150 + idx * 32,
+        y: 150,
         angle: 0,
         torch: true,
-        downed: false
+        hiding: false,
+        downed: false,
+        walkPhase: 0
       };
       this.broadcast({ type: 'ROSTER', players: this.players });
       this.updateLobbyUI();
@@ -116,13 +120,13 @@ const Net = {
 
   handleClientData(data) {
     if (data.type === 'FULL') {
-      alert('यह बंकर रूम पहले से 4 खिलाड़ियों से भरा है!');
+      alert('यह बंकर 4 खिलाड़ियों से भरा है!');
       location.reload();
     } else if (data.type === 'ROSTER') {
       this.players = data.players;
       this.updateLobbyUI();
     } else if (data.type === 'START') {
-      Game.start(data.codes, data.myClue);
+      Game.start(data.codes, data.notePositions);
     } else if (data.type === 'STATE') {
       Object.keys(data.players).forEach(pid => {
         if (pid !== this.myId) {
@@ -133,6 +137,8 @@ const Net = {
       });
       Game.hunter.x = data.hunter.x;
       Game.hunter.y = data.hunter.y;
+      Game.hunter.angle = data.hunter.angle;
+      Game.hunter.chasing = data.hunter.chasing;
     } else if (data.type === 'UNLOCK') {
       Game.unlockTerminal(data.lockIdx);
     } else if (data.type === 'RADIO') {
@@ -174,14 +180,13 @@ const Net = {
 };
 
 document.getElementById('create-room-btn').addEventListener('click', () => {
-  const name = document.getElementById('player-name').value.trim();
-  Net.createRoom(name);
+  Net.createRoom(document.getElementById('player-name').value.trim());
 });
 
 document.getElementById('join-room-btn').addEventListener('click', () => {
   const name = document.getElementById('player-name').value.trim();
   const code = document.getElementById('room-code-input').value.trim();
-  if (code.length < 4) return alert('कृपया 4-अंकों का सही Bunker Code डालें!');
+  if (code.length < 4) return alert('4-अंकों का कोड डालें!');
   Net.joinRoom(code, name);
 });
 
@@ -198,17 +203,15 @@ document.getElementById('start-game-btn').addEventListener('click', () => {
     String(Math.floor(100 + Math.random() * 900))
   ];
 
-  const playerIds = Object.keys(Net.players);
-  playerIds.forEach((pid, idx) => {
-    const clueText = playerIds.length === 1
-      ? `LOCK #1:${codes[0]} | #2:${codes[1]} | #3:${codes[2]}`
-      : `LOCK #${(idx % 3) + 1} CODE: ${codes[idx % 3]}`;
+  // Randomize where the 3 Secret Notes are hidden inside bunker rooms!
+  const spotPool = [
+    { x: 110, y: 580 }, { x: 250, y: 310 }, { x: 480, y: 120 },
+    { x: 580, y: 650 }, { x: 890, y: 120 }, { x: 1260, y: 460 },
+    { x: 1120, y: 900 }, { x: 430, y: 890 }
+  ].sort(() => Math.random() - 0.5);
 
-    if (pid === Net.myId) {
-      Game.start(codes, clueText);
-    } else {
-      const conn = Net.connections.find(c => c.peer === pid);
-      if (conn && conn.open) conn.send({ type: 'START', codes, myClue: clueText });
-    }
-  });
+  const notePositions = [spotPool[0], spotPool[1], spotPool[2]];
+
+  Game.start(codes, notePositions);
+  Net.broadcast({ type: 'START', codes, notePositions });
 });

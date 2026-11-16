@@ -3,66 +3,71 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SHADOW BUNKER | 1-4 Player Co-Op Escape Thriller</title>
+  <title>SHADOW BUNKER // Tactical Co-Op Escape</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
+  <!-- LOBBY SCREEN -->
   <section id="lobby-screen" class="screen active">
     <div class="lobby-card">
-      <div class="badge-top">CO-OP ESCAPE THRILLER // 1–4 PLAYERS</div>
+      <div class="badge-top">CLASSIFIED // 1–4 PLAYER CO-OP THRILLER</div>
       <h1>SHADOW <span>BUNKER</span></h1>
-      <p class="subtitle">अंधेरे बंकर से बाहर निकलें। अपनी टॉर्च संभालें, 3 सीक्रेट लॉक तोड़ें और <strong>Shadow Hunter</strong> से बचें!</p>
+      <p class="subtitle">अंधेरे बंकर के कमरों में छुपे <strong>3 Secret Notes</strong> ढूंढें, पासवर्ड डिकोड करें, और <strong>Shadow Hunter</strong> से बचकर बाहर निकलें।</p>
 
-      <input type="text" id="player-name" placeholder="अपना नाम लिखें (जैसे: Shadow)" maxlength="12" />
+      <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
 
       <div id="lobby-actions" class="action-grid">
         <button id="create-room-btn" class="btn primary">➕ CREATE BUNKER</button>
         <div class="join-row">
-          <input type="text" id="room-code-input" placeholder="4-DIGIT CODE" maxlength="4" />
+          <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
           <button id="join-room-btn" class="btn secondary">JOIN</button>
         </div>
       </div>
 
       <div id="waiting-room" class="waiting-box hidden">
         <div class="code-banner">
-          <span>BUNKER CODE:</span>
+          <span>ROOM CODE:</span>
           <strong id="display-code">----</strong>
           <button id="copy-code-btn" class="mini-btn">COPY</button>
         </div>
 
         <div class="squad-header">
-          <span>SQUAD ROSTER (<span id="player-count">1</span>/4)</span>
-          <span class="flex-note">3 या 4 खिलाड़ियों से कभी भी शुरू करें</span>
+          <span>SQUAD (<span id="player-count">1</span>/4)</span>
+          <span class="flex-note">1 से 4 खिलाड़ी — कभी भी शुरू करें</span>
         </div>
         <ul id="squad-list" class="squad-list"></ul>
 
-        <button id="start-game-btn" class="btn start-btn">🚀 START MISSION NOW</button>
-        <p id="wait-msg" class="wait-msg hidden">Host के मिशन शुरू करने का इंतज़ार करें...</p>
+        <button id="start-game-btn" class="btn start-btn">🚀 ENTER THE BUNKER</button>
+        <p id="wait-msg" class="wait-msg hidden">Host के दरवाज़ा खोलने का इंतज़ार करें...</p>
       </div>
     </div>
   </section>
 
+  <!-- GAME SCREEN -->
   <section id="game-screen" class="screen hidden">
     <canvas id="game-canvas"></canvas>
     <div id="danger-overlay" class="danger-overlay"></div>
 
+    <!-- Clean Minimal HUD (No Free Codes!) -->
     <header class="game-hud">
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
-        <span id="locks-status" class="locks-badge">🔒 LOCKS: 0 / 3</span>
+        <span id="locks-status" class="locks-badge">🔒 LOCKS: 0/3</span>
       </div>
-      <div id="clue-banner" class="clue-banner">आपका सीक्रेट कोड: <strong>---</strong></div>
+      <div id="objective-banner" class="clue-banner">कमरों में छुपे 3 Secret Notes ढूंढें</div>
     </header>
 
+    <!-- Quick Walkie-Talkie -->
     <div class="radio-bar">
-      <button class="radio-btn" data-msg="⚠️ खतरा पास है! टॉर्च बंद करो!">⚠️ Danger!</button>
-      <button class="radio-btn" data-msg="🔑 मुझे सीक्रेट कोड मिल गया है!">🔑 Found Code</button>
-      <button class="radio-btn" data-msg="🆘 मेरी मदद करो / Revive!">🆘 Help Me</button>
-      <button class="radio-btn" data-msg="🚪 एग्ज़िट गेट पर आओ!">🚪 Exit Gate</button>
+      <button class="radio-btn" data-msg="⚠️ खतरा पास है! टॉर्च बंद करके लॉकर में छुपो!">⚠️ Hide!</button>
+      <button class="radio-btn" data-msg="📄 मुझे एक Secret Note मिल गया है!">📄 Found Note</button>
+      <button class="radio-btn" data-msg="🆘 मैं घायल हूँ! मुझे Revive करो!">🆘 Revive Me</button>
+      <button class="radio-btn" data-msg="🚪 सभी लॉक खुल गए, Exit Gate पर आओ!">🚪 Escape!</button>
     </div>
     <div id="radio-toast" class="radio-toast hidden"></div>
 
+    <!-- Touch Controls -->
     <div id="joystick-zone" class="joystick-zone">
       <div id="joystick-base" class="joystick-base">
         <div id="joystick-stick" class="joystick-stick"></div>
@@ -70,14 +75,27 @@
     </div>
 
     <div class="action-buttons">
+      <button id="sprint-btn" class="ctrl-btn sprint">⚡<br><small>RUN</small></button>
       <button id="torch-btn" class="ctrl-btn torch-on">🔦<br><small>TORCH</small></button>
       <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>
     </div>
 
+    <!-- Secret Note / Clue Reader Modal -->
+    <div id="note-modal" class="modal hidden">
+      <div class="modal-box paper-box">
+        <div class="paper-stamp">TOP SECRET // BUNKER LOG</div>
+        <h3 id="note-title">CLASSIFIED NOTE #1</h3>
+        <p id="note-body" class="note-text">...</p>
+        <div id="note-code-reveal" class="code-reveal">---</div>
+        <button id="close-note-btn" class="btn primary" style="width:100%">याद रख लिया (CLOSE)</button>
+      </div>
+    </div>
+
+    <!-- Keypad Puzzle Modal -->
     <div id="puzzle-modal" class="modal hidden">
       <div class="modal-box">
-        <h3 id="puzzle-title">SECURITY LOCK #1</h3>
-        <p id="puzzle-hint">अपने साथी से इस टर्मिनल का 3-अंकों का कोड पूछें!</p>
+        <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
+        <p id="puzzle-hint">बंकर के कमरों में मिले Note का 3-अंकों का कोड डालें</p>
         <div id="keypad-display" class="keypad-display">_ _ _</div>
         <div class="keypad-grid">
           <button class="key">1</button><button class="key">2</button><button class="key">3</button>
@@ -88,11 +106,12 @@
       </div>
     </div>
 
+    <!-- End Screen -->
     <div id="end-modal" class="modal hidden">
       <div class="modal-box">
-        <h2 id="end-title">MISSION COMPLETE!</h2>
-        <p id="end-desc">आपकी टीम बंकर से सुरक्षित बाहर निकल गई।</p>
-        <button onclick="location.reload()" class="btn primary">🔄 PLAY AGAIN</button>
+        <h2 id="end-title">MISSION COMPLETE</h2>
+        <p id="end-desc">...</p>
+        <button onclick="location.reload()" class="btn primary" style="width:100%">🔄 PLAY AGAIN</button>
       </div>
     </div>
   </section>
