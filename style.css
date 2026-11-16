@@ -198,7 +198,6 @@ input[type="text"] {
   display: none;
 }
 
-/* 3D CANVAS & HUD */
 #three-container {
   position: fixed;
   inset: 0;
@@ -223,9 +222,8 @@ input[type="text"] {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 1.2rem;
-  font-weight: 300;
+  color: rgba(56, 189, 248, 0.75);
+  font-size: 1.3rem;
   pointer-events: none;
   z-index: 10;
 }
@@ -235,7 +233,7 @@ input[type="text"] {
   top: 56%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.88);
   border: 1px solid #4ade80;
   color: #4ade80;
   padding: 6px 14px;
@@ -265,30 +263,42 @@ input[type="text"] {
 
 .hud-left {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
-.role-badge, .locks-badge, .clue-banner {
-  background: rgba(8, 12, 22, 0.82);
+.role-badge, .locks-badge, .stun-badge, .clue-banner {
+  background: rgba(8, 12, 22, 0.84);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 8px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
-.role-badge {
-  color: #38bdf8;
-}
+.role-badge { color: #38bdf8; }
+.locks-badge { color: #fb923c; }
+.stun-badge { color: #c084fc; }
 
-.locks-badge {
-  color: #fb923c;
+/* Live Motion Radar */
+.radar-wrap {
+  position: fixed;
+  top: 86px;
+  right: 12px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(34, 197, 94, 0.65);
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.3);
+  background: rgba(2, 12, 8, 0.85);
+  z-index: 16;
+  pointer-events: none;
 }
 
 .radio-bar {
   position: fixed;
-  top: 48px;
+  top: 46px;
   left: 10px;
   right: 10px;
   z-index: 15;
@@ -305,21 +315,21 @@ input[type="text"] {
   color: #e2e8f0;
   padding: 5px 10px;
   border-radius: 14px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
 }
 
 .radio-toast {
   position: fixed;
   top: 86px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
   z-index: 20;
   background: rgba(220, 38, 38, 0.94);
   color: #fff;
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 0.75rem;
   font-weight: 700;
+  max-width: 210px;
 }
 
 .radio-toast.hidden {
@@ -329,9 +339,9 @@ input[type="text"] {
 .joystick-zone {
   position: fixed;
   bottom: 22px;
-  left: 20px;
-  width: 118px;
-  height: 118px;
+  left: 18px;
+  width: 114px;
+  height: 114px;
   z-index: 20;
 }
 
@@ -345,44 +355,50 @@ input[type="text"] {
 }
 
 .joystick-stick {
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   background: rgba(56, 189, 248, 0.85);
   border-radius: 50%;
   position: absolute;
-  top: 34px;
-  left: 34px;
+  top: 33px;
+  left: 33px;
 }
 
 .action-buttons {
   position: fixed;
-  bottom: 24px;
-  right: 16px;
+  bottom: 22px;
+  right: 14px;
   z-index: 20;
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 58px);
+  gap: 8px;
 }
 
 .ctrl-btn {
-  width: 62px;
-  height: 62px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.24);
-  background: rgba(10, 15, 28, 0.86);
+  background: rgba(10, 15, 28, 0.88);
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .ctrl-btn small {
-  font-size: 0.56rem;
-  letter-spacing: 0.8px;
+  font-size: 0.54rem;
+  letter-spacing: 0.6px;
+}
+
+.ctrl-btn.stun {
+  border-color: #c084fc;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.35);
 }
 
 .ctrl-btn.torch-on {
   border-color: #facc15;
-  box-shadow: 0 0 15px rgba(250, 204, 21, 0.35);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
 }
 
 .ctrl-btn.interact {
@@ -393,7 +409,6 @@ input[type="text"] {
   border-color: #38bdf8;
 }
 
-/* MODALS */
 .modal {
   position: fixed;
   inset: 0;
@@ -434,17 +449,8 @@ input[type="text"] {
   margin-bottom: 8px;
 }
 
-.paper-box h3 {
-  color: #fbbf24;
-  margin-bottom: 8px;
-}
-
-.note-text {
-  font-size: 0.84rem;
-  color: #e7e5e4;
-  line-height: 1.45;
-  margin-bottom: 12px;
-}
+.paper-box h3 { color: #fbbf24; margin-bottom: 8px; }
+.note-text { font-size: 0.84rem; color: #e7e5e4; line-height: 1.45; margin-bottom: 12px; }
 
 .code-reveal {
   background: #0c0a09;
@@ -487,10 +493,5 @@ input[type="text"] {
   border-radius: 8px;
 }
 
-.key.clear {
-  background: #b45309;
-}
-
-.key.close {
-  background: #be123c;
-}
+.key.clear { background: #b45309; }
+.key.close { background: #be123c; }

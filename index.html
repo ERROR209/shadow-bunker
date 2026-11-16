@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SHADOW BUNKER 3D // First-Person Co-Op Horror</title>
+  <title>SHADOW BUNKER 3D // Tactical Horror Escape</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -12,9 +12,9 @@
   <!-- LOBBY SCREEN -->
   <section id="lobby-screen" class="screen active">
     <div class="lobby-card">
-      <div class="badge-top">3D FIRST-PERSON // 1–4 PLAYER CO-OP</div>
+      <div class="badge-top">3D TACTICAL HORROR // 1–4 PLAYERS</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">असली 3D बंकर में उतरें! <strong>3 चमकते Secret Notes</strong> ढूंढें, 3D टर्मिनल अनलॉक करें और <strong>Shadow Hunter</strong> से बचकर बाहर निकलें।</p>
+      <p class="subtitle">कंक्रीट बंकर में छुपे <strong>3 Secret Notes</strong> ढूंढें, <strong>Pulse Stun Gun</strong> से राक्षस को रोकें, और सभी लॉक खोलकर बाहर निकलें!</p>
 
       <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
 
@@ -58,31 +58,40 @@
     <header class="game-hud">
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
-        <span id="locks-status" class="locks-badge">🔒 LOCKS: 0/3</span>
+        <span id="locks-status" class="locks-badge">🔒 0/3</span>
+        <span id="stun-status" class="stun-badge">⚡ 3/3</span>
       </div>
-      <div id="objective-banner" class="clue-banner">कमरों में 3 Secret Notes ढूंढें</div>
+      <div id="objective-banner" class="clue-banner">3 Secret Notes ढूंढें</div>
     </header>
+
+    <!-- Live Motion Radar -->
+    <div class="radar-wrap">
+      <canvas id="radar-canvas" width="110" height="110"></canvas>
+    </div>
 
     <!-- Walkie-Talkie Radio -->
     <div class="radio-bar">
-      <button class="radio-btn" data-msg="⚠️ खतरा पास है! छिप जाओ!">⚠️ Danger!</button>
-      <button class="radio-btn" data-msg="📄 मुझे एक Secret Code मिल गया!">📄 Found Code</button>
-      <button class="radio-btn" data-msg="🆘 मैं घायल हूँ! मुझे Revive करो!">🆘 Help Me</button>
-      <button class="radio-btn" data-msg="🚪 Exit Gate खुल गया, भागो!">🚪 Escape!</button>
+      <button class="radio-btn" data-msg="⚠️ खतरा पास है! छिप जाओ!">⚠️ Danger</button>
+      <button class="radio-btn" data-msg="📄 मुझे एक Secret Code मिल गया!">📄 Code</button>
+      <button class="radio-btn" data-msg="🆘 मैं घायल हूँ! मुझे Revive करो!">🆘 Help</button>
+      <button class="radio-btn" data-msg="🚪 Exit Gate खुल गया, भागो!">🚪 Escape</button>
     </div>
     <div id="radio-toast" class="radio-toast hidden"></div>
 
-    <!-- Left Touch Move + Right Touch Camera Look Zone -->
+    <!-- Right-side Camera Look Touch Zone -->
     <div id="look-zone" class="look-zone"></div>
 
+    <!-- Left Virtual Joystick -->
     <div id="joystick-zone" class="joystick-zone">
       <div id="joystick-base" class="joystick-base">
         <div id="joystick-stick" class="joystick-stick"></div>
       </div>
     </div>
 
+    <!-- Tactical Action Buttons -->
     <div class="action-buttons">
-      <button id="sprint-btn" class="ctrl-btn sprint">⚡<br><small>RUN</small></button>
+      <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
+      <button id="sprint-btn" class="ctrl-btn sprint">🏃<br><small>RUN</small></button>
       <button id="torch-btn" class="ctrl-btn torch-on">🔦<br><small>TORCH</small></button>
       <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>
     </div>

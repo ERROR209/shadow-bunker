@@ -19,6 +19,11 @@ const SFX = {
     osc.start();
     osc.stop(this.ctx.currentTime + dur);
   },
+  stunZap() {
+    this.tone(880, 'sawtooth', 0.25, 0.16);
+    setTimeout(() => this.tone(420, 'square', 0.25, 0.14), 80);
+    navigator.vibrate?.([60, 40, 80]);
+  },
   step(sprinting) {
     const now = performance.now();
     if (now - this.lastStep < (sprinting ? 260 : 420)) return;
@@ -36,30 +41,83 @@ const SFX = {
   }
 };
 
+// Procedural Texture Generator (Creates real concrete, floor tiles & hazard stripes without external images)
+function makeTexture(type) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+
+  if (type === 'concrete') {
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 2800; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.16)';
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
+    }
+    // Horizontal bunker panel seams & rust streaks
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 252, 252);
+    ctx.beginPath(); ctx.moveTo(0, 128); ctx.lineTo(256, 128); ctx.stroke();
+    ctx.fillStyle = 'rgba(120, 53, 15, 0.25)';
+    ctx.fillRect(40, 128, 18, 95);
+    ctx.fillRect(190, 0, 14, 80);
+  } else if (type === 'floor') {
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(0, 0, 128, 128);
+    ctx.strokeRect(128, 128, 128, 128);
+    ctx.strokeRect(128, 0, 128, 128);
+    ctx.strokeRect(0, 128, 128, 128);
+    for (let i = 0; i < 1500; i++) {
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    }
+  } else if (type === 'locker') {
+    ctx.fillStyle = '#0369a1';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = '#0f172a';
+    for (let y = 30; y < 100; y += 14) ctx.fillRect(40, y, 176, 6);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(195, 120, 16, 36);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  if (type === 'floor') tex.repeat.set(16, 16);
+  if (type === 'concrete') tex.repeat.set(3, 1);
+  return tex;
+}
+
 const Game3D = {
   scene: null,
   camera: null,
   renderer: null,
   flashlight: null,
   flashTarget: null,
+  handGroup: null,
+  stunBeamMesh: null,
   running: false,
 
   codes: ['123', '456', '789'],
   activeLockIdx: -1,
   enteredPin: '',
   sprinting: false,
+  stunCharges: 3,
+  stunCooldown: 0,
   joy: { x: 0, y: 0, active: false },
   lookTouchId: null,
   lastLookX: 0,
 
-  // 3D Wall Boxes { x, z, w, d }
   wallBoxes: [
-    // Outer Perimeter (48x48 meters)
     { x: 0, z: -24, w: 48, d: 1.5 },
     { x: 0, z: 24, w: 48, d: 1.5 },
     { x: -24, z: 0, w: 1.5, d: 48 },
     { x: 24, z: 0, w: 1.5, d: 48 },
-    // Interior 3D Bunker Corridors & Rooms
     { x: -10, z: -12, w: 1.2, d: 18 },
     { x: -10, z: 12, w: 1.2, d: 16 },
     { x: 4, z: -15, w: 1.2, d: 14 },
@@ -78,10 +136,10 @@ const Game3D = {
   exitPos: { x: 20, z: -20 },
   exitMesh: null,
 
-  // 3D Shadow Hunter Monster
-  hunter: { x: 14, z: 14, yaw: 0, patrolAngle: 0, mesh: null },
+  hunter: { x: 14, z: 14, yaw: 0, patrolAngle: 0, stunnedUntil: 0, mesh: null },
   teammateMeshes: {},
   bobTimer: 0,
+  radarAngle: 0,
 
   start(codes, noteSpots) {
     this.codes = codes;
@@ -100,11 +158,12 @@ const Game3D = {
   initThree(noteSpots) {
     const container = document.getElementById('three-container');
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x060912);
-    this.scene.fog = new THREE.FogExp2(0x060912, 0.042);
+    this.scene.background = new THREE.Color(0x070b14);
+    this.scene.fog = new THREE.FogExp2(0x070b14, 0.036);
 
-    this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 60);
+    this.camera = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.1, 65);
     this.camera.position.set(Net.players[Net.myId].x, 1.65, Net.players[Net.myId].z);
+    this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -112,13 +171,12 @@ const Game3D = {
     container.innerHTML = '';
     container.appendChild(this.renderer.domElement);
 
-    // Ambient Bunker Visibility (So screen is never pitch black!)
-    const hemiLight = new THREE.HemisphereLight(0x334155, 0x0f172a, 0.85);
+    // Lighting
+    const hemiLight = new THREE.HemisphereLight(0x475569, 0x0f172a, 1.05);
     this.scene.add(hemiLight);
 
-    // Red Emergency Ceiling Lights across bunker
     [[-16, -16], [0, 0], [16, 16], [18, -18], [-16, 16]].forEach(([lx, lz]) => {
-      const pLight = new THREE.PointLight(0xdc2626, 2.2, 16);
+      const pLight = new THREE.PointLight(0xdc2626, 2.4, 18);
       pLight.position.set(lx, 3.6, lz);
       this.scene.add(pLight);
 
@@ -130,22 +188,62 @@ const Game3D = {
       this.scene.add(bulb);
     });
 
-    // Player's 3D Tactical Flashlight
-    this.flashlight = new THREE.SpotLight(0xfffbeb, 6.5, 28, Math.PI / 4.2, 0.45, 1);
+    // 3D First-Person Hands: Tactical Flashlight (Left) + Pulse Stun Gun (Right)
+    this.handGroup = new THREE.Group();
+
+    const torchBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.045, 0.32, 10),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 })
+    );
+    torchBody.rotation.x = Math.PI / 2;
+    torchBody.position.set(-0.32, -0.26, -0.48);
+
+    const torchLens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.042, 10),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    torchLens.position.set(-0.32, -0.26, -0.645);
+    torchLens.rotation.y = Math.PI;
+
+    const gunBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.09, 0.13, 0.38),
+      new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
+    );
+    gunBody.position.set(0.32, -0.26, -0.48);
+
+    const gunCore = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.04, 0.28),
+      new THREE.MeshBasicMaterial({ color: 0xa855f7 })
+    );
+    gunCore.position.set(0.32, -0.21, -0.48);
+
+    // Electric Stun Beam (Visible when firing!)
+    this.stunBeamMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.06, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.85 })
+    );
+    this.stunBeamMesh.rotation.x = Math.PI / 2;
+    this.stunBeamMesh.position.set(0.32, -0.22, -6.5);
+    this.stunBeamMesh.visible = false;
+
+    this.handGroup.add(torchBody, torchLens, gunBody, gunCore, this.stunBeamMesh);
+    this.camera.add(this.handGroup);
+
+    // 3D Flashlight Spotlight
+    this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 30, Math.PI / 4, 0.45, 1);
     this.flashTarget = new THREE.Object3D();
     this.scene.add(this.flashlight);
     this.scene.add(this.flashTarget);
     this.flashlight.target = this.flashTarget;
 
-    // Concrete Floor & Ceiling
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), floorMat);
+    // Textured Concrete Floor & Walls
+    const floorTex = makeTexture('floor');
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(50, 50),
+      new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.8 })
+    );
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
-
-    const grid = new THREE.GridHelper(48, 24, 0x334155, 0x0f172a);
-    grid.position.y = 0.01;
-    this.scene.add(grid);
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
@@ -155,32 +253,32 @@ const Game3D = {
     ceil.position.y = 4;
     this.scene.add(ceil);
 
-    // Build 3D Bunker Walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+    const wallTex = makeTexture('concrete');
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.75 });
     this.wallBoxes.forEach(b => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, 4, b.d), wallMat);
       mesh.position.set(b.x, 2, b.z);
       this.scene.add(mesh);
     });
 
-    // Build 3D Hiding Lockers
-    const lockerMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.5, roughness: 0.4 });
+    // Textured Hiding Lockers
+    const lockerMat = new THREE.MeshStandardMaterial({ map: makeTexture('locker'), metalness: 0.5 });
     this.lockers.forEach(lk => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.4, 1.1), lockerMat);
       mesh.position.set(lk.x, 1.2, lk.z);
       this.scene.add(mesh);
     });
 
-    // Build 3D Glowing Secret Notes on Pedestals
+    // 3D Glowing Secret Notes
     const logs = [
       'जनरेटर ओवरराइड लॉग #1: पहले सिक्योरिटी गेट का पासवर्ड नीचे है:',
-      'सावधान! Shadow Hunter रोशनी देखकर दौड़ता है। गेट #2 का कोड:',
-      'अगर वो पीछे पड़े तो नीले मेटल लॉकर के पास जाकर USE दबाएं! गेट #3 का कोड:'
+      'सावधान! Shadow Hunter पास आए तो ⚡ STUN बटन से उसे 5 सेकंड के लिए फ्रीज़ कर दें! गेट #2 कोड:',
+      'नीले मेटल लॉकर के पास जाकर USE दबाने से आप छुप सकते हैं! गेट #3 कोड:'
     ];
     this.notes = noteSpots.map((pos, i) => {
       const ped = new THREE.Mesh(
         new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0x475569 })
+        new THREE.MeshStandardMaterial({ map: wallTex })
       );
       ped.position.set(pos.x, 0.5, pos.z);
       this.scene.add(ped);
@@ -192,14 +290,14 @@ const Game3D = {
       paper.position.set(pos.x, 1.08, pos.z);
       this.scene.add(paper);
 
-      const glow = new THREE.PointLight(0xfacc15, 1.8, 6);
+      const glow = new THREE.PointLight(0xfacc15, 2, 7);
       glow.position.set(pos.x, 1.6, pos.z);
       this.scene.add(glow);
 
       return { id: i, x: pos.x, z: pos.z, mesh: paper, found: false, title: `SECRET FILE #${i + 1}`, text: logs[i], code: this.codes[i] };
     });
 
-    // Build 3D Security Terminals
+    // 3D Security Terminals
     const termCoords = [{ x: -19, z: 19 }, { x: 0, z: -21 }, { x: 19, z: 19 }];
     this.terminals = termCoords.map((pos, i) => {
       const mesh = new THREE.Mesh(
@@ -211,7 +309,7 @@ const Game3D = {
       return { id: i, x: pos.x, z: pos.z, unlocked: false, mesh };
     });
 
-    // Build 3D Exit Gate Portal
+    // Exit Gate Portal
     this.exitMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(1.8, 1.8, 3.6, 16, 1, true),
       new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
@@ -219,7 +317,7 @@ const Game3D = {
     this.exitMesh.position.set(this.exitPos.x, 1.8, this.exitPos.z);
     this.scene.add(this.exitMesh);
 
-    // Build 3D Shadow Hunter Monster (Tall Dark Figure + Glowing Red Eyes)
+    // 3D Shadow Hunter
     const hunterGroup = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.45, 0.65, 2.6, 12),
@@ -251,7 +349,6 @@ const Game3D = {
   },
 
   setupControls() {
-    // Left Thumb Virtual Joystick
     const zone = document.getElementById('joystick-zone');
     const stick = document.getElementById('joystick-stick');
     const maxR = 36;
@@ -285,7 +382,6 @@ const Game3D = {
       this.joy = { x: 0, y: 0, active: false };
     });
 
-    // Right Thumb Swipe Anywhere to Rotate 3D Camera (360° Look)
     const lookZone = document.getElementById('look-zone');
     lookZone.addEventListener('touchstart', (e) => {
       SFX.init();
@@ -305,12 +401,33 @@ const Game3D = {
       }
     }, { passive: true });
 
-    // Sprint
+    // Pulse Stun Gun Fire!
+    document.getElementById('stun-btn').addEventListener('click', () => {
+      SFX.init();
+      const me = Net.players[Net.myId];
+      if (!me || me.downed || me.hiding || this.stunCharges <= 0) return;
+
+      this.stunCharges--;
+      document.getElementById('stun-status').textContent = `⚡ ${this.stunCharges}/3`;
+      SFX.stunZap();
+
+      this.stunBeamMesh.visible = true;
+      setTimeout(() => { this.stunBeamMesh.visible = false; }, 220);
+
+      // Check if Shadow Hunter is in front within 13 meters
+      const dist = Math.hypot(this.hunter.x - me.x, this.hunter.z - me.z);
+      if (dist < 13) {
+        this.hunter.stunnedUntil = performance.now() + 5000;
+        this.showRadioToast('STUN GUN', '⚡ Shadow Hunter 5 सेकंड के लिए फ्रीज़ हो गया! भागो!');
+      } else {
+        this.showRadioToast('STUN GUN', '⚡ निशाना चूक गया! पास आने पर चलाएं!');
+      }
+    });
+
     const sprintBtn = document.getElementById('sprint-btn');
     sprintBtn.addEventListener('touchstart', (e) => { e.preventDefault(); SFX.init(); this.sprinting = true; });
     sprintBtn.addEventListener('touchend', () => { this.sprinting = false; });
 
-    // Torch Toggle
     document.getElementById('torch-btn').addEventListener('click', (e) => {
       SFX.init();
       const me = Net.players[Net.myId];
@@ -321,18 +438,16 @@ const Game3D = {
       e.currentTarget.classList.toggle('torch-on', me.torch);
     });
 
-    // Interact Button
     document.getElementById('interact-btn').addEventListener('click', () => {
       SFX.init();
       const me = Net.players[Net.myId];
       if (!me || me.downed) return;
 
-      // Hide / Unhide in Locker
       if (me.hiding) {
         me.hiding = false;
         me.torch = true;
         this.flashlight.visible = true;
-        document.getElementById('objective-banner').textContent = 'आप लॉकर से बाहर आ गए हैं';
+        document.getElementById('objective-banner').textContent = 'लॉकर से बाहर आ गए';
         return;
       }
       for (const lk of this.lockers) {
@@ -340,12 +455,11 @@ const Game3D = {
           me.hiding = true;
           me.torch = false;
           this.flashlight.visible = false;
-          document.getElementById('objective-banner').textContent = '🔒 लॉकर के अंदर सुरक्षित छुपे हैं';
+          document.getElementById('objective-banner').textContent = '🔒 लॉकर में छुपे हैं';
           return;
         }
       }
 
-      // Read Secret Note
       for (const n of this.notes) {
         if (Math.hypot(n.x - me.x, n.z - me.z) < 2.8) {
           n.found = true;
@@ -356,12 +470,11 @@ const Game3D = {
           document.getElementById('note-code-reveal').textContent = n.code;
           document.getElementById('note-modal').classList.remove('hidden');
           const count = this.notes.filter(x => x.found).length;
-          document.getElementById('objective-banner').textContent = `📄 Secret Notes मिले: ${count}/3`;
+          document.getElementById('objective-banner').textContent = `📄 Notes मिले: ${count}/3`;
           return;
         }
       }
 
-      // Revive Teammate
       for (const p of Object.values(Net.players)) {
         if (p.id !== Net.myId && p.downed && Math.hypot(p.x - me.x, p.z - me.z) < 3) {
           p.downed = false;
@@ -371,7 +484,6 @@ const Game3D = {
         }
       }
 
-      // Open Terminal Keypad
       this.terminals.forEach((t, idx) => {
         if (!t.unlocked && Math.hypot(t.x - me.x, t.z - me.z) < 3) {
           this.activeLockIdx = idx;
@@ -436,7 +548,7 @@ const Game3D = {
       t.mesh.material.emissive.setHex(0x14532d);
     }
     const count = this.terminals.filter(x => x.unlocked).length;
-    document.getElementById('locks-status').textContent = `🔒 LOCKS: ${count}/3`;
+    document.getElementById('locks-status').textContent = `🔒 ${count}/3`;
     this.showRadioToast('SYSTEM', `🔓 Security Terminal #${idx + 1} खुल गया!`);
     if (count === 3 && this.exitMesh) {
       this.exitMesh.material.color.setHex(0x22c55e);
@@ -458,11 +570,66 @@ const Game3D = {
     );
   },
 
+  drawMotionRadar(me) {
+    const rc = document.getElementById('radar-canvas');
+    if (!rc) return;
+    const ctx = rc.getContext('2d');
+    const r = 55;
+    ctx.clearRect(0, 0, 110, 110);
+
+    // Radar sweep line
+    this.radarAngle += 0.05;
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(r, r, 24, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r, r, 46, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
+    ctx.beginPath();
+    ctx.moveTo(r, r);
+    ctx.lineTo(r + Math.cos(this.radarAngle) * 52, r + Math.sin(this.radarAngle) * 52);
+    ctx.stroke();
+
+    // Helper to project relative world coords onto rotated radar
+    const plot = (wx, wz, color, size = 3.5) => {
+      const dx = wx - me.x;
+      const dz = wz - me.z;
+      const cos = Math.cos(me.yaw);
+      const sin = Math.sin(me.yaw);
+      const rx = (dx * cos - dz * sin) * 2.1;
+      const rz = (dx * sin + dz * cos) * 2.1;
+      if (Math.hypot(rx, rz) > 48) return;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(r + rx, r + rz, size, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    // Plot unfound Secret Notes (Yellow)
+    this.notes.forEach(n => { if (!n.found) plot(n.x, n.z, '#facc15', 3); });
+    // Plot Terminals (Orange)
+    this.terminals.forEach(t => { if (!t.unlocked) plot(t.x, t.z, '#fb923c', 3); });
+    // Plot Teammates (Cyan)
+    Object.values(Net.players).forEach(p => { if (p.id !== Net.myId) plot(p.x, p.z, '#38bdf8', 3.5); });
+    // Plot Shadow Hunter (Blinking Red)
+    if (Math.sin(performance.now() * 0.012) > -0.3) {
+      plot(this.hunter.x, this.hunter.z, '#ef4444', 4.5);
+    }
+
+    // Center Player Triangle
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.moveTo(r, r - 5);
+    ctx.lineTo(r - 4, r + 4);
+    ctx.lineTo(r + 4, r + 4);
+    ctx.closePath();
+    ctx.fill();
+  },
+
   update() {
     const me = Net.players[Net.myId];
     if (!me) return;
 
-    // 3D First-Person Movement relative to Camera Yaw
     if (!me.downed && !me.hiding && this.joy.active) {
       const speed = (this.sprinting ? 0.14 : 0.085) * (me.role === 'SCOUT' ? 1.15 : 1);
       const forwardX = -Math.sin(me.yaw);
@@ -480,11 +647,16 @@ const Game3D = {
       SFX.step(this.sprinting);
     }
 
-    // Update 3D Camera & Flashlight Position
-    const bobY = this.joy.active ? Math.sin(this.bobTimer) * 0.06 : 0;
+    const bobY = this.joy.active ? Math.sin(this.bobTimer) * 0.05 : 0;
     this.camera.position.set(me.x, (me.downed ? 0.6 : 1.65) + bobY, me.z);
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = me.yaw;
+
+    // Weapon & Torch Sway
+    if (this.handGroup) {
+      this.handGroup.position.y = Math.sin(this.bobTimer) * 0.015;
+      this.handGroup.position.x = Math.cos(this.bobTimer * 0.5) * 0.015;
+    }
 
     this.flashlight.position.copy(this.camera.position);
     this.flashTarget.position.set(
@@ -493,18 +665,17 @@ const Game3D = {
       me.z - Math.cos(me.yaw) * 10
     );
 
-    // Show Nearby Interaction Prompt
     const nearSomething =
       this.notes.some(n => Math.hypot(n.x - me.x, n.z - me.z) < 2.8) ||
       this.terminals.some(t => !t.unlocked && Math.hypot(t.x - me.x, t.z - me.z) < 3) ||
       this.lockers.some(lk => Math.hypot(lk.x - me.x, lk.z - me.z) < 2.6);
     document.getElementById('interact-hint').classList.toggle('hidden', !nearSomething);
 
-    // Rotate 3D Secret Notes
     this.notes.forEach(n => { if (n.mesh) n.mesh.rotation.y += 0.03; });
 
-    // Host updates 3D Shadow Hunter AI
-    if (Net.isHost) {
+    // Host updates 3D Shadow Hunter AI (respects Stun Freeze!)
+    const isStunned = performance.now() < this.hunter.stunnedUntil;
+    if (Net.isHost && !isStunned) {
       let nearest = null;
       let minDist = 999;
 
@@ -553,7 +724,7 @@ const Game3D = {
       }
 
       Net.broadcast({ type: 'STATE', players: Net.players, hunter: { x: this.hunter.x, z: this.hunter.z, yaw: this.hunter.yaw } });
-    } else {
+    } else if (!Net.isHost) {
       Net.sendToHost({
         type: 'MOVE',
         id: Net.myId,
@@ -561,13 +732,11 @@ const Game3D = {
       });
     }
 
-    // Update 3D Hunter Mesh
     if (this.hunter.mesh) {
       this.hunter.mesh.position.set(this.hunter.x, 0, this.hunter.z);
       this.hunter.mesh.rotation.y = this.hunter.yaw;
     }
 
-    // Update Other Players' 3D Avatars
     Object.values(Net.players).forEach(p => {
       if (p.id === Net.myId) return;
       if (!this.teammateMeshes[p.id]) {
@@ -587,10 +756,11 @@ const Game3D = {
       m.rotation.y = p.yaw;
     });
 
-    // Heartbeat & Red Danger Vignette
+    this.drawMotionRadar(me);
+
     const distToHunter = Math.hypot(me.x - this.hunter.x, me.z - this.hunter.z);
     const overlay = document.getElementById('danger-overlay');
-    if (distToHunter < 14 && !me.hiding) {
+    if (distToHunter < 14 && !me.hiding && !isStunned) {
       const intensity = Math.floor((1 - distToHunter / 14) * 110);
       overlay.style.boxShadow = `inset 0 0 ${intensity}px rgba(220, 38, 38, 0.9)`;
       SFX.heartbeat(distToHunter);
