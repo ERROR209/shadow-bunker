@@ -22,7 +22,7 @@ const Net = {
     this.isHost = true;
     this.myName = name || 'Host';
     this.roomCode = this.generateCode();
-    const peerId = `SBUNKER_${this.roomCode}`;
+    const peerId = `SBUNKER3D_${this.roomCode}`;
 
     this.peer = new Peer(peerId);
     this.peer.on('open', (id) => {
@@ -32,13 +32,12 @@ const Net = {
         name: this.myName,
         role: this.roles[0],
         color: this.colors[0],
-        x: 150,
-        y: 150,
-        angle: 0,
+        x: -18,
+        z: -18,
+        yaw: 0,
         torch: true,
         hiding: false,
-        downed: false,
-        walkPhase: 0
+        downed: false
       };
       this.updateLobbyUI();
     });
@@ -63,7 +62,7 @@ const Net = {
     this.isHost = false;
     this.myName = name || 'Agent';
     this.roomCode = code.toUpperCase();
-    const hostPeerId = `SBUNKER_${this.roomCode}`;
+    const hostPeerId = `SBUNKER3D_${this.roomCode}`;
 
     this.peer = new Peer();
     this.peer.on('open', (id) => {
@@ -91,13 +90,12 @@ const Net = {
         name: data.name,
         role: this.roles[idx % 4],
         color: this.colors[idx % 4],
-        x: 150 + idx * 32,
-        y: 150,
-        angle: 0,
+        x: -18 + idx * 1.5,
+        z: -18,
+        yaw: 0,
         torch: true,
         hiding: false,
-        downed: false,
-        walkPhase: 0
+        downed: false
       };
       this.broadcast({ type: 'ROSTER', players: this.players });
       this.updateLobbyUI();
@@ -106,27 +104,27 @@ const Net = {
         Object.assign(this.players[data.id], data.state);
       }
     } else if (data.type === 'UNLOCK') {
-      Game.unlockTerminal(data.lockIdx);
+      Game3D.unlockTerminal(data.lockIdx);
       this.broadcast({ type: 'UNLOCK', lockIdx: data.lockIdx });
     } else if (data.type === 'REVIVE') {
       if (this.players[data.targetId]) {
         this.players[data.targetId].downed = false;
       }
     } else if (data.type === 'RADIO') {
-      Game.showRadioToast(data.sender, data.msg);
+      Game3D.showRadioToast(data.sender, data.msg);
       this.broadcast(data);
     }
   },
 
   handleClientData(data) {
     if (data.type === 'FULL') {
-      alert('यह बंकर 4 खिलाड़ियों से भरा है!');
+      alert('यह 3D बंकर 4 खिलाड़ियों से भरा है!');
       location.reload();
     } else if (data.type === 'ROSTER') {
       this.players = data.players;
       this.updateLobbyUI();
     } else if (data.type === 'START') {
-      Game.start(data.codes, data.notePositions);
+      Game3D.start(data.codes, data.noteSpots);
     } else if (data.type === 'STATE') {
       Object.keys(data.players).forEach(pid => {
         if (pid !== this.myId) {
@@ -135,16 +133,15 @@ const Net = {
           this.players[pid].downed = data.players[pid].downed;
         }
       });
-      Game.hunter.x = data.hunter.x;
-      Game.hunter.y = data.hunter.y;
-      Game.hunter.angle = data.hunter.angle;
-      Game.hunter.chasing = data.hunter.chasing;
+      Game3D.hunter.x = data.hunter.x;
+      Game3D.hunter.z = data.hunter.z;
+      Game3D.hunter.yaw = data.hunter.yaw;
     } else if (data.type === 'UNLOCK') {
-      Game.unlockTerminal(data.lockIdx);
+      Game3D.unlockTerminal(data.lockIdx);
     } else if (data.type === 'RADIO') {
-      Game.showRadioToast(data.sender, data.msg);
+      Game3D.showRadioToast(data.sender, data.msg);
     } else if (data.type === 'GAMEOVER') {
-      Game.triggerEnd(data.win, data.reason);
+      Game3D.triggerEnd(data.win, data.reason);
     }
   },
 
@@ -203,15 +200,13 @@ document.getElementById('start-game-btn').addEventListener('click', () => {
     String(Math.floor(100 + Math.random() * 900))
   ];
 
-  // Randomize where the 3 Secret Notes are hidden inside bunker rooms!
-  const spotPool = [
-    { x: 110, y: 580 }, { x: 250, y: 310 }, { x: 480, y: 120 },
-    { x: 580, y: 650 }, { x: 890, y: 120 }, { x: 1260, y: 460 },
-    { x: 1120, y: 900 }, { x: 430, y: 890 }
+  // Randomize 3D desk locations where Secret Notes spawn
+  const spots = [
+    { x: -18, z: 16 }, { x: 0, z: -18 }, { x: 18, z: 16 },
+    { x: 0, z: 18 }, { x: -16, z: 0 }, { x: 16, z: -12 }
   ].sort(() => Math.random() - 0.5);
 
-  const notePositions = [spotPool[0], spotPool[1], spotPool[2]];
-
-  Game.start(codes, notePositions);
-  Net.broadcast({ type: 'START', codes, notePositions });
+  const noteSpots = [spots[0], spots[1], spots[2]];
+  Game3D.start(codes, noteSpots);
+  Net.broadcast({ type: 'START', codes, noteSpots });
 });
