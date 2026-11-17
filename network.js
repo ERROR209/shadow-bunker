@@ -138,6 +138,8 @@ const Net = {
       Game3D.restorePower();
     } else if (data.type === 'UNLOCK') {
       Game3D.unlockTerminal(data.lockIdx);
+    } else if (data.type === 'LEVEL_2') {
+      Game3D.startLevel2();
     } else if (data.type === 'GAMEOVER') {
       Game3D.triggerEnd(data.win, data.reason);
     }

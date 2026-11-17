@@ -116,6 +116,7 @@ const Game3D = {
   hasFuse: false,
   powerRestored: false,
   selfDestructActive: false,
+  level: 1,
   escapeTimeLeft: 60,
   lastTick: 0,
 
@@ -351,18 +352,55 @@ const Game3D = {
     this.scene.add(this.exitMesh);
 
     const hunterGroup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.65, 2.6, 12), new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 }));
-    body.position.y = 1.3;
-    hunterGroup.add(body);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), eyeMat);
-    leftEye.position.set(-0.16, 2.25, 0.42);
-    const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), eyeMat);
-    rightEye.position.set(0.16, 2.25, 0.42);
-    hunterGroup.add(leftEye, rightEye);
-    const hunterGlow = new THREE.PointLight(0xff0000, 2.5, 9);
-    hunterGlow.position.set(0, 2, 0);
-    hunterGroup.add(hunterGlow);
+    const fleshMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.85, metalness: 0.2 });
+    const veinMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+
+    // Hunched Mutant Torso & Spine Spikes
+    const mTorso = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.05, 0.42), fleshMat);
+    mTorso.position.set(0, 1.48, 0.08);
+    mTorso.rotation.x = 0.28;
+
+    const spine1 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 6), veinMat);
+    spine1.position.set(0, 1.85, -0.18); spine1.rotation.x = -0.6;
+    const spine2 = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 6), veinMat);
+    spine2.position.set(0, 1.5, -0.22); spine2.rotation.x = -0.6;
+
+    // Monster Head & Glowing Predator Eyes
+    const mHead = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.38, 0.42), fleshMat);
+    mHead.position.set(0, 2.15, 0.26);
+    const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), veinMat);
+    leftEye.position.set(-0.1, 2.18, 0.46);
+    const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), veinMat);
+    rightEye.position.set(0.1, 2.18, 0.46);
+
+    // Long Creepy Arms with Blood-Red Claws
+    const mArmGeo = new THREE.BoxGeometry(0.16, 1.15, 0.16);
+    const mLeftArm = new THREE.Mesh(mArmGeo, fleshMat);
+    mLeftArm.position.set(-0.46, 1.35, 0.22);
+    mLeftArm.rotation.x = -0.45;
+    const lClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.35, 5), veinMat);
+    lClaw.position.set(0, -0.65, 0.08); lClaw.rotation.x = 0.5;
+    mLeftArm.add(lClaw);
+
+    const mRightArm = new THREE.Mesh(mArmGeo, fleshMat);
+    mRightArm.position.set(0.46, 1.35, 0.22);
+    mRightArm.rotation.x = -0.45;
+    const rClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.35, 5), veinMat);
+    rClaw.position.set(0, -0.65, 0.08); rClaw.rotation.x = 0.5;
+    mRightArm.add(rClaw);
+
+    // Mutant Legs
+    const mLegGeo = new THREE.BoxGeometry(0.2, 0.98, 0.22);
+    const mLeftLeg = new THREE.Mesh(mLegGeo, fleshMat);
+    mLeftLeg.position.set(-0.2, 0.5, 0);
+    const mRightLeg = new THREE.Mesh(mLegGeo, fleshMat);
+    mRightLeg.position.set(0.2, 0.5, 0);
+
+    const hunterGlow = new THREE.PointLight(0xff0000, 3.0, 10);
+    hunterGlow.position.set(0, 2.1, 0.4);
+
+    hunterGroup.add(mTorso, spine1, spine2, mHead, leftEye, rightEye, mLeftArm, mRightArm, mLeftLeg, mRightLeg, hunterGlow);
+    hunterGroup.userData = { mLeftArm, mRightArm, mLeftLeg, mRightLeg, phase: 0 };
     hunterGroup.position.set(this.hunter.x, 0, this.hunter.z);
     this.scene.add(hunterGroup);
     this.hunter.mesh = hunterGroup;
@@ -921,8 +959,13 @@ const Game3D = {
       const allUnlocked = this.terminals.every(t => t.unlocked);
       const atExit = allPlayers.some(p => !p.downed && Math.hypot(p.x - this.exitPos.x, p.z - this.exitPos.z) < 2.6);
       if (allUnlocked && atExit) {
-        Net.broadcast({ type: 'GAMEOVER', win: true, reason: 'शाबाश! आपकी टीम ने Sector-09 का रहस्य सुलझाया और सुरक्षित बाहर निकल आए!' });
-        this.triggerEnd(true, 'शाबाश! आपकी टीम ने Sector-09 का रहस्य सुलझाया और सुरक्षित बाहर निकल आए!');
+        if (this.level === 1) {
+          this.startLevel2();
+          Net.broadcast({ type: 'LEVEL_2' });
+        } else {
+          Net.broadcast({ type: 'GAMEOVER', win: true, reason: 'अद्भुत! आपकी टीम ने Sector-09 और Bio-Reactor Core दोनों को पार कर लिया!' });
+          this.triggerEnd(true, 'अद्भुत! आपकी टीम ने Sector-09 और Bio-Reactor Core दोनों को पार कर लिया!');
+        }
       }
 
       Net.broadcast({ type: 'STATE', players: Net.players, hunter: { x: this.hunter.x, z: this.hunter.z, yaw: this.hunter.yaw } });
@@ -937,6 +980,14 @@ const Game3D = {
     if (this.hunter.mesh) {
       this.hunter.mesh.position.set(this.hunter.x, 0, this.hunter.z);
       this.hunter.mesh.rotation.y = this.hunter.yaw;
+      const hud = this.hunter.mesh.userData;
+      if (hud && !isStunned) {
+        hud.phase += 0.16;
+        hud.mLeftLeg.rotation.x = Math.sin(hud.phase) * 0.55;
+        hud.mRightLeg.rotation.x = -Math.sin(hud.phase) * 0.55;
+        hud.mLeftArm.rotation.x = -0.45 + Math.cos(hud.phase) * 0.35;
+        hud.mRightArm.rotation.x = -0.45 - Math.cos(hud.phase) * 0.35;
+      }
     }
 
     Object.values(Net.players).forEach(p => {
@@ -1039,6 +1090,55 @@ const Game3D = {
     } else {
       overlay.style.boxShadow = 'none';
     }
+  },
+
+  startLevel2() {
+    this.level = 2;
+    this.selfDestructActive = false;
+    this.powerRestored = false;
+    this.hasFuse = false;
+    this.escapeTimeLeft = 50;
+    document.getElementById('timer-badge').classList.add('hidden');
+    document.getElementById('locks-status').textContent = '⚡ LVL-2 OFF';
+    document.getElementById('objective-banner').textContent = '🔥 LEVEL 2 (BIO-REACTOR CORE): नया फ्यूज़ ढूंढें — Subject-0 अब और तेज़ है!';
+
+    // Reset Player & Monster positions for Level 2
+    const me = Net.players[Net.myId];
+    if (me) { me.x = -18; me.z = 18; }
+    this.hunter.x = 16; this.hunter.z = 16;
+
+    // Relocate Fuse, Notes & Reset Terminals with new codes
+    if (this.fuseObj) {
+      this.fuseObj.picked = false;
+      this.fuseObj.x = 14; this.fuseObj.z = -16;
+      this.fuseObj.mesh.position.set(14, 1.1, -16);
+      this.fuseObj.light.position.set(14, 1.5, -16);
+      this.fuseObj.mesh.visible = true;
+      this.fuseObj.light.visible = true;
+    }
+    this.generatorMesh.material.emissive.setHex(0x7f1d1d);
+    this.codes = [
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899))
+    ];
+    const newSpots = [{ x: -16, z: 0 }, { x: 8, z: -18 }, { x: 16, z: 10 }];
+    this.notes.forEach((n, i) => {
+      n.found = false;
+      n.x = newSpots[i].x; n.z = newSpots[i].z;
+      n.code = this.codes[i];
+      n.mesh.position.set(n.x, 1.08, n.z);
+      n.mesh.material.color.setHex(0xfacc15);
+    });
+    this.terminals.forEach(t => {
+      t.unlocked = false;
+      t.mesh.material.color.setHex(0x334155);
+      t.mesh.material.emissive.setHex(0x000000);
+    });
+    if (this.exitMesh) this.exitMesh.material.color.setHex(0xef4444);
+    this.scene.fog = new THREE.FogExp2(0x140505, 0.042);
+    SFX.siren();
+    this.showRadioToast('LEVEL 2', '⚠️ BIO-REACTOR CORE में प्रवेश! लाल धुंध और तेज़ Subject-0 से बचें!');
   },
 
   triggerEnd(win, reason) {
