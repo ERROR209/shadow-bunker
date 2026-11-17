@@ -995,31 +995,80 @@ const Game3D = {
       if (p.id === Net.myId) return;
       if (!this.teammateMeshes[p.id]) {
         const grp = new THREE.Group();
-        const suitMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
-        const armorMat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.4, metalness: 0.3 });
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
+        const suitMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
+        const armorMat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.45, metalness: 0.4 });
+        const gearMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.7, metalness: 0.15 });
+        const detailMat = new THREE.MeshBasicMaterial({ color: p.color });
 
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.62, 0.26), suitMat);
+        // Tactical Torso & Armored Plate Carrier
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.62, 0.28), suitMat);
         torso.position.y = 1.12;
-        const vest = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.42, 0.29), armorMat);
+        const vest = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.44, 0.32), armorMat);
         vest.position.y = 1.16;
-        const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.16), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
-        backpack.position.set(0, 1.16, 0.19);
 
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 14), skinMat);
-        head.position.y = 1.62;
-        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.185, 14, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), armorMat);
-        helmet.position.y = 1.63;
-        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-        visor.position.set(0, 1.61, -0.14);
+        // Chest Mag Pouches
+        const pouch1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.06), gearMat);
+        pouch1.position.set(-0.13, -0.11, -0.18);
+        const pouch2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.06), gearMat);
+        pouch2.position.set(0.13, -0.11, -0.18);
+        vest.add(pouch1, pouch2);
 
-        const legGeo = new THREE.BoxGeometry(0.15, 0.78, 0.16);
-        const leftLeg = new THREE.Mesh(legGeo, suitMat);
-        leftLeg.position.set(-0.13, 0.41, 0);
-        const rightLeg = new THREE.Mesh(legGeo, suitMat);
-        rightLeg.position.set(0.13, 0.41, 0);
+        // Shoulder Guard Pads
+        const lShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.18), armorMat);
+        lShoulder.position.set(-0.29, 1.34, 0);
+        const rShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.18), armorMat);
+        rShoulder.position.set(0.29, 1.34, 0);
 
-        const armGeo = new THREE.BoxGeometry(0.13, 0.56, 0.14);
+        // Survival Backpack + Radio Antenna
+        const backpack = new THREE.Group();
+        backpack.position.set(0, 1.16, 0.2);
+        const packBody = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.44, 0.18), gearMat);
+        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.32, 6), gearMat);
+        antenna.position.set(0.12, 0.32, -0.04);
+        backpack.add(packBody, antenna);
+
+        // Spec-Ops Helmet, Balaclava Mask & Dual Glowing NVG Lenses
+        const headGroup = new THREE.Group();
+        headGroup.position.y = 1.62;
+        const mask = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), suitMat);
+        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.185, 14, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), armorMat);
+        helmet.position.y = 0.02;
+
+        const nvGoggles = new THREE.Group();
+        nvGoggles.position.set(0, -0.01, -0.15);
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 0.08), gearMat);
+        const lensL = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.06, 8), detailMat);
+        lensL.rotation.x = Math.PI / 2;
+        lensL.position.set(-0.065, 0, -0.03);
+        const lensR = lensL.clone();
+        lensR.position.x = 0.065;
+        nvGoggles.add(frame, lensL, lensR);
+        headGroup.add(mask, helmet, nvGoggles);
+
+        // Legs with Knee Pads & Combat Boots
+        const legGeo = new THREE.BoxGeometry(0.15, 0.52, 0.16);
+        const leftLeg = new THREE.Group();
+        leftLeg.position.set(-0.13, 0.78, 0);
+        const lLegUpper = new THREE.Mesh(legGeo, suitMat);
+        lLegUpper.position.y = -0.12;
+        const lBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.18, 0.24), gearMat);
+        lBoot.position.set(0, -0.42, -0.03);
+        const lKnee = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.1, 0.18), armorMat);
+        lKnee.position.set(0, -0.22, -0.04);
+        leftLeg.add(lLegUpper, lBoot, lKnee);
+
+        const rightLeg = new THREE.Group();
+        rightLeg.position.set(0.13, 0.78, 0);
+        const rLegUpper = new THREE.Mesh(legGeo, suitMat);
+        rLegUpper.position.y = -0.12;
+        const rBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.18, 0.24), gearMat);
+        rBoot.position.set(0, -0.42, -0.03);
+        const rKnee = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.1, 0.18), armorMat);
+        rKnee.position.set(0, -0.22, -0.04);
+        rightLeg.add(rLegUpper, rBoot, rKnee);
+
+        // Arms & Tactical Flashlight
+        const armGeo = new THREE.BoxGeometry(0.12, 0.54, 0.13);
         const leftArm = new THREE.Mesh(armGeo, suitMat);
         leftArm.position.set(-0.31, 1.12, 0);
 
@@ -1028,6 +1077,10 @@ const Game3D = {
         const rightArm = new THREE.Mesh(armGeo, suitMat);
         rightArm.position.set(0, -0.22, -0.12);
         rightArm.rotation.x = Math.PI / 3;
+        const gloveR = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.13), gearMat);
+        gloveR.position.set(0, -0.25, -0.12);
+        rightArm.add(gloveR);
+
         const torchProp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
         torchProp.rotation.x = Math.PI / 2;
         torchProp.position.set(0, -0.34, -0.34);
@@ -1035,20 +1088,21 @@ const Game3D = {
         torchLight.position.set(0, -0.34, -0.55);
         rightArmGroup.add(rightArm, torchProp, torchLight);
 
-        const canvas = document.createElement('canvas');
+        // Agent Name Tag
+        const canvas = document.createElement("canvas");
         canvas.width = 256; canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(28, 12, 200, 40);
-        ctx.font = 'bold 24px sans-serif';
-        ctx.fillStyle = '#4ade80';
-        ctx.textAlign = 'center';
+        ctx.font = "bold 24px monospace";
+        ctx.fillStyle = "#10b981";
+        ctx.textAlign = "center";
         ctx.fillText(p.name, 128, 40);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
         sprite.scale.set(1.5, 0.38, 1);
-        sprite.position.y = 2.08;
+        sprite.position.y = 2.15;
 
-        grp.add(torso, vest, backpack, head, helmet, visor, leftLeg, rightLeg, leftArm, rightArmGroup, sprite);
+        grp.add(torso, vest, lShoulder, rShoulder, backpack, headGroup, leftLeg, rightLeg, leftArm, rightArmGroup, sprite);
         grp.userData = { leftLeg, rightLeg, leftArm, torchLight, lastX: p.x, lastZ: p.z, walkPhase: 0 };
         this.scene.add(grp);
         this.teammateMeshes[p.id] = grp;
