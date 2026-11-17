@@ -1606,36 +1606,33 @@ const Game3D = {
     ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2); ctx.fill();
 
     const cos = Math.cos(-me.yaw), sin = Math.sin(-me.yaw);
+    const radarScale = me.role === 'SCOUT' ? 0.85 : 1.4;
 
-    // Show bright green Exit Waypoint dot on Radar when Exit Door unlocks!
     if (this.selfDestructActive && this.level < 3) {
       const ex = this.exitPos.x - me.x;
       const ez = this.exitPos.z - me.z;
-      const erx = (ex * cos - ez * sin) * 1.4;
-      const erz = (ex * sin + ez * cos) * 1.4;
+      const erx = (ex * cos - ez * sin) * radarScale;
+      const erz = (ex * sin + ez * cos) * radarScale;
       const ed = Math.hypot(erx, erz);
       const ec = ed > 36 ? 36 / ed : 1;
       ctx.fillStyle = '#4ade80';
       ctx.beginPath(); ctx.arc(cx + erx * ec, cy + erz * ec, 4.5, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Teammates Blue Dots on Radar
     for (const p of Object.values(Net.players)) {
       if (p.id === Net.myId || p.hiding) continue;
       const px = p.x - me.x;
       const pz = p.z - me.z;
-      const prx = (px * cos - pz * sin) * 1.4;
-      const prz = (px * sin + pz * cos) * 1.4;
+      const prx = (px * cos - pz * sin) * radarScale;
+      const prz = (px * sin + pz * cos) * radarScale;
       const pd = Math.hypot(prx, prz);
       const pc = pd > 36 ? 36 / pd : 1;
       ctx.fillStyle = p.downed ? '#facc15' : '#38bdf8';
       ctx.beginPath(); ctx.arc(cx + prx * pc, cy + prz * pc, 3.8, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Monster Dot
     const dx = this.hunter.x - me.x;
     const dz = this.hunter.z - me.z;
-    const radarScale = me.role === 'SCOUT' ? 0.85 : 1.4;
     const rx = (dx * cos - dz * sin) * radarScale;
     const rz = (dx * sin + dz * cos) * radarScale;
     const dist = Math.hypot(rx, rz);
@@ -1672,11 +1669,16 @@ const Game3D = {
       Net.updateVoiceProximity(me);
       this.syncTeammates();
 
-      // Rotate Level 2 Valves for visual polish
       this.valves.forEach(v => { if (!v.fixed) v.wheel.rotation.y += 0.02; });
       if (this.exitBeacon && this.exitBeacon.visible) this.exitBeacon.rotation.y += 0.03;
+      this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
 
-      // Check if Local Player is Downed -> Activate Live Teammate Spectate Mode!
+      if (this.level === 3 && this.chopperGroup) {
+        this.chopperRotor.rotation.y += 0.35;
+        const targetY = this.escapeTimeLeft <= 12 ? 1.1 : 18;
+        this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.03);
+      }
+
       const aliveTeammates = Object.values(Net.players).filter(p => p.id !== Net.myId && !p.downed);
       const specBar = document.getElementById('spectate-bar');
 
@@ -1689,7 +1691,6 @@ const Game3D = {
       } else {
         specBar.classList.add('hidden');
 
-        // Normal Alive Movement
         let fwd = 0, str = 0;
         if (this.keys['KeyW'] || this.keys['ArrowUp']) fwd += 1;
         if (this.keys['KeyS'] || this.keys['ArrowDown']) fwd -= 1;
@@ -1698,12 +1699,6 @@ const Game3D = {
         if (this.joy.active) { fwd -= this.joy.dy; str += this.joy.dx; }
 
         const isRunning = (this.keys['ShiftLeft'] || this.sprinting) && !me.downed && !me.hiding;
-        this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
-        if (this.level === 3 && this.chopperGroup) {
-          this.chopperRotor.rotation.y += 0.35;
-          const targetY = this.escapeTimeLeft <= 12 ? 1.1 : 18;
-          this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.03);
-        }
         const turboBoost = performance.now() < this.turboUntil ? 1.35 : 1.0;
         const speed = (me.downed ? 0.02 : me.hiding ? 0 : (isRunning ? 0.125 : 0.075)) * turboBoost;
 
@@ -1718,7 +1713,8 @@ const Game3D = {
         this.velZ = THREE.MathUtils.lerp(this.velZ, tvz, 0.22);
 
         me.makingNoise = false;
-        if (Math.hypot(this.velX, this.velZ) > 0.004) {
+        const isMoving = Math.hypot(this.velX, this.velZ) > 0.004;
+        if (isMoving) {
           const nx = me.x + this.velX;
           const nz = me.z + this.velZ;
           if (!this.checkCollision(nx, me.z)) me.x = nx;
@@ -1739,13 +1735,10 @@ const Game3D = {
             this.selfAvatar.grp.position.set(me.x, me.downed ? 0.25 : 0, me.z);
             this.selfAvatar.grp.rotation.y = me.yaw;
             this.selfAvatar.grp.rotation.x = me.downed ? -Math.PI / 2 : 0;
-            this.animateCharacterLimbs(this.selfAvatar, me.x, me.z, Math.hypot(this.velX, this.velZ) > 0.004 && !me.downed);
+            this.animateCharacterLimbs(this.selfAvatar, me.x, me.z, isMoving && !me.downed);
           }
-          // Over-the-shoulder 3rd-Person Camera
           const camDist = 2.6;
-          const cx = me.x + Math.sin(me.yaw) * camDist;
-          const cz = me.z + Math.cos(me.yaw) * camDist;
-          this.camera.position.set(cx, 2.25 + bob, cz);
+          this.camera.position.set(me.x + Math.sin(me.yaw) * camDist, 2.25 + bob, me.z + Math.cos(me.yaw) * camDist);
           this.camera.rotation.y = me.yaw;
         } else {
           if (this.selfAvatar) this.selfAvatar.grp.visible = false;
@@ -1754,14 +1747,12 @@ const Game3D = {
         }
       }
 
-      // Battery Drain
       if (me.torch && this.battery > 0 && !me.downed) {
         this.battery = Math.max(0, this.battery - 0.012);
         if (this.battery === 0) { me.torch = false; this.flashlight.visible = false; }
         document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
       }
 
-      // Context Interaction Hint
       this.nearAction = null;
       const hint = document.getElementById('interact-hint');
       if (!me.downed) {
@@ -1808,6 +1799,19 @@ const Game3D = {
           }
         }
         if (!this.nearAction) {
+          for (const pk of this.pickups) {
+            if (!pk.taken && Math.hypot(pk.x - me.x, pk.z - me.z) < 2.2) {
+              this.nearAction = { type: 'PICKUP', item: pk };
+              hint.textContent = pk.kind === 'BATTERY' ? '🔋 [USE] Grab Battery (+40%)' : '⚡ [USE] Grab Stun Cell (+1)';
+              break;
+            }
+          }
+        }
+        if (!this.nearAction && this.level === 3 && this.escapeTimeLeft <= 12 && Math.hypot(me.x, me.z) < 4.5) {
+          this.nearAction = { type: 'BOARD_HELI' };
+          hint.textContent = '🚁 [USE] BOARD RESCUE HELICOPTER!';
+        }
+        if (!this.nearAction) {
           for (const p of Object.values(Net.players)) {
             if (p.id !== Net.myId && p.downed && Math.hypot(p.x - me.x, p.z - me.z) < 2.4) {
               this.nearAction = { type: 'REVIVE', target: p };
@@ -1819,7 +1823,6 @@ const Game3D = {
       }
       hint.classList.toggle('hidden', !this.nearAction);
 
-      // Exit Gate Check (Stepping inside the Green Ring immediately advances the squad!)
       if (this.selfDestructActive && this.level < 3) {
         const meAtExit = !me.downed && Math.hypot(this.exitPos.x - me.x, this.exitPos.z - me.z) < 3.4;
         const anyoneAtExit = meAtExit || Object.values(Net.players).some(p => !p.downed && Math.hypot(this.exitPos.x - p.x, this.exitPos.z - p.z) < 3.4);
@@ -1836,7 +1839,6 @@ const Game3D = {
         }
       }
 
-      // Countdown Timer
       if (this.selfDestructActive) {
         const now = performance.now();
         if (now - this.lastTick >= 1000) {
@@ -1857,20 +1859,12 @@ const Game3D = {
         }
       }
 
-      // Monster AI & Realistic Limb Striding Animation
       const isStunned = performance.now() < this.hunter.stunnedUntil;
       if (this.hunter.mesh && this.hunter.limbs) {
         if (isStunned) {
           this.hunter.mesh.position.y = -0.38;
           this.hunter.mesh.rotation.z = (Math.random() - 0.5) * 0.18;
-          if (Math.random() > 0.35) {
-            const sp = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.06), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-            sp.position.set(this.hunter.x + (Math.random() - 0.5), 0.6 + Math.random() * 1.5, this.hunter.z + (Math.random() - 0.5));
-            this.scene.add(sp);
-            setTimeout(() => this.scene.remove(sp), 100);
-          }
         } else {
-          // Natural Predator Walking Stride & Body Bob!
           this.hunter.walkCycle += 0.16;
           const swing = Math.sin(this.hunter.walkCycle) * 0.55;
           this.hunter.limbs.legL.rotation.x = swing;
@@ -1891,7 +1885,6 @@ const Game3D = {
         for (const p of Object.values(Net.players)) {
           if (p.downed || p.hiding) continue;
           const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
-          // Wider sight/hearing range in front of monster, narrower behind
           const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
           const inFront = angleDiff < 1.25;
@@ -1900,12 +1893,10 @@ const Game3D = {
         }
 
         if (target) {
-          // STATE 1: CHASE PLAYER & REMEMBER LAST SEEN POSITION
           this.hunter.aiState = 'CHASE';
           this.hunter.goalX = target.x;
           this.hunter.goalZ = target.z;
           this.hunter.investigateUntil = nowAI + 4200;
-
           const mSpeed = this.level === 3 ? 0.098 : 0.078;
           this.moveHunterToward(target.x, target.z, mSpeed);
 
@@ -1916,21 +1907,14 @@ const Game3D = {
             if (target.id === Net.myId) this.triggerJumpscare();
           }
         } else if (nowAI < this.hunter.investigateUntil) {
-          // STATE 2: INVESTIGATE LAST KNOWN SPOT (e.g. if player hid in locker or turned corner)
           this.hunter.aiState = 'INVESTIGATE';
           const distToLast = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
-          if (distToLast > 1.4) {
-            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.068);
-          } else {
-            // Look left and right suspiciously around the locker/corner
-            this.hunter.yaw += Math.sin(nowAI * 0.006) * 0.045;
-          }
+          if (distToLast > 1.4) this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.068);
+          else this.hunter.yaw += Math.sin(nowAI * 0.006) * 0.045;
         } else if (nowAI < this.hunter.scanUntil) {
-          // STATE 3: ROOM SCANNING PAUSE
           this.hunter.aiState = 'SCAN';
           this.hunter.yaw += Math.sin(nowAI * 0.004) * 0.03;
         } else {
-          // STATE 4: TACTICAL ROOM-TO-ROOM PATROL
           this.hunter.aiState = 'PATROL';
           const distGoal = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
           if (distGoal < 1.8) {
@@ -1941,7 +1925,6 @@ const Game3D = {
           }
         }
 
-        // Only trigger Squad Wipe Game Over when EVERY player in the team is downed!
         const allPlayers = Object.values(Net.players);
         if (allPlayers.length > 0 && allPlayers.every(p => p.downed)) {
           const msg = 'Squad wiped! Subject-0 caught everyone.';
@@ -1961,12 +1944,11 @@ const Game3D = {
       const danger = document.getElementById('danger-overlay');
       if (dMonster < 15 && !me.hiding && !me.downed) {
         SFX.heartbeat(dMonster);
-        danger.style.boxShadow = `inset 0 0 ${Math.round((12 - dMonster) * 10)}px rgba(220,38,38,0.65)`;
+        danger.style.boxShadow = `inset 0 0 ${Math.round((15 - dMonster) * 9)}px rgba(220,38,38,0.65)`;
       } else {
         danger.style.boxShadow = 'none';
       }
 
-      // Network Sync (20 Hz)
       const nowNet = performance.now();
       if (nowNet - this.lastNetSync > 50) {
         this.lastNetSync = nowNet;
