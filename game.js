@@ -170,7 +170,6 @@ const Game3D = {
       document.getElementById('story-intro').classList.add('hidden');
       document.getElementById('game-screen').classList.remove('hidden');
 
-      // Request Pointer Lock for seamless PC Mouse Look
       document.body.requestPointerLock?.();
 
       const me = Net.players[Net.myId];
@@ -390,7 +389,6 @@ const Game3D = {
       this.joy = { x: 0, y: 0, active: false };
     });
 
-    // Mobile Swipe Look Zone
     const lookZone = document.getElementById('look-zone');
     lookZone.addEventListener('touchstart', (e) => {
       SFX.init();
@@ -410,10 +408,34 @@ const Game3D = {
       }
     }, { passive: true });
 
-    // PC Keyboard WASD Support
+    // Handle PC Keyboard WASD + Numpad / Digits for Keypad & Esc/Enter for Modals
     window.addEventListener('keydown', (e) => {
       SFX.init();
       const k = e.key.toLowerCase();
+      const noteModal = document.getElementById('note-modal');
+      const puzzleModal = document.getElementById('puzzle-modal');
+
+      // If Note Modal is open, close on Enter or Escape
+      if (!noteModal.classList.contains('hidden')) {
+        if (e.key === 'Enter' || e.key === 'Escape' || k === 'e') {
+          noteModal.classList.add('hidden');
+        }
+        return;
+      }
+
+      // If Puzzle Keypad Modal is open, handle keyboard numbers & Enter/Esc
+      if (!puzzleModal.classList.contains('hidden')) {
+        if (e.key >= '0' && e.key <= '9') {
+          this.handleKeypadInput(e.key);
+        } else if (e.key === 'Escape' || k === 'x') {
+          puzzleModal.classList.add('hidden');
+        } else if (e.key === 'Backspace') {
+          this.enteredPin = '';
+          document.getElementById('keypad-display').textContent = '_ _ _';
+        }
+        return;
+      }
+
       if (k === 'w' || k === 'arrowup') this.keys.w = true;
       if (k === 's' || k === 'arrowdown') this.keys.s = true;
       if (k === 'a' || k === 'arrowleft') this.keys.a = true;
@@ -431,7 +453,6 @@ const Game3D = {
       if (!e.shiftKey) this.keys.run = false;
     });
 
-    // Seamless PC Pointer Lock (No click needed, mouse movement automatically rotates camera!)
     window.addEventListener('click', () => {
       if (!document.pointerLockElement) {
         document.body.requestPointerLock?.();
@@ -482,31 +503,39 @@ const Game3D = {
     document.querySelectorAll('.key').forEach(k => {
       k.addEventListener('click', () => {
         SFX.init();
-        const val = k.textContent;
         if (k.classList.contains('close')) {
           document.getElementById('puzzle-modal').classList.add('hidden');
           return;
         }
-        SFX.tone(740, 'sine', 0.05, 0.07);
-        if (k.classList.contains('clear')) this.enteredPin = '';
-        else if (this.enteredPin.length < 3) this.enteredPin += val;
-        document.getElementById('keypad-display').textContent = this.enteredPin.padEnd(3, '_').split('').join(' ');
-
-        if (this.enteredPin.length === 3) {
-          if (this.enteredPin === this.codes[this.activeLockIdx]) {
-            SFX.tone(980, 'triangle', 0.2, 0.1);
-            this.unlockTerminal(this.activeLockIdx);
-            if (Net.isHost) Net.broadcast({ type: 'UNLOCK', lockIdx: this.activeLockIdx });
-            else Net.sendToHost({ type: 'UNLOCK', lockIdx: this.activeLockIdx });
-            document.getElementById('puzzle-modal').classList.add('hidden');
-          } else {
-            SFX.tone(150, 'sawtooth', 0.25, 0.1);
-            this.enteredPin = '';
-            document.getElementById('keypad-display').textContent = 'ERR';
-          }
+        if (k.classList.contains('clear')) {
+          this.enteredPin = '';
+          document.getElementById('keypad-display').textContent = '_ _ _';
+          return;
         }
+        const val = k.dataset.val;
+        if (val !== undefined) this.handleKeypadInput(val);
       });
     });
+  },
+
+  handleKeypadInput(val) {
+    SFX.tone(740, 'sine', 0.05, 0.07);
+    if (this.enteredPin.length < 3) this.enteredPin += val;
+    document.getElementById('keypad-display').textContent = this.enteredPin.padEnd(3, '_').split('').join(' ');
+
+    if (this.enteredPin.length === 3) {
+      if (this.enteredPin === this.codes[this.activeLockIdx]) {
+        SFX.tone(980, 'triangle', 0.2, 0.1);
+        this.unlockTerminal(this.activeLockIdx);
+        if (Net.isHost) Net.broadcast({ type: 'UNLOCK', lockIdx: this.activeLockIdx });
+        else Net.sendToHost({ type: 'UNLOCK', lockIdx: this.activeLockIdx });
+        document.getElementById('puzzle-modal').classList.add('hidden');
+      } else {
+        SFX.tone(150, 'sawtooth', 0.25, 0.1);
+        this.enteredPin = '';
+        document.getElementById('keypad-display').textContent = 'ERR';
+      }
+    }
   },
 
   fireStun() {
@@ -640,29 +669,29 @@ const Game3D = {
     const rc = document.getElementById('radar-canvas');
     if (!rc) return;
     const ctx = rc.getContext('2d');
-    const r = 53;
-    ctx.clearRect(0, 0, 106, 106);
+    const r = 42.5;
+    ctx.clearRect(0, 0, 85, 85);
 
     this.radarAngle += 0.05;
     ctx.strokeStyle = 'rgba(34, 197, 94, 0.25)';
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(r, r, 23, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(r, r, 45, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r, r, 18, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r, r, 38, 0, Math.PI * 2); ctx.stroke();
 
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
     ctx.beginPath();
     ctx.moveTo(r, r);
-    ctx.lineTo(r + Math.cos(this.radarAngle) * 50, r + Math.sin(this.radarAngle) * 50);
+    ctx.lineTo(r + Math.cos(this.radarAngle) * 40, r + Math.sin(this.radarAngle) * 40);
     ctx.stroke();
 
-    const plot = (wx, wz, color, size = 3.5) => {
+    const plot = (wx, wz, color, size = 3) => {
       const dx = wx - me.x;
       const dz = wz - me.z;
       const cos = Math.cos(me.yaw);
       const sin = Math.sin(me.yaw);
-      const rx = (dx * cos - dz * sin) * 2.0;
-      const rz = (dx * sin + dz * cos) * 2.0;
-      if (Math.hypot(rx, rz) > 46) return;
+      const rx = (dx * cos - dz * sin) * 1.8;
+      const rz = (dx * sin + dz * cos) * 1.8;
+      if (Math.hypot(rx, rz) > 40) return;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(r + rx, r + rz, size, 0, Math.PI * 2);
@@ -670,22 +699,22 @@ const Game3D = {
     };
 
     if (!this.powerRestored) {
-      if (this.fuseObj && !this.fuseObj.picked) plot(this.fuseObj.x, this.fuseObj.z, '#38bdf8', 4);
-      plot(this.generatorPos.x, this.generatorPos.z, '#f43f5e', 4);
+      if (this.fuseObj && !this.fuseObj.picked) plot(this.fuseObj.x, this.fuseObj.z, '#38bdf8', 3.5);
+      plot(this.generatorPos.x, this.generatorPos.z, '#f43f5e', 3.5);
     } else {
-      this.notes.forEach(n => { if (!n.found) plot(n.x, n.z, '#facc15', 3); });
-      this.terminals.forEach(t => { if (!t.unlocked) plot(t.x, t.z, '#fb923c', 3); });
+      this.notes.forEach(n => { if (!n.found) plot(n.x, n.z, '#facc15', 2.5); });
+      this.terminals.forEach(t => { if (!t.unlocked) plot(t.x, t.z, '#fb923c', 2.5); });
     }
-    if (this.selfDestructActive) plot(this.exitPos.x, this.exitPos.z, '#4ade80', 5);
+    if (this.selfDestructActive) plot(this.exitPos.x, this.exitPos.z, '#4ade80', 4);
 
-    Object.values(Net.players).forEach(p => { if (p.id !== Net.myId) plot(p.x, p.z, '#38bdf8', 3.5); });
-    if (Math.sin(performance.now() * 0.012) > -0.3) plot(this.hunter.x, this.hunter.z, '#ef4444', 4.5);
+    Object.values(Net.players).forEach(p => { if (p.id !== Net.myId) plot(p.x, p.z, '#38bdf8', 3); });
+    if (Math.sin(performance.now() * 0.012) > -0.3) plot(this.hunter.x, this.hunter.z, '#ef4444', 4);
 
     ctx.fillStyle = '#4ade80';
     ctx.beginPath();
-    ctx.moveTo(r, r - 5);
-    ctx.lineTo(r - 4, r + 4);
-    ctx.lineTo(r + 4, r + 4);
+    ctx.moveTo(r, r - 4);
+    ctx.lineTo(r - 3, r + 3);
+    ctx.lineTo(r + 3, r + 3);
     ctx.closePath();
     ctx.fill();
   },
@@ -723,7 +752,7 @@ const Game3D = {
     } else {
       if (this.keys.w) { moveX += forwardX * speed; moveZ += forwardZ * speed; }
       if (this.keys.s) { moveX -= forwardX * speed; moveZ -= forwardZ * speed; }
-      if (this.keys.a) { moveX -= rightX * speed; moveZ -= rightX * speed; }
+      if (this.keys.a) { moveX -= rightX * speed; moveZ -= rightZ * speed; }
       if (this.keys.d) { moveX += rightX * speed; moveZ += rightZ * speed; }
     }
 

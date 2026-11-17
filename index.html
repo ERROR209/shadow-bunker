@@ -69,7 +69,7 @@
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
         <span id="locks-status" class="locks-badge">⚡ POWER OFF</span>
-        <span id="stun-status" class="stun-badge">🔫 3/3</span>
+        <span id="stun-badge" class="stun-badge">🔫 3/3</span>
       </div>
       <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
@@ -115,7 +115,7 @@
         <h3 id="note-title">LOG #1</h3>
         <p id="note-body" class="note-text">...</p>
         <div id="note-code-reveal" class="code-reveal">---</div>
-        <button id="close-note-btn" class="btn primary" style="width:100%">समझ गया (CLOSE)</button>
+        <button id="close-note-btn" class="btn primary" style="width:100%">समझ गया (ENTER / CLOSE)</button>
       </div>
     </div>
 
@@ -123,13 +123,13 @@
     <div id="puzzle-modal" class="modal hidden">
       <div class="modal-box">
         <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
-        <p id="puzzle-hint">डॉ. वर्मा के लॉग में मिला 3-अंकों का कोड डालें</p>
+        <p id="puzzle-hint">डॉ. वर्मा के लॉग में मिला 3-अंकों का कोड डालें (या कीबोर्ड नंबर दबाएं)</p>
         <div id="keypad-display" class="keypad-display">_ _ _</div>
         <div class="keypad-grid">
-          <button class="key">1</button><button class="key">2</button><button class="key">3</button>
-          <button class="key">4</button><button class="key">5</button><button class="key">6</button>
-          <button class="key">7</button><button class="key">8</button><button class="key">9</button>
-          <button class="key clear">C</button><button class="key">0</button><button class="key close">✕</button>
+          <button class="key" data-val="1">1</button><button class="key" data-val="2">2</button><button class="key" data-val="3">3</button>
+          <button class="key" data-val="4">4</button><button class="key" data-val="5">5</button><button class="key" data-val="6">6</button>
+          <button class="key" data-val="7">7</button><button class="key" data-val="8">8</button><button class="key" data-val="9">9</button>
+          <button class="key clear">C</button><button class="key" data-val="0">0</button><button class="key close">✕</button>
         </div>
       </div>
     </div>
