@@ -191,6 +191,13 @@ const Net = {
       this.broadcast({ type: 'LOBBY_UPDATE', players: this.players });
     } else if (data.type === 'MOVE' && this.players[data.id]) {
       Object.assign(this.players[data.id], data.state);
+    } else if (data.type === 'ROLE_UPDATE') {
+      if (this.players[data.id]) {
+        this.players[data.id].role = data.role;
+        this.players[data.id].ready = data.ready;
+        this.updateSquadUI();
+        if (this.isHost) this.broadcast({ type: 'SQUAD', players: this.players });
+      }
     } else if (data.type === 'RADIO') {
       Game3D.showRadioToast(data.sender, data.msg);
       this.broadcast(data);
@@ -256,7 +263,8 @@ const Net = {
   },
 
   showWaitingRoom(code) {
-    document.getElementById('lobby-actions').classList.add('hidden');
+    document.getElementById('lobby-setup-form')?.classList.add('hidden');
+      document.getElementById('lobby-actions').classList.add('hidden');
     document.getElementById('waiting-room').classList.remove('hidden');
     document.getElementById('display-code').textContent = code;
       this.saveRoomSession(code, true, name);

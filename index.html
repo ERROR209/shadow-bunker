@@ -19,7 +19,7 @@
 
       <div id="launch-game-banner" class="game-hero-banner" role="button" tabindex="0">
         <div class="banner-overlay">
-          <div class="live-pill">🟢 ONLINE MULTIPLAYER // VOICE CHAT & 3 LEVELS</div>
+          <div class="live-pill">🟢 ONLINE CO-OP // 3D SPAWN LOBBY & VOICE CHAT</div>
           <h1>SHADOW <span>BUNKER 3D</span></h1>
           <p>SECTOR-09 SURVIVAL HORROR CO-OP</p>
           <div class="play-cta-btn">▶ CLICK BANNER TO PLAY</div>
@@ -32,19 +32,19 @@
       </div>
 
       <div class="info-section">
-        <h2>🎮 MISSION BRIEFING & FEATURES</h2>
+        <h2>🎮 PRO FEATURES & SQUAD ROLES</h2>
         <div class="feature-cards">
           <div class="f-card">
-            <strong>🎙️ Proximity Voice Chat</strong>
-            <span>Talk live with your squad—but speaking too loud attracts Subject-0!</span>
+            <strong>🏝️ 3D Squad Spawn Island</strong>
+            <span>See all your teammates standing together in 3D before deployment!</span>
           </div>
           <div class="f-card">
-            <strong>😱 Jumpscare & Stealth</strong>
-            <span>Hide inside glowing green Safe Lockers or stun the monster with electric bolts.</span>
+            <strong>🎖️ Scout, Engineer & Medic</strong>
+            <span>Each class has unique survival powers, radar range, and extra charges.</span>
           </div>
           <div class="f-card">
-            <strong>🚁 3 Deadly Levels</strong>
-            <span>Survive Sector-09 Lab, Bio-Reactor Core, and the Surface Helipad.</span>
+            <strong>🚁 3D Helicopter Extraction</strong>
+            <span>Board the landing rescue chopper on the rooftop in Level 3 to win!</span>
           </div>
         </div>
       </div>
@@ -55,22 +55,24 @@
     </div>
   </section>
 
-  <!-- LOBBY SCREEN -->
+  <!-- BGMI-STYLE 3D SQUAD LOBBY SCREEN -->
   <section id="lobby-screen" class="screen hidden">
-    <div class="lobby-card">
-      <div class="badge-top">PROJECT ECLIPSE // SECTOR-09</div>
+    <div id="lobby-3d-bg" class="lobby-3d-bg"></div>
+
+    <div class="lobby-card bgmi-lobby-panel">
+      <div class="badge-top">SPAWN BAY // SECTOR-09</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">Your rescue squad is trapped underground. Conserve flashlight battery, restore power, decode Dr. Verma's logs, and escape Subject-0!</p>
 
-      <input type="text" id="player-name" placeholder="Enter your Agent Name..." maxlength="12" />
-
-      <div id="lobby-actions" class="action-grid">
-        <button id="rejoin-squad-btn" class="btn hidden" style="background:linear-gradient(135deg,#0284c7,#1d4ed8);margin-bottom:6px;">🔄 REJOIN LIVE SQUAD</button>
-        <button id="resume-mission-btn" class="btn hidden" style="background:linear-gradient(135deg,#059669,#047857);margin-bottom:4px;">▶️ RESUME SAVED CHECKPOINT</button>
-        <button id="create-room-btn" class="btn primary">➕ CREATE MISSION</button>
-        <div class="join-row">
-          <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
-          <button id="join-room-btn" class="btn secondary">JOIN</button>
+      <div id="lobby-setup-form">
+        <input type="text" id="player-name" placeholder="Enter your Agent Name..." maxlength="12" />
+        <div id="lobby-actions" class="action-grid">
+          <button id="rejoin-squad-btn" class="btn hidden" style="background:linear-gradient(135deg,#0284c7,#1d4ed8);">🔄 REJOIN LIVE SQUAD</button>
+          <button id="resume-mission-btn" class="btn hidden" style="background:linear-gradient(135deg,#059669,#047857);">▶️ RESUME SAVED CHECKPOINT</button>
+          <button id="create-room-btn" class="btn primary">➕ CREATE SQUAD ROOM</button>
+          <div class="join-row">
+            <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
+            <button id="join-room-btn" class="btn secondary">JOIN</button>
+          </div>
         </div>
       </div>
 
@@ -81,14 +83,24 @@
           <button id="copy-code-btn" class="mini-btn">COPY</button>
         </div>
 
+        <!-- Class Role Selector -->
+        <div class="role-selector-row">
+          <label for="role-select">🎖️ YOUR CLASS:</label>
+          <select id="role-select" class="role-select">
+            <option value="SCOUT">🔭 SCOUT (2x Radar Range)</option>
+            <option value="ENGINEER">🔧 ENGINEER (4 Stun Charges)</option>
+            <option value="MEDIC">💉 MEDIC (Speed + Battery Revive)</option>
+          </select>
+        </div>
+
         <div class="squad-header">
-          <span>RESCUE TEAM (<span id="player-count">1</span>/4)</span>
-          <span class="flex-note">Voice Co-Op Ready</span>
+          <span>SQUAD IN LOBBY (<span id="player-count">1</span>/4)</span>
+          <button id="ready-toggle-btn" class="mini-btn" style="background:#16a34a">✅ READY</button>
         </div>
         <ul id="squad-list" class="squad-list"></ul>
 
-        <button id="start-game-btn" class="btn start-btn">🚀 DEPLOY TO SECTOR-09</button>
-        <p id="wait-msg" class="wait-msg hidden">Waiting for Host to launch the mission...</p>
+        <button id="start-game-btn" class="btn start-btn">🚀 DEPLOY SQUAD TO SECTOR-09</button>
+        <p id="wait-msg" class="wait-msg hidden">Waiting for Squad Leader to launch...</p>
       </div>
     </div>
   </section>
@@ -108,20 +120,24 @@
     <div id="three-container"></div>
     <div id="danger-overlay" class="danger-overlay"></div>
 
+    <!-- SAFE LOCKER PEEKING SLITS OVERLAY -->
+    <div id="locker-overlay" class="locker-overlay hidden">
+      <div class="locker-slit"></div>
+      <div class="locker-slit"></div>
+      <div class="locker-slit"></div>
+      <div class="locker-label">🔒 HIDING IN SAFE LOCKER — STAY QUIET!</div>
+    </div>
+
     <!-- JUMPSCARE OVERLAY -->
     <div id="jumpscare-overlay" class="jumpscare-overlay hidden">
       <div class="scare-face">
         <svg viewBox="0 0 200 220" width="240" height="260">
           <path d="M40,40 Q100,10 160,40 L175,130 Q100,210 25,130 Z" fill="#09090b" stroke="#7f1d1d" stroke-width="4"/>
-          <circle cx="68" cy="85" r="14" fill="#ff0000"/>
-          <circle cx="68" cy="85" r="4" fill="#ffffff"/>
-          <circle cx="132" cy="85" r="14" fill="#ff0000"/>
-          <circle cx="132" cy="85" r="4" fill="#ffffff"/>
+          <circle cx="68" cy="85" r="14" fill="#ff0000"/><circle cx="68" cy="85" r="4" fill="#ffffff"/>
+          <circle cx="132" cy="85" r="14" fill="#ff0000"/><circle cx="132" cy="85" r="4" fill="#ffffff"/>
           <path d="M55,140 Q100,115 145,140 Q135,185 100,185 Q65,185 55,140 Z" fill="#18181b" stroke="#dc2626" stroke-width="3"/>
-          <polygon points="65,138 73,158 81,136" fill="#e2e8f0"/>
-          <polygon points="88,134 96,160 104,134" fill="#e2e8f0"/>
-          <polygon points="112,136 120,158 128,138" fill="#e2e8f0"/>
-          <polygon points="75,178 83,160 91,180" fill="#e2e8f0"/>
+          <polygon points="65,138 73,158 81,136" fill="#e2e8f0"/><polygon points="88,134 96,160 104,134" fill="#e2e8f0"/>
+          <polygon points="112,136 120,158 128,138" fill="#e2e8f0"/><polygon points="75,178 83,160 91,180" fill="#e2e8f0"/>
           <polygon points="108,180 116,160 124,178" fill="#e2e8f0"/>
         </svg>
         <p>SUBJECT-0 CAUGHT YOU!</p>
@@ -143,7 +159,7 @@
         <button id="edit-hud-btn" class="mic-badge">⚙️ KEYS</button>
         <span id="fps-badge" class="fps-badge">FPS: 60</span>
       </div>
-      <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
+      <div id="timer-badge" class="timer-badge hidden">☢️ 65s</div>
     </header>
 
     <div id="objective-banner" class="objective-strip">CHAPTER 1: Find the blue POWER FUSE in the dark storage room</div>
@@ -157,7 +173,7 @@
       </div>
     </div>
 
-    <!-- SPECTATE MODE OVERLAY (When caught in Co-Op) -->
+    <!-- SPECTATE MODE OVERLAY -->
     <div id="spectate-bar" class="spectate-bar hidden">
       <span>👁️ SPECTATING: <strong id="spectate-target-name">Teammate</strong></span>
       <button id="spectate-next-btn" class="mini-btn" style="background:#0284c7">NEXT PLAYER ▶</button>
@@ -214,11 +230,13 @@
       </div>
     </div>
 
+    <!-- END OF MATCH MVP SUMMARY CARD -->
     <div id="end-modal" class="modal hidden">
-      <div class="modal-box">
+      <div class="modal-box" style="max-width:360px;">
         <h2 id="end-title">MISSION COMPLETE</h2>
-        <p id="end-desc" style="margin: 12px 0; font-size: 0.88rem; color: #cbd5e1;">...</p>
-        <button id="instant-restart-btn" class="btn primary" style="width:100%">🔄 PLAY AGAIN (INSTANT)</button>
+        <p id="end-desc" style="margin: 8px 0 12px; font-size: 0.84rem; color: #cbd5e1;">...</p>
+        <div id="mvp-summary" class="mvp-box"></div>
+        <button id="instant-restart-btn" class="btn primary" style="width:100%; margin-top:12px;">🔄 PLAY AGAIN (INSTANT)</button>
       </div>
     </div>
   </section>
@@ -227,6 +245,7 @@
     document.getElementById('launch-game-banner').addEventListener('click', () => {
       document.getElementById('landing-screen').classList.add('hidden');
       document.getElementById('lobby-screen').classList.remove('hidden');
+      if (typeof Lobby3D !== 'undefined') Lobby3D.init();
     });
   </script>
   <script src="network.js"></script>

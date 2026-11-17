@@ -181,6 +181,146 @@ function makeTexture(type, theme = 1) {
   return tex;
 }
 
+const Lobby3D = {
+  scene: null,
+  camera: null,
+  renderer: null,
+  avatars: {},
+  running: false,
+  init() {
+    if (this.running) return;
+    const container = document.getElementById('lobby-3d-bg');
+    if (!container || typeof THREE === 'undefined') return;
+    this.running = true;
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x060a14);
+    this.scene.fog = new THREE.FogExp2(0x060a14, 0.04);
+
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 60);
+    this.camera.position.set(0, 2.3, 6.2);
+    this.camera.lookAt(0, 1.1, 0);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    container.innerHTML = '';
+    container.appendChild(this.renderer.domElement);
+
+    this.scene.add(new THREE.HemisphereLight(0x93c5fd, 0x0f172a, 1.2));
+    const spot = new THREE.SpotLight(0x38bdf8, 4.5, 25, Math.PI / 4, 0.4);
+    spot.position.set(0, 7, 4);
+    this.scene.add(spot);
+
+    // BGMI-style glowing circular tactical platform
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.8, 4.2, 0.25, 32),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 })
+    );
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3.5, 3.75, 32),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.14;
+    this.scene.add(platform, ring);
+
+    // Bind Role Selector & Ready Button in Lobby
+    const roleSel = document.getElementById('role-select');
+    const readyBtn = document.getElementById('ready-toggle-btn');
+    if (roleSel) {
+      roleSel.onchange = () => {
+        const me = Net.players[Net.myId];
+        if (!me) return;
+        me.role = roleSel.value;
+        Net.updateSquadUI();
+        const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
+        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
+      };
+    }
+    if (readyBtn) {
+      readyBtn.onclick = () => {
+        const me = Net.players[Net.myId];
+        if (!me) return;
+        me.ready = !me.ready;
+        readyBtn.textContent = me.ready ? '✅ READY' : '⏳ NOT READY';
+        readyBtn.style.background = me.ready ? '#16a34a' : '#b45309';
+        Net.updateSquadUI();
+        const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
+        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
+      };
+    }
+
+    this.syncSquad(Net.players);
+    this.animate();
+  },
+  syncSquad(players) {
+    if (!this.scene) return;
+    Object.values(this.avatars).forEach(m => this.scene.remove(m));
+    this.avatars = {};
+
+    const list = Object.values(players || {});
+    const slots = [
+      { x: -0.9, z: 0.4 }, { x: 0.9, z: 0.4 },
+      { x: -2.2, z: -0.4 }, { x: 2.2, z: -0.4 }
+    ];
+    list.forEach((p, idx) => {
+      const grp = new THREE.Group();
+      const colorMap = { SCOUT: 0x0284c7, ENGINEER: 0xd97706, MEDIC: 0x16a34a };
+      const suit = new THREE.MeshStandardMaterial({ color: colorMap[p.role] || 0x0284c7, roughness: 0.4 });
+      const skin = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.5 });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.0, 0.38), suit);
+      torso.position.y = 1.25;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skin);
+      head.position.y = 2.02;
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.72, 0.22), suit);
+      legL.position.set(-0.18, 0.48, 0);
+      const legR = legL.clone(); legR.position.x = 0.18;
+
+      // Name + Role Floating Plate
+      const cvs = document.createElement('canvas');
+      cvs.width = 256; cvs.height = 72;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+      ctx.fillRect(10, 8, 236, 56);
+      ctx.strokeStyle = p.ready ? '#4ade80' : '#facc15';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(10, 8, 236, 56);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name, 128, 34);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`[${p.role}] ${p.ready ? 'READY' : 'WAITING'}`, 128, 56);
+
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cvs), transparent: true }));
+      sprite.position.set(0, 2.68, 0);
+      sprite.scale.set(1.8, 0.5, 1);
+
+      grp.add(torso, head, legL, legR, sprite);
+      const pos = slots[idx % 4];
+      grp.position.set(pos.x, 0.12, pos.z);
+      this.scene.add(grp);
+      this.avatars[p.id] = grp;
+    });
+  },
+  animate() {
+    if (!this.running) return;
+    requestAnimationFrame(() => this.animate());
+    if (document.getElementById('lobby-screen').classList.contains('hidden')) {
+      this.running = false;
+      return;
+    }
+    const t = performance.now() * 0.0015;
+    Object.values(this.avatars).forEach((grp, i) => {
+      grp.position.y = 0.12 + Math.sin(t * 2 + i) * 0.03;
+    });
+    this.renderer.render(this.scene, this.camera);
+  }
+};
+
 const Game3D = {
   scene: null,
   camera: null,
@@ -207,6 +347,11 @@ const Game3D = {
   notes: [],
   terminals: [],
   valves: [],
+  pickups: [],
+  chopperGroup: null,
+  chopperRotor: null,
+  turboUntil: 0,
+  stats: { stuns: 0, objectives: 0, revives: 0 },
   locks: [false, false, false],
   codes: ['123', '456', '789'],
   activeTerminalIdx: -1,
@@ -319,7 +464,12 @@ const Game3D = {
 
   init3D(noteSpots, fuseSpot) {
     const me = Net.players[Net.myId];
-    document.getElementById('role-badge').textContent = me ? me.role : 'SCOUT';
+    const myRole = me ? me.role : 'SCOUT';
+    document.getElementById('role-badge').textContent = myRole;
+    if (myRole === 'ENGINEER') {
+      this.stunCharges = 4;
+      document.getElementById('stun-status').textContent = '🔫 4/4';
+    }
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 90);
@@ -631,7 +781,43 @@ const Game3D = {
       ];
       crates.forEach(c => this.addWall(c.x, c.z, 2.6, 2.6, wallTex, 2.2));
       this.addSafeLockers([{ x: -20, z: -20 }, { x: 20, z: 20 }]);
+
+      // 3D Rescue Helicopter (Descends during final 15 seconds!)
+      const heli = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7 }));
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 3.2), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+      tail.position.set(0, 0.2, 3.6);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.08, 0.35), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      rotor.position.set(0, 0.95, 0);
+      const searchLight = new THREE.PointLight(0xfacc15, 5, 25);
+      searchLight.position.set(0, -1.2, 0);
+      heli.add(body, tail, rotor, searchLight);
+      heli.position.set(0, 18, 0);
+      this.mapGroup.add(heli);
+      this.chopperGroup = heli;
+      this.chopperRotor = rotor;
     }
+
+    // Spawn Spare Batteries (+40%) & Stun Cells (+1 Charge) across rooms
+    this.pickups = [];
+    const pickupSpots = [
+      { x: -16, z: 12, kind: 'BATTERY' }, { x: 16, z: -10, kind: 'BATTERY' },
+      { x: -12, z: -18, kind: 'STUN' }, { x: 14, z: 18, kind: 'STUN' }
+    ];
+    pickupSpots.forEach(ps => {
+      const isBat = ps.kind === 'BATTERY';
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.45, 0.45, 0.45),
+        new THREE.MeshStandardMaterial({
+          color: isBat ? 0x22c55e : 0xc084fc,
+          emissive: isBat ? 0x16a34a : 0x9333ea,
+          emissiveIntensity: 1.1
+        })
+      );
+      mesh.position.set(ps.x, 0.65, ps.z);
+      this.mapGroup.add(mesh);
+      this.pickups.push({ ...ps, mesh, taken: false });
+    });
 
     // Corridor / Arena Lights
     [
@@ -1063,6 +1249,7 @@ const Game3D = {
 
     if (hit) {
       this.hunter.stunnedUntil = performance.now() + 5500;
+      this.stats.stuns++;
       this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 5.5s!');
     } else {
       this.showRadioToast('STUN', '⚡ Electric Arc fired—target too far!');
@@ -1076,7 +1263,24 @@ const Game3D = {
 
     if (act.type === 'LOCKER') {
       me.hiding = !me.hiding;
+      document.getElementById('locker-overlay')?.classList.toggle('hidden', !me.hiding);
       this.showRadioToast('STEALTH', me.hiding ? '🔒 Hidden inside Safe Locker!' : '🚪 Exited Safe Locker.');
+    } else if (act.type === 'PICKUP') {
+      act.item.taken = true;
+      act.item.mesh.visible = false;
+      if (act.item.kind === 'BATTERY') {
+        this.battery = Math.min(100, this.battery + 40);
+        document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
+        this.showRadioToast('SUPPLY', '🔋 Picked up Spare Battery (+40%)!');
+      } else {
+        this.stunCharges++;
+        document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}`;
+        this.showRadioToast('SUPPLY', '⚡ Picked up Stun Cell (+1 Charge)!');
+      }
+    } else if (act.type === 'BOARD_HELI') {
+      const msg = '🚁 Squad boarded the Rescue Helicopter! All 3 levels cleared!';
+      if (Net.isHost) Net.broadcast({ type: 'GAMEOVER', win: true, reason: msg });
+      this.triggerEnd(true, msg);
     } else if (act.type === 'FUSE') {
       this.hasFuse = true;
       this.fuseMesh.visible = false;
@@ -1106,7 +1310,14 @@ const Game3D = {
       else Net.sendToHost({ type: 'UNLOCK', lockIdx: act.valve.idx });
     } else if (act.type === 'REVIVE') {
       act.target.downed = false;
-      this.showRadioToast('MEDIC', `💉 Revived ${act.target.name}!`);
+      this.stats.revives++;
+      if (me.role === 'MEDIC') {
+        this.turboUntil = performance.now() + 6000;
+        this.battery = Math.min(100, this.battery + 35);
+        this.showRadioToast('MEDIC PERK', `💉 Revived ${act.target.name} + 6s Turbo Speed & +35% Battery!`);
+      } else {
+        this.showRadioToast('MEDIC', `💉 Revived ${act.target.name}!`);
+      }
       if (!Net.isHost) Net.sendToHost({ type: 'REVIVE', targetId: act.target.id });
     }
   },
@@ -1144,6 +1355,7 @@ const Game3D = {
     const v = this.valves[idx];
     if (!v || v.fixed) return;
     v.fixed = true;
+    this.stats.objectives++;
     v.wheel.material.color.setHex(0x22c55e);
     v.wheel.material.emissive.setHex(0x16a34a);
     v.light.color.setHex(0x22c55e);
@@ -1162,6 +1374,7 @@ const Game3D = {
     if (this.level === 2) return this.fixValve(idx);
     if (this.locks[idx]) return;
     this.locks[idx] = true;
+    this.stats.objectives++;
     const t = this.terminals[idx];
     if (t) {
       t.mesh.material.color.setHex(0x16a34a);
@@ -1246,6 +1459,15 @@ const Game3D = {
     document.getElementById('end-title').textContent = win ? '🏆 MISSION ACCOMPLISHED' : '💀 SQUAD WIPED OUT';
     document.getElementById('end-title').style.color = win ? '#4ade80' : '#ef4444';
     document.getElementById('end-desc').textContent = reason;
+    const mvpBox = document.getElementById('mvp-summary');
+    if (mvpBox) {
+      mvpBox.innerHTML = `
+        <div style="color:#facc15;font-weight:800;margin-bottom:4px;">🏆 YOUR MATCH STATS (${Net.players[Net.myId]?.role || 'AGENT'})</div>
+        <div class="mvp-row"><span>⚡ Subject-0 Stuns:</span><strong>${this.stats.stuns}</strong></div>
+        <div class="mvp-row"><span>🔓 Terminals / Valves Fixed:</span><strong>${this.stats.objectives}</strong></div>
+        <div class="mvp-row"><span>💉 Squadmates Revived:</span><strong>${this.stats.revives}</strong></div>
+      `;
+    }
     document.getElementById('end-modal').classList.remove('hidden');
   },
 
@@ -1343,8 +1565,9 @@ const Game3D = {
     // Monster Dot
     const dx = this.hunter.x - me.x;
     const dz = this.hunter.z - me.z;
-    const rx = (dx * cos - dz * sin) * 1.4;
-    const rz = (dx * sin + dz * cos) * 1.4;
+    const radarScale = me.role === 'SCOUT' ? 0.85 : 1.4;
+    const rx = (dx * cos - dz * sin) * radarScale;
+    const rz = (dx * sin + dz * cos) * radarScale;
     const dist = Math.hypot(rx, rz);
     const clamp = dist > 36 ? 36 / dist : 1;
     ctx.fillStyle = '#ef4444';
@@ -1405,7 +1628,14 @@ const Game3D = {
         if (this.joy.active) { fwd -= this.joy.dy; str += this.joy.dx; }
 
         const isRunning = (this.keys['ShiftLeft'] || this.sprinting) && !me.downed && !me.hiding;
-        const speed = me.downed ? 0.02 : me.hiding ? 0 : (isRunning ? 0.125 : 0.075);
+        this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
+        if (this.level === 3 && this.chopperGroup) {
+          this.chopperRotor.rotation.y += 0.35;
+          const targetY = this.escapeTimeLeft <= 12 ? 1.1 : 18;
+          this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.03);
+        }
+        const turboBoost = performance.now() < this.turboUntil ? 1.35 : 1.0;
+        const speed = (me.downed ? 0.02 : me.hiding ? 0 : (isRunning ? 0.125 : 0.075)) * turboBoost;
 
         const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
         const moveX = (-fwd * sin + str * cos);
