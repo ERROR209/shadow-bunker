@@ -481,3 +481,13 @@ input[type="text"] {
 @media (min-width: 900px) {
   .joystick-zone, .action-buttons, .look-zone, .radio-bar { display: none; }
 }
+
+/* CINEMATIC HORROR VIGNETTE */
+#game-screen::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(circle at center, transparent 52%, rgba(0, 0, 0, 0.82) 100%);
+}

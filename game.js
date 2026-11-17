@@ -256,6 +256,8 @@ const Game3D = {
   radarAngle: 0,
   lastNetSync: 0,
   lastVentJump: 0,
+  flickerLights: [],
+  dustSystem: null,
 
   start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
@@ -911,6 +913,18 @@ const Game3D = {
     if (!me) return;
 
     SFX.ambientDrip();
+    if (this.dustSystem) {
+      this.dustSystem.rotation.y += 0.0008;
+      this.dustSystem.position.y = Math.sin(performance.now() * 0.001) * 0.12;
+    }
+    if (this.flickerLights && this.flickerLights.length) {
+      this.flickerLights.forEach((fl, idx) => {
+        const wave = Math.sin(performance.now() * 0.025 + idx * 3);
+        const on = wave > -0.72 && Math.random() > 0.06;
+        fl.light.intensity = on ? 0.85 : 0.04;
+        fl.mesh.material.color.setHex(on ? 0xfef08a : 0x1e293b);
+      });
+    }
     Net.updateVoiceProximity(me);
 
     if (me.torch && this.battery > 0) {
@@ -1101,6 +1115,7 @@ const Game3D = {
       this.hunter.mesh.position.z = THREE.MathUtils.lerp(this.hunter.mesh.position.z, this.hunter.z, 0.22);
       const hDiff = Math.atan2(Math.sin(this.hunter.yaw - this.hunter.mesh.rotation.y), Math.cos(this.hunter.yaw - this.hunter.mesh.rotation.y));
       this.hunter.mesh.rotation.y += hDiff * 0.22;
+      this.hunter.mesh.rotation.x = 0.16;
       const hud = this.hunter.mesh.userData;
       if (hud && !isStunned) {
         hud.phase += 0.16;
