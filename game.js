@@ -192,7 +192,7 @@ const Game3D = {
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
-  hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, patrolAngle: 0, stunnedUntil: 0, stuckFrames: 0 },
+  hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, aiState: 'PATROL', goalX: -16, goalZ: 16, scanUntil: 0, investigateUntil: 0 },
   level: 1,
   battery: 100,
   stunCharges: 3,
@@ -719,6 +719,53 @@ const Game3D = {
         this.scene.remove(this.teammateMeshes[id].grp);
         delete this.teammateMeshes[id];
       }
+    }
+  },
+
+  pickNextPatrolWaypoint() {
+    const waypoints = this.level === 2
+      ? [
+          { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 },
+          { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 }
+        ]
+      : [
+          { x: -18, z: 18 }, { x: -18, z: -18 }, { x: 18, z: -18 }, { x: 18, z: 18 },
+          { x: 0, z: 16 }, { x: 0, z: -12 }, { x: -14, z: 2 }, { x: 14, z: 2 }
+        ];
+    const choices = waypoints.filter(w => Math.hypot(w.x - this.hunter.x, w.z - this.hunter.z) > 6);
+    const next = choices[Math.floor(Math.random() * choices.length)] || waypoints[0];
+    this.hunter.goalX = next.x;
+    this.hunter.goalZ = next.z;
+  },
+
+  moveHunterToward(tx, tz, speed) {
+    let ang = Math.atan2(tx - this.hunter.x, tz - this.hunter.z);
+    // Smart left/right whisker obstacle avoidance so monster steers smoothly around walls & pillars
+    const lookAhead = 1.35;
+    const frontBlocked = this.checkCollision(this.hunter.x + Math.sin(ang) * lookAhead, this.hunter.z + Math.cos(ang) * lookAhead);
+    if (frontBlocked) {
+      const leftFree = !this.checkCollision(this.hunter.x + Math.sin(ang + 0.75) * lookAhead, this.hunter.z + Math.cos(ang + 0.75) * lookAhead);
+      const rightFree = !this.checkCollision(this.hunter.x + Math.sin(ang - 0.75) * lookAhead, this.hunter.z + Math.cos(ang - 0.75) * lookAhead);
+      if (leftFree) ang += 0.85;
+      else if (rightFree) ang -= 0.85;
+      else ang += Math.PI * 0.65;
+    }
+
+    this.hunter.yaw = ang;
+    const prevX = this.hunter.x, prevZ = this.hunter.z;
+    const nx = this.hunter.x + Math.sin(ang) * speed;
+    const nz = this.hunter.z + Math.cos(ang) * speed;
+    if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
+    if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+
+    if (Math.hypot(this.hunter.x - prevX, this.hunter.z - prevZ) < 0.008) {
+      this.hunter.stuckFrames++;
+      if (this.hunter.stuckFrames > 30) {
+        this.pickNextPatrolWaypoint();
+        this.hunter.stuckFrames = 0;
+      }
+    } else {
+      this.hunter.stuckFrames = 0;
     }
   },
 
@@ -1537,55 +1584,60 @@ const Game3D = {
       }
 
       if (Net.isHost && !isStunned) {
+        const nowAI = performance.now();
         let target = null, minDist = 999;
+
         for (const p of Object.values(Net.players)) {
           if (p.downed || p.hiding) continue;
           const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
-          const detectRange = this.level === 3 ? 32 : (p.makingNoise ? 24 : (p.torch ? 14 : 7));
+          // Wider sight/hearing range in front of monster, narrower behind
+          const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
+          const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
+          const inFront = angleDiff < 1.25;
+          const detectRange = this.level === 3 ? 34 : (p.makingNoise ? 26 : (inFront ? (p.torch ? 18 : 11) : 6.5));
           if (d < detectRange && d < minDist) { minDist = d; target = p; }
         }
 
         if (target) {
-          const ang = Math.atan2(target.x - this.hunter.x, target.z - this.hunter.z);
-          this.hunter.yaw = ang;
-          const mSpeed = this.level === 3 ? 0.095 : 0.072;
-          const prevX = this.hunter.x, prevZ = this.hunter.z;
-          const nx = this.hunter.x + Math.sin(ang) * mSpeed;
-          const nz = this.hunter.z + Math.cos(ang) * mSpeed;
-          if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
-          if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+          // STATE 1: CHASE PLAYER & REMEMBER LAST SEEN POSITION
+          this.hunter.aiState = 'CHASE';
+          this.hunter.goalX = target.x;
+          this.hunter.goalZ = target.z;
+          this.hunter.investigateUntil = nowAI + 4200;
 
-          // If blocked by a pillar, slide perpendicular or relocate to nearest open corridor
-          if (Math.hypot(this.hunter.x - prevX, this.hunter.z - prevZ) < 0.01) {
-            this.hunter.stuckFrames++;
-            const sideX = this.hunter.x + Math.cos(ang) * mSpeed;
-            const sideZ = this.hunter.z - Math.sin(ang) * mSpeed;
-            if (!this.checkCollision(sideX, this.hunter.z)) this.hunter.x = sideX;
-            if (!this.checkCollision(this.hunter.x, sideZ)) this.hunter.z = sideZ;
-            if (this.hunter.stuckFrames > 45) {
-              const openSpots = [{ x: -20, z: -6 }, { x: 20, z: 6 }, { x: -6, z: 20 }, { x: 6, z: -20 }];
-              const pick = openSpots[Math.floor(Math.random() * openSpots.length)];
-              this.hunter.x = pick.x; this.hunter.z = pick.z;
-              this.hunter.stuckFrames = 0;
-            }
-          } else {
-            this.hunter.stuckFrames = 0;
-          }
+          const mSpeed = this.level === 3 ? 0.098 : 0.078;
+          this.moveHunterToward(target.x, target.z, mSpeed);
 
           if (minDist < 1.35) {
             target.downed = true;
+            this.hunter.aiState = 'PATROL';
+            this.pickNextPatrolWaypoint();
             if (target.id === Net.myId) this.triggerJumpscare();
           }
+        } else if (nowAI < this.hunter.investigateUntil) {
+          // STATE 2: INVESTIGATE LAST KNOWN SPOT (e.g. if player hid in locker or turned corner)
+          this.hunter.aiState = 'INVESTIGATE';
+          const distToLast = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
+          if (distToLast > 1.4) {
+            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.068);
+          } else {
+            // Look left and right suspiciously around the locker/corner
+            this.hunter.yaw += Math.sin(nowAI * 0.006) * 0.045;
+          }
+        } else if (nowAI < this.hunter.scanUntil) {
+          // STATE 3: ROOM SCANNING PAUSE
+          this.hunter.aiState = 'SCAN';
+          this.hunter.yaw += Math.sin(nowAI * 0.004) * 0.03;
         } else {
-          this.hunter.patrolAngle += 0.012;
-          const px = Math.cos(this.hunter.patrolAngle) * 16;
-          const pz = Math.sin(this.hunter.patrolAngle) * 16;
-          const ang = Math.atan2(px - this.hunter.x, pz - this.hunter.z);
-          this.hunter.yaw = ang;
-          const nx = this.hunter.x + Math.sin(ang) * 0.048;
-          const nz = this.hunter.z + Math.cos(ang) * 0.048;
-          if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
-          if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+          // STATE 4: TACTICAL ROOM-TO-ROOM PATROL
+          this.hunter.aiState = 'PATROL';
+          const distGoal = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
+          if (distGoal < 1.8) {
+            this.hunter.scanUntil = nowAI + 1800;
+            this.pickNextPatrolWaypoint();
+          } else {
+            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.055);
+          }
         }
 
         // Only trigger Squad Wipe Game Over when EVERY player in the team is downed!
