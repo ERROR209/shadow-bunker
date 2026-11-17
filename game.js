@@ -387,7 +387,9 @@ const Game3D = {
     const pLight = new THREE.PointLight(0x22c55e, 4.0, 22);
     pLight.position.y = 2.8;
     beaconGrp.add(beam, ring, pLight);
-    beaconGrp.position.set(x, 0, z > 0 ? z - 1.5 : z + 1.5);
+    const ringZ = z > 0 ? z - 1.6 : z + 1.6;
+    beaconGrp.position.set(x, 0, ringZ);
+    this.exitPos = { x, z: ringZ };
     beaconGrp.visible = false;
     this.mapGroup.add(beaconGrp);
     this.exitBeacon = beaconGrp;
@@ -1385,16 +1387,19 @@ const Game3D = {
       }
       hint.classList.toggle('hidden', !this.nearAction);
 
-      // Exit Gate Check (Any alive player reaching the glowing Exit Door advances the whole squad!)
-      if (this.selfDestructActive && this.level < 3 && Net.isHost) {
-        const anyoneAtExit = Object.values(Net.players).some(p => !p.downed && Math.hypot(this.exitPos.x - p.x, this.exitPos.z - p.z) < 3.0);
+      // Exit Gate Check (Stepping inside the Green Ring immediately advances the squad!)
+      if (this.selfDestructActive && this.level < 3) {
+        const meAtExit = !me.downed && Math.hypot(this.exitPos.x - me.x, this.exitPos.z - me.z) < 3.4;
+        const anyoneAtExit = meAtExit || Object.values(Net.players).some(p => !p.downed && Math.hypot(this.exitPos.x - p.x, this.exitPos.z - p.z) < 3.4);
         if (anyoneAtExit) {
           if (this.level === 1) {
             this.startLevel2();
-            Net.broadcast({ type: 'LEVEL_2' });
+            if (Net.isHost) Net.broadcast({ type: 'LEVEL_2' });
+            else Net.sendToHost({ type: 'LEVEL_2' });
           } else if (this.level === 2) {
             this.startLevel3();
-            Net.broadcast({ type: 'LEVEL_3' });
+            if (Net.isHost) Net.broadcast({ type: 'LEVEL_3' });
+            else Net.sendToHost({ type: 'LEVEL_3' });
           }
         }
       }
@@ -1404,7 +1409,7 @@ const Game3D = {
         const now = performance.now();
         if (now - this.lastTick >= 1000) {
           this.lastTick = now;
-          this.escapeTimeLeft--;
+          this.escapeTimeLeft = Math.max(0, this.escapeTimeLeft - 1);
           document.getElementById('timer-badge').textContent = (this.level === 3 ? '🚁 ' : '☢️ ') + `${this.escapeTimeLeft}s`;
           if (this.escapeTimeLeft <= 0 && Net.isHost) {
             if (this.level === 3) {
