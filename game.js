@@ -160,6 +160,7 @@ const Game3D = {
   teammateMeshes: {},
   bobTimer: 0,
   radarAngle: 0,
+  lastNetSync: 0,
 
   start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
@@ -958,18 +959,28 @@ const Game3D = {
         }
       }
 
-      Net.broadcast({ type: 'STATE', players: Net.players, hunter: { x: this.hunter.x, z: this.hunter.z, yaw: this.hunter.yaw } });
+      const nowSync = performance.now();
+      if (nowSync - this.lastNetSync > 50) {
+        this.lastNetSync = nowSync;
+        Net.broadcast({ type: 'STATE', players: Net.players, hunter: { x: this.hunter.x, z: this.hunter.z, yaw: this.hunter.yaw } });
+      }
     } else if (!Net.isHost) {
-      Net.sendToHost({
-        type: 'MOVE',
-        id: Net.myId,
-        state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding, makingNoise: me.makingNoise }
-      });
+      const nowSync = performance.now();
+      if (nowSync - this.lastNetSync > 50) {
+        this.lastNetSync = nowSync;
+        Net.sendToHost({
+          type: 'MOVE',
+          id: Net.myId,
+          state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding, makingNoise: me.makingNoise }
+        });
+      }
     }
 
     if (this.hunter.mesh) {
-      this.hunter.mesh.position.set(this.hunter.x, 0, this.hunter.z);
-      this.hunter.mesh.rotation.y = this.hunter.yaw;
+      this.hunter.mesh.position.x = THREE.MathUtils.lerp(this.hunter.mesh.position.x, this.hunter.x, 0.22);
+      this.hunter.mesh.position.z = THREE.MathUtils.lerp(this.hunter.mesh.position.z, this.hunter.z, 0.22);
+      const hDiff = Math.atan2(Math.sin(this.hunter.yaw - this.hunter.mesh.rotation.y), Math.cos(this.hunter.yaw - this.hunter.mesh.rotation.y));
+      this.hunter.mesh.rotation.y += hDiff * 0.22;
       const hud = this.hunter.mesh.userData;
       if (hud && !isStunned) {
         hud.phase += 0.16;
@@ -1045,22 +1056,26 @@ const Game3D = {
       const m = this.teammateMeshes[p.id];
       m.visible = !p.hiding;
       const ud = m.userData;
-      const moved = Math.hypot(p.x - ud.lastX, p.z - ud.lastZ);
-      ud.lastX = p.x;
-      ud.lastZ = p.z;
-      if (moved > 0.004) {
+      m.position.x = THREE.MathUtils.lerp(m.position.x, p.x, 0.24);
+      m.position.z = THREE.MathUtils.lerp(m.position.z, p.z, 0.24);
+      m.position.y = THREE.MathUtils.lerp(m.position.y, p.downed ? -0.85 : 0, 0.2);
+      const angleDiff = Math.atan2(Math.sin(p.yaw - m.rotation.y), Math.cos(p.yaw - m.rotation.y));
+      m.rotation.y += angleDiff * 0.24;
+
+      const moved = Math.hypot(m.position.x - ud.lastX, m.position.z - ud.lastZ);
+      ud.lastX = m.position.x;
+      ud.lastZ = m.position.z;
+      if (moved > 0.003) {
         ud.walkPhase += 0.22;
         ud.leftLeg.rotation.x = Math.sin(ud.walkPhase) * 0.55;
         ud.rightLeg.rotation.x = -Math.sin(ud.walkPhase) * 0.55;
         ud.leftArm.rotation.x = -Math.sin(ud.walkPhase) * 0.4;
       } else {
-        ud.leftLeg.rotation.x = 0;
-        ud.rightLeg.rotation.x = 0;
-        ud.leftArm.rotation.x = 0;
+        ud.leftLeg.rotation.x = THREE.MathUtils.lerp(ud.leftLeg.rotation.x, 0, 0.2);
+        ud.rightLeg.rotation.x = THREE.MathUtils.lerp(ud.rightLeg.rotation.x, 0, 0.2);
+        ud.leftArm.rotation.x = THREE.MathUtils.lerp(ud.leftArm.rotation.x, 0, 0.2);
       }
       ud.torchLight.visible = !!p.torch;
-      m.position.set(p.x, p.downed ? -0.85 : 0, p.z);
-      m.rotation.y = p.yaw;
     });
 
     this.drawMotionRadar(me);
