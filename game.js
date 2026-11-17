@@ -114,7 +114,6 @@ const Game3D = {
   keys: { w: false, a: false, s: false, d: false, run: false },
   lookTouchId: null,
   lastLookX: 0,
-  isMouseDown: false,
 
   wallBoxes: [
     { x: 0, z: -24, w: 48, d: 1.5 },
@@ -170,6 +169,9 @@ const Game3D = {
       SFX.init();
       document.getElementById('story-intro').classList.add('hidden');
       document.getElementById('game-screen').classList.remove('hidden');
+
+      // Request Pointer Lock for seamless PC Mouse Look
+      document.body.requestPointerLock?.();
 
       const me = Net.players[Net.myId];
       document.getElementById('role-badge').textContent = me.role;
@@ -429,19 +431,19 @@ const Game3D = {
       if (!e.shiftKey) this.keys.run = false;
     });
 
-    // FIXED PC Mouse Click & Drag Look (Works with Left/Right Mouse Click anywhere on screen)
-    window.addEventListener('mousedown', (e) => {
-      SFX.init();
-      this.isMouseDown = true;
-      this.lastLookX = e.clientX;
+    // Seamless PC Pointer Lock (No click needed, mouse movement automatically rotates camera!)
+    window.addEventListener('click', () => {
+      if (!document.pointerLockElement) {
+        document.body.requestPointerLock?.();
+      }
     });
-    window.addEventListener('mouseup', () => { this.isMouseDown = false; });
+
     window.addEventListener('mousemove', (e) => {
-      if (!this.isMouseDown) return;
-      const dx = e.clientX - this.lastLookX;
-      this.lastLookX = e.clientX;
-      const me = Net.players[Net.myId];
-      if (me) me.yaw -= dx * 0.004;
+      if (document.pointerLockElement === document.body) {
+        const dx = e.movementX || e.veux || 0;
+        const me = Net.players[Net.myId];
+        if (me) me.yaw -= dx * 0.0032;
+      }
     });
 
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
@@ -721,7 +723,7 @@ const Game3D = {
     } else {
       if (this.keys.w) { moveX += forwardX * speed; moveZ += forwardZ * speed; }
       if (this.keys.s) { moveX -= forwardX * speed; moveZ -= forwardZ * speed; }
-      if (this.keys.a) { moveX -= rightX * speed; moveZ -= rightZ * speed; }
+      if (this.keys.a) { moveX -= rightX * speed; moveZ -= rightX * speed; }
       if (this.keys.d) { moveX += rightX * speed; moveZ += rightZ * speed; }
     }
 
