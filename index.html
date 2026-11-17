@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -32,19 +32,19 @@
       </div>
 
       <div class="info-section">
-        <h2>🎮 मिशन ब्रीफिंग और फीचर्स</h2>
+        <h2>🎮 MISSION BRIEFING & FEATURES</h2>
         <div class="feature-cards">
           <div class="f-card">
             <strong>🎙️ Proximity Voice Chat</strong>
-            <span>दोस्तों से लाइव बात करें—पर ज़ोर से बोलने पर Subject-0 आवाज़ सुन लेगा!</span>
+            <span>Talk live with your squad—but speaking too loud attracts Subject-0!</span>
           </div>
           <div class="f-card">
-            <strong>😱 Jumpscare & Vent Ambush</strong>
-            <span>राक्षस वेंट से अचानक सामने आ सकता है। टॉर्च और स्टन गन तैयार रखें।</span>
+            <strong>😱 Jumpscare & Stealth</strong>
+            <span>Hide inside glowing green Safe Lockers or stun the monster with electric bolts.</span>
           </div>
           <div class="f-card">
             <strong>🚁 3 Deadly Levels</strong>
-            <span>Sector-09 Lab, Bio-Reactor Core और Surface Helipad से बचकर निकलें।</span>
+            <span>Survive Sector-09 Lab, Bio-Reactor Core, and the Surface Helipad.</span>
           </div>
         </div>
       </div>
@@ -60,9 +60,9 @@
     <div class="lobby-card">
       <div class="badge-top">PROJECT ECLIPSE // SECTOR-09</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। माइक पर संभलकर बोलें, 3 कोड डिकोड करें, और Helipad तक पहुंचें!</p>
+      <p class="subtitle">Your rescue squad is trapped underground. Conserve flashlight battery, restore power, decode Dr. Verma's logs, and escape Subject-0!</p>
 
-      <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
+      <input type="text" id="player-name" placeholder="Enter your Agent Name..." maxlength="12" />
 
       <div id="lobby-actions" class="action-grid">
         <button id="create-room-btn" class="btn primary">➕ CREATE MISSION</button>
@@ -86,7 +86,7 @@
         <ul id="squad-list" class="squad-list"></ul>
 
         <button id="start-game-btn" class="btn start-btn">🚀 DEPLOY TO SECTOR-09</button>
-        <p id="wait-msg" class="wait-msg hidden">Host के मिशन शुरू करने का इंतज़ार करें...</p>
+        <p id="wait-msg" class="wait-msg hidden">Waiting for Host to launch the mission...</p>
       </div>
     </div>
   </section>
@@ -127,7 +127,7 @@
     </div>
 
     <div id="crosshair" class="crosshair">+</div>
-    <div id="interact-hint" class="interact-hint hidden">✋ [USE / E] दबाकर जाँच करें</div>
+    <div id="interact-hint" class="interact-hint hidden">✋ [USE / E] Interact</div>
 
     <header class="game-hud">
       <div class="hud-left">
@@ -143,11 +143,11 @@
       <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
 
-    <div id="objective-banner" class="objective-strip">CHAPTER 1: अंधेरे कमरे से नीला POWER FUSE ढूंढें</div>
+    <div id="objective-banner" class="objective-strip">CHAPTER 1: Find the blue POWER FUSE in the dark storage room</div>
 
     <!-- HUD KEY-MAPPING EDITOR BAR -->
     <div id="hud-editor-bar" class="hud-editor-bar hidden">
-      <span>🎛️ उंगली से बटन खिसकाकर सेट करें</span>
+      <span>🎛️ Drag any button to customize layout</span>
       <div>
         <button id="reset-hud-btn" class="mini-btn" style="background:#b45309">RESET</button>
         <button id="save-hud-btn" class="mini-btn" style="background:#16a34a">SAVE</button>
@@ -159,10 +159,10 @@
     </div>
 
     <div id="radio-bar" class="radio-bar">
-      <button class="radio-btn" data-msg="⚠️ Subject-0 पास है! लॉकर में छुपो!">⚠️ Monster</button>
-      <button class="radio-btn" data-msg="🔋 Power Fuse मिल गया! जनरेटर पर आओ!">🔋 Fuse</button>
-      <button class="radio-btn" data-msg="📄 डायरी से सीक्रेट कोड मिल गया!">📄 Code</button>
-      <button class="radio-btn" data-msg="🆘 मैं घायल हूँ! मुझे Revive करो!">🆘 Help</button>
+      <button class="radio-btn" data-msg="⚠️ Subject-0 is close! Hide in a Safe Locker!">⚠️ Monster</button>
+      <button class="radio-btn" data-msg="🔋 Found the Power Fuse! Heading to Generator!">🔋 Fuse</button>
+      <button class="radio-btn" data-msg="📄 Decoded a secret terminal pass-code!">📄 Code</button>
+      <button class="radio-btn" data-msg="🆘 I'm downed! Need a revive ASAP!">🆘 Help</button>
     </div>
     <div id="radio-toast" class="radio-toast hidden"></div>
 
@@ -187,14 +187,14 @@
         <h3 id="note-title">LOG #1</h3>
         <p id="note-body" class="note-text">...</p>
         <div id="note-code-reveal" class="code-reveal">---</div>
-        <button id="close-note-btn" class="btn primary" style="width:100%">समझ गया (ENTER / CLOSE)</button>
+        <button id="close-note-btn" class="btn primary" style="width:100%">GOT IT (CLOSE)</button>
       </div>
     </div>
 
     <div id="puzzle-modal" class="modal hidden">
       <div class="modal-box">
         <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
-        <p id="puzzle-hint">डॉ. वर्मा के लॉग में मिला 3-अंकों का कोड डालें (या कीबोर्ड नंबर दबाएं)</p>
+        <p id="puzzle-hint">Enter the 3-digit access code found in Dr. Verma's log</p>
         <div id="keypad-display" class="keypad-display">_ _ _</div>
         <div class="keypad-grid">
           <button class="key" data-val="1">1</button><button class="key" data-val="2">2</button><button class="key" data-val="3">3</button>
@@ -209,7 +209,7 @@
       <div class="modal-box">
         <h2 id="end-title">MISSION COMPLETE</h2>
         <p id="end-desc" style="margin: 12px 0; font-size: 0.88rem; color: #cbd5e1;">...</p>
-        <button onclick="location.reload()" class="btn primary" style="width:100%">🔄 PLAY AGAIN</button>
+        <button id="instant-restart-btn" class="btn primary" style="width:100%">🔄 PLAY AGAIN (INSTANT)</button>
       </div>
     </div>
   </section>

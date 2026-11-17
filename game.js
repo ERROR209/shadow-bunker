@@ -666,6 +666,21 @@ const Game3D = {
 
     document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
     this.setupHudCustomizer();
+    document.getElementById('instant-restart-btn')?.addEventListener('click', () => {
+      if (Net.isHost) {
+        const codes = [
+          String(Math.floor(100 + Math.random() * 899)),
+          String(Math.floor(100 + Math.random() * 899)),
+          String(Math.floor(100 + Math.random() * 899))
+        ];
+        const fuseSpot = { x: -16, z: -4 };
+        const noteSpots = [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }];
+        Net.broadcast({ type: 'RESTART', players: Net.players, codes, noteSpots, fuseSpot });
+        this.resetAndRestart(codes, noteSpots, fuseSpot);
+      } else {
+        this.showRadioToast('LOBBY', '⏳ Asking Host to restart the mission...');
+      }
+    });
     this.setupHudCustomizer();
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
 
@@ -1006,11 +1021,11 @@ const Game3D = {
         if (this.escapeTimeLeft % 5 === 0) SFX.siren();
         if (this.escapeTimeLeft <= 0 && Net.isHost) {
           if (this.level === 3) {
-            Net.broadcast({ type: 'GAMEOVER', win: true, reason: '🚁 रेस्क्यू हेलीकॉप्टर आ गया! आपकी टीम ने तीनों लेवल जीत लिए!' });
-            this.triggerEnd(true, '🚁 रेस्क्यू हेलीकॉप्टर आ गया! आपकी टीम ने तीनों लेवल जीत लिए!');
+            Net.broadcast({ type: 'GAMEOVER', win: true, reason: '🚁 Rescue Helicopter arrived! Your squad cleared all 3 levels!' });
+            this.triggerEnd(true, '🚁 Rescue Helicopter arrived! Your squad cleared all 3 levels!');
           } else {
-            Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'समय खत्म! Sector-09 नष्ट हो गया!' });
-            this.triggerEnd(false, 'समय खत्म! Sector-09 नष्ट हो गया!');
+            Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'Time's up! Sector-09 self-destructed!' });
+            this.triggerEnd(false, 'Time's up! Sector-09 self-destructed!');
           }
         }
       }
@@ -1414,7 +1429,7 @@ const Game3D = {
     document.getElementById('timer-badge').classList.remove('hidden');
     document.getElementById('timer-badge').textContent = '🚁 45s';
     document.getElementById('locks-status').textContent = '🚁 HELIPAD';
-    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (SURFACE HELIPAD): 45 सेकंड तक ज़िंदा बचें—हेलीकॉप्टर आ रहा है!';
+    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (SURFACE HELIPAD): Survive 45s until helicopter extraction!';
 
     const me = Net.players[Net.myId];
     if (me) { me.x = 0; me.z = 0; me.downed = false; }
@@ -1433,7 +1448,7 @@ const Game3D = {
     this.scene.add(padRing, beacon);
     this.levelProps.push(padRing, beacon);
     SFX.siren();
-    this.showRadioToast('LEVEL 3', '🚁 SURFACE HELIPAD! 45 सेकंड तक Subject-0 से बचकर रहें!');
+    this.showRadioToast('LEVEL 3', '🚁 SURFACE HELIPAD! Hold out against Subject-0 for 45 seconds!');
   },
 
   setupHudCustomizer() {
@@ -1501,16 +1516,18 @@ const Game3D = {
       el.addEventListener('touchstart', (e) => {
         if (!isEditing) return;
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         const t = e.touches[0];
         const rect = el.getBoundingClientRect();
         startX = t.clientX;
         startY = t.clientY;
         origLeft = rect.left;
         origTop = rect.top;
-        el.style.right = 'auto';
-        el.style.bottom = 'auto';
-      }, { passive: false });
+        el.style.setProperty('left', rect.left + 'px', 'important');
+        el.style.setProperty('top', rect.top + 'px', 'important');
+        el.style.setProperty('right', 'auto', 'important');
+        el.style.setProperty('bottom', 'auto', 'important');
+      }, { passive: false, capture: true });
 
       el.addEventListener('touchmove', (e) => {
         if (!isEditing) return;
@@ -1519,8 +1536,8 @@ const Game3D = {
         const t = e.touches[0];
         const newLeft = Math.max(4, Math.min(window.innerWidth - el.offsetWidth - 4, origLeft + (t.clientX - startX)));
         const newTop = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, origTop + (t.clientY - startY)));
-        el.style.left = newLeft + 'px';
-        el.style.top = newTop + 'px';
+        el.style.setProperty('left', newLeft + 'px', 'important');
+        el.style.setProperty('top', newTop + 'px', 'important');
       }, { passive: false });
     });
 
@@ -1537,7 +1554,7 @@ const Game3D = {
       isEditing = false;
       gameScreen.classList.remove('hud-editing');
       editorBar.classList.add('hidden');
-      this.showRadioToast('SETTINGS', '✅ आपकी Custom Key Mapping सेव हो गई है!');
+      this.showRadioToast('SETTINGS', '✅ Custom Key Mapping saved!');
     });
 
     // Reset Layout
@@ -1552,7 +1569,7 @@ const Game3D = {
           el.style.bottom = '';
         }
       });
-      this.showRadioToast('SETTINGS', '🔄 सभी बटन डिफ़ॉल्ट जगह पर रीसेट हो गए!');
+      this.showRadioToast('SETTINGS', '🔄 All buttons reset to default layout!');
     });
   },
 
@@ -1656,7 +1673,7 @@ const Game3D = {
       isEditing = false;
       gameScreen.classList.remove('hud-editing');
       editorBar.classList.add('hidden');
-      this.showRadioToast('SETTINGS', '✅ आपकी Custom Key Mapping सेव हो गई है!');
+      this.showRadioToast('SETTINGS', '✅ Custom Key Mapping saved!');
     });
 
     // Reset Layout
@@ -1671,7 +1688,7 @@ const Game3D = {
           el.style.bottom = '';
         }
       });
-      this.showRadioToast('SETTINGS', '🔄 सभी बटन डिफ़ॉल्ट जगह पर रीसेट हो गए!');
+      this.showRadioToast('SETTINGS', '🔄 All buttons reset to default layout!');
     });
   },
 

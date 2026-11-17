@@ -76,7 +76,7 @@ const Net = {
           }
         });
       } catch (err) {
-        alert('माइक की अनुमति नहीं मिली! ब्राउज़र सेटिंग में Microphone Allow करें।');
+        alert('Microphone permission denied! Please allow mic access in browser settings.');
       }
     } else {
       this.micEnabled = false;
@@ -147,7 +147,7 @@ const Net = {
 
   joinRoom() {
     const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-    if (code.length < 4) return alert('4-अक्षरों का SQUAD CODE डालें!');
+    if (code.length < 4) return alert('Please enter a valid 4-character SQUAD CODE!');
 
     this.isHost = false;
     this.peer = new Peer();
@@ -241,6 +241,9 @@ const Net = {
       Game3D.startLevel3();
     } else if (data.type === 'GAMEOVER') {
       Game3D.triggerEnd(data.win, data.reason);
+    } else if (data.type === 'RESTART') {
+      this.players = data.players;
+      Game3D.resetAndRestart(data.codes, data.noteSpots, data.fuseSpot);
     }
   },
 

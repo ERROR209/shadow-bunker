@@ -603,3 +603,31 @@ input[type="text"] {
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
   z-index: 80 !important;
 }
+
+/* FIX DRAGGABLE ACTION BUTTONS SO THEY NEVER STICK */
+#action-buttons {
+  position: static !important;
+  display: block !important;
+}
+#action-buttons .ctrl-btn {
+  position: fixed !important;
+  touch-action: none !important;
+  z-index: 25;
+}
+#stun-btn { right: 92px; bottom: 92px; }
+#sprint-btn { right: 24px; bottom: 92px; }
+#torch-btn { right: 92px; bottom: 24px; }
+#interact-btn { right: 24px; bottom: 24px; }
+
+.hud-editing #joystick-zone,
+.hud-editing #stun-btn,
+.hud-editing #sprint-btn,
+.hud-editing #torch-btn,
+.hud-editing #interact-btn,
+.hud-editing #radar-wrap,
+.hud-editing #radio-bar {
+  outline: 2px dashed #38bdf8 !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.75) !important;
+  z-index: 90 !important;
+  touch-action: none !important;
+}
