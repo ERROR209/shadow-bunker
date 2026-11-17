@@ -234,6 +234,114 @@ function makeTexture(type, theme = 1) {
   return tex;
 }
 
+function buildTacticalCharacter(player, isLobby = false) {
+  const grp = new THREE.Group();
+  const roleColors = {
+    SCOUT: { suit: 0x0369a1, accent: 0x38bdf8 },
+    ENGINEER: { suit: 0xb45309, accent: 0xfacc15 },
+    MEDIC: { suit: 0x15803d, accent: 0x4ade80 }
+  };
+  const pal = roleColors[player?.role] || roleColors.SCOUT;
+
+  const suitMat = new THREE.MeshStandardMaterial({ color: pal.suit, roughness: 0.45, metalness: 0.25 });
+  const armorMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.65 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.55 });
+  const visorMat = new THREE.MeshBasicMaterial({ color: pal.accent });
+  const bootMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
+
+  // Torso + Tactical Armor Vest
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.78, 0.32), suitMat);
+  torso.position.y = 1.18;
+  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.56, 0.36), armorMat);
+  vest.position.y = 1.24;
+  const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.38), visorMat);
+  chestCore.position.y = 1.26;
+
+  // Tactical Backpack + Glowing Oxygen/Battery Tank (Looks awesome in 3rd-person view!)
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.54, 0.22), armorMat);
+  pack.position.set(0, 1.24, 0.24);
+  const packCell = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10), visorMat);
+  packCell.position.set(0.1, 1.24, 0.35);
+
+  // Head + Spec-Ops Helmet + Glowing Visor
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.36), skinMat);
+  head.position.y = 1.82;
+  const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.24, 0.41), armorMat);
+  helmet.position.set(0, 1.92, 0.01);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.11, 0.06), visorMat);
+  visor.position.set(0, 1.83, -0.18);
+
+  // Articulated Left Arm (Pivots at shoulder) + Flashlight
+  const leftArmPivot = new THREE.Group();
+  leftArmPivot.position.set(-0.37, 1.5, 0);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
+  armL.position.y = -0.25;
+  const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.15), armorMat);
+  gloveL.position.y = -0.56;
+  const torchProp = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.24, 10), new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.6 }));
+  torchProp.rotation.x = Math.PI / 2;
+  torchProp.position.set(0, -0.56, -0.12);
+  leftArmPivot.add(armL, gloveL, torchProp);
+
+  // Articulated Right Arm (Pivots at shoulder) + Electric Stun Gun
+  const rightArmPivot = new THREE.Group();
+  rightArmPivot.position.set(0.37, 1.5, 0);
+  const armR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
+  armR.position.y = -0.25;
+  const gloveR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.15), armorMat);
+  gloveR.position.y = -0.56;
+  const stunProp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.11, 0.28), visorMat);
+  stunProp.position.set(0, -0.54, -0.14);
+  rightArmPivot.add(armR, gloveR, stunProp);
+
+  // Articulated Left & Right Legs (Pivot at hip) + Tactical Boots
+  const leftLegPivot = new THREE.Group();
+  leftLegPivot.position.set(-0.16, 0.78, 0);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), suitMat);
+  legL.position.y = -0.31;
+  const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.28), bootMat);
+  bootL.position.set(0, -0.68, -0.03);
+  leftLegPivot.add(legL, bootL);
+
+  const rightLegPivot = new THREE.Group();
+  rightLegPivot.position.set(0.16, 0.78, 0);
+  const legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), suitMat);
+  legR.position.y = -0.31;
+  const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.28), bootMat);
+  bootR.position.set(0, -0.68, -0.03);
+  rightLegPivot.add(legR, bootR);
+
+  // Sleek Floating Nameplate
+  const cvs = document.createElement('canvas');
+  cvs.width = 256; cvs.height = 68;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+  ctx.fillRect(18, 8, 220, 52);
+  ctx.strokeStyle = isLobby ? (player?.ready ? '#4ade80' : '#facc15') : '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(18, 8, 220, 52);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(player?.name || 'Agent', 128, 33);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(isLobby ? `[${player?.role || 'SCOUT'}] ${player?.ready ? 'READY' : 'WAIT'}` : (player?.role || 'SCOUT'), 128, 53);
+
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cvs), transparent: true }));
+  sprite.position.set(0, 2.38, 0);
+  sprite.scale.set(1.55, 0.42, 1);
+
+  grp.add(torso, vest, chestCore, pack, packCell, head, helmet, visor, leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot, sprite);
+  return {
+    grp,
+    limbs: { leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot },
+    lastX: player?.x || 0,
+    lastZ: player?.z || 0,
+    stride: 0
+  };
+}
+
 const Lobby3D = {
   scene: null,
   camera: null,
@@ -318,48 +426,15 @@ const Lobby3D = {
       { x: -2.2, z: -0.4 }, { x: 2.2, z: -0.4 }
     ];
     list.forEach((p, idx) => {
-      const grp = new THREE.Group();
-      const colorMap = { SCOUT: 0x0284c7, ENGINEER: 0xd97706, MEDIC: 0x16a34a };
-      const suit = new THREE.MeshStandardMaterial({ color: colorMap[p.role] || 0x0284c7, roughness: 0.4 });
-      const skin = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.5 });
-
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.0, 0.38), suit);
-      torso.position.y = 1.25;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skin);
-      head.position.y = 2.02;
-      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.72, 0.22), suit);
-      legL.position.set(-0.18, 0.48, 0);
-      const legR = legL.clone(); legR.position.x = 0.18;
-
-      // Name + Role Floating Plate
-      const cvs = document.createElement('canvas');
-      cvs.width = 256; cvs.height = 72;
-      const ctx = cvs.getContext('2d');
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
-      ctx.fillRect(10, 8, 236, 56);
-      ctx.strokeStyle = p.ready ? '#4ade80' : '#facc15';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(10, 8, 236, 56);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(p.name, 128, 34);
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillText(`[${p.role}] ${p.ready ? 'READY' : 'WAITING'}`, 128, 56);
-
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cvs), transparent: true }));
-      sprite.position.set(0, 2.68, 0);
-      sprite.scale.set(1.8, 0.5, 1);
-
-      grp.add(torso, head, legL, legR, sprite);
+      const built = buildTacticalCharacter(p, true);
       const pos = slots[idx % 4];
-      grp.position.set(pos.x, 0.12, pos.z);
-      this.scene.add(grp);
-      this.avatars[p.id] = grp;
+      built.grp.position.set(pos.x, 0.12, pos.z);
+      built.grp.rotation.y = (idx % 2 === 0 ? -0.18 : 0.18);
+      this.scene.add(built.grp);
+      this.avatars[p.id] = built;
     });
   },
-  animate() {
+    animate() {
     if (!this.running) return;
     requestAnimationFrame(() => this.animate());
     if (document.getElementById('lobby-screen').classList.contains('hidden')) {
@@ -367,8 +442,10 @@ const Lobby3D = {
       return;
     }
     const t = performance.now() * 0.0015;
-    Object.values(this.avatars).forEach((grp, i) => {
-      grp.position.y = 0.12 + Math.sin(t * 2 + i) * 0.03;
+    Object.values(this.avatars).forEach((av, i) => {
+      av.grp.position.y = 0.12 + Math.sin(t * 2 + i) * 0.02;
+      av.limbs.leftArmPivot.rotation.x = Math.sin(t * 1.8 + i) * 0.08;
+      av.limbs.rightArmPivot.rotation.x = -Math.sin(t * 1.8 + i) * 0.08 - 0.15;
     });
     this.renderer.render(this.scene, this.camera);
   }
@@ -883,45 +960,29 @@ const Game3D = {
   },
 
   createTeammateAvatar(player) {
-    const grp = new THREE.Group();
-    const suitMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.5 });
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.36), suitMat);
-    torso.position.y = 1.15;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), headMat);
-    head.position.y = 1.88;
-    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.68, 0.22), suitMat);
-    legL.position.set(-0.17, 0.34, 0);
-    const legR = legL.clone();
-    legR.position.x = 0.17;
-
-    // Teammate Flashlight Beam
+    const built = buildTacticalCharacter(player, false);
     const torchLight = new THREE.PointLight(0xbae6fd, 1.8, 9);
-    torchLight.position.set(0, 1.4, -0.5);
+    torchLight.position.set(-0.35, 1.35, -0.6);
+    built.grp.add(torchLight);
+    this.scene.add(built.grp);
+    return { grp: built.grp, limbs: built.limbs, torchLight, lastX: player.x || 0, lastZ: player.z || 0, stride: 0 };
+  },
 
-    // Floating Name Tag Sprite above teammate's head
-    const cvs = document.createElement('canvas');
-    cvs.width = 256; cvs.height = 64;
-    const ctx = cvs.getContext('2d');
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
-    ctx.fillRect(16, 10, 224, 44);
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(16, 10, 224, 44);
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(player.name || 'Agent', 128, 40);
-
-    const nameTex = new THREE.CanvasTexture(cvs);
-    const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTex, transparent: true }));
-    nameSprite.position.set(0, 2.45, 0);
-    nameSprite.scale.set(1.6, 0.4, 1);
-
-    grp.add(torso, head, legL, legR, torchLight, nameSprite);
-    this.scene.add(grp);
-    return { grp, torchLight };
+  animateCharacterLimbs(charObj, x, z, isMoving) {
+    if (!charObj || !charObj.limbs) return;
+    if (isMoving) {
+      charObj.stride += 0.22;
+      const swing = Math.sin(charObj.stride) * 0.65;
+      charObj.limbs.leftLegPivot.rotation.x = swing;
+      charObj.limbs.rightLegPivot.rotation.x = -swing;
+      charObj.limbs.leftArmPivot.rotation.x = -swing * 0.75;
+      charObj.limbs.rightArmPivot.rotation.x = swing * 0.75 - 0.25;
+    } else {
+      charObj.limbs.leftLegPivot.rotation.x = THREE.MathUtils.lerp(charObj.limbs.leftLegPivot.rotation.x, 0, 0.2);
+      charObj.limbs.rightLegPivot.rotation.x = THREE.MathUtils.lerp(charObj.limbs.rightLegPivot.rotation.x, 0, 0.2);
+      charObj.limbs.leftArmPivot.rotation.x = THREE.MathUtils.lerp(charObj.limbs.leftArmPivot.rotation.x, 0, 0.2);
+      charObj.limbs.rightArmPivot.rotation.x = THREE.MathUtils.lerp(charObj.limbs.rightArmPivot.rotation.x, -0.2, 0.2);
+    }
   },
 
   syncTeammates() {
@@ -937,22 +998,25 @@ const Game3D = {
       }
       const tm = this.teammateMeshes[p.id];
       tm.grp.visible = !p.hiding;
+      const moved = Math.hypot(p.x - tm.lastX, p.z - tm.lastZ) > 0.008;
+      tm.lastX = p.x;
+      tm.lastZ = p.z;
+
       tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x, 0.3);
       tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z, 0.3);
       tm.grp.rotation.y = p.yaw || 0;
 
-      // Lying down pose if downed so teammates can visually see & revive them
       if (p.downed) {
         tm.grp.rotation.x = -Math.PI / 2;
         tm.grp.position.y = 0.25;
       } else {
         tm.grp.rotation.x = 0;
         tm.grp.position.y = 0;
+        this.animateCharacterLimbs(tm, p.x, p.z, moved);
       }
       tm.torchLight.visible = !!p.torch && !p.downed;
     }
 
-    // Remove disconnected teammates
     for (const id of Object.keys(this.teammateMeshes)) {
       if (!activeIds.has(id)) {
         this.scene.remove(this.teammateMeshes[id].grp);
@@ -961,54 +1025,7 @@ const Game3D = {
     }
   },
 
-  pickNextPatrolWaypoint() {
-    const waypoints = this.level === 2
-      ? [
-          { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 },
-          { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 }
-        ]
-      : [
-          { x: -18, z: 18 }, { x: -18, z: -18 }, { x: 18, z: -18 }, { x: 18, z: 18 },
-          { x: 0, z: 16 }, { x: 0, z: -12 }, { x: -14, z: 2 }, { x: 14, z: 2 }
-        ];
-    const choices = waypoints.filter(w => Math.hypot(w.x - this.hunter.x, w.z - this.hunter.z) > 6);
-    const next = choices[Math.floor(Math.random() * choices.length)] || waypoints[0];
-    this.hunter.goalX = next.x;
-    this.hunter.goalZ = next.z;
-  },
-
-  moveHunterToward(tx, tz, speed) {
-    let ang = Math.atan2(tx - this.hunter.x, tz - this.hunter.z);
-    // Smart left/right whisker obstacle avoidance so monster steers smoothly around walls & pillars
-    const lookAhead = 1.35;
-    const frontBlocked = this.checkCollision(this.hunter.x + Math.sin(ang) * lookAhead, this.hunter.z + Math.cos(ang) * lookAhead);
-    if (frontBlocked) {
-      const leftFree = !this.checkCollision(this.hunter.x + Math.sin(ang + 0.75) * lookAhead, this.hunter.z + Math.cos(ang + 0.75) * lookAhead);
-      const rightFree = !this.checkCollision(this.hunter.x + Math.sin(ang - 0.75) * lookAhead, this.hunter.z + Math.cos(ang - 0.75) * lookAhead);
-      if (leftFree) ang += 0.85;
-      else if (rightFree) ang -= 0.85;
-      else ang += Math.PI * 0.65;
-    }
-
-    this.hunter.yaw = ang;
-    const prevX = this.hunter.x, prevZ = this.hunter.z;
-    const nx = this.hunter.x + Math.sin(ang) * speed;
-    const nz = this.hunter.z + Math.cos(ang) * speed;
-    if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
-    if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
-
-    if (Math.hypot(this.hunter.x - prevX, this.hunter.z - prevZ) < 0.008) {
-      this.hunter.stuckFrames++;
-      if (this.hunter.stuckFrames > 30) {
-        this.pickNextPatrolWaypoint();
-        this.hunter.stuckFrames = 0;
-      }
-    } else {
-      this.hunter.stuckFrames = 0;
-    }
-  },
-
-  buildMonster() {
+    buildMonster() {
     const grp = new THREE.Group();
     const skin = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.3 });
     const clawMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.4 });
@@ -1722,6 +1739,7 @@ const Game3D = {
             this.selfAvatar.grp.position.set(me.x, me.downed ? 0.25 : 0, me.z);
             this.selfAvatar.grp.rotation.y = me.yaw;
             this.selfAvatar.grp.rotation.x = me.downed ? -Math.PI / 2 : 0;
+            this.animateCharacterLimbs(this.selfAvatar, me.x, me.z, Math.hypot(this.velX, this.velZ) > 0.004 && !me.downed);
           }
           // Over-the-shoulder 3rd-Person Camera
           const camDist = 2.6;
