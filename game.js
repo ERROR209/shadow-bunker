@@ -663,6 +663,7 @@ const Game3D = {
     });
 
     document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
+    this.setupHudCustomizer();
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
 
     const sprintBtn = document.getElementById('sprint-btn');
@@ -1418,6 +1419,125 @@ const Game3D = {
     this.levelProps.push(padRing, beacon);
     SFX.siren();
     this.showRadioToast('LEVEL 3', '🚁 SURFACE HELIPAD! 45 सेकंड तक Subject-0 से बचकर रहें!');
+  },
+
+  setupHudCustomizer() {
+    const fsBtn = document.getElementById('fs-rotate-btn');
+    const editBtn = document.getElementById('edit-hud-btn');
+    const editorBar = document.getElementById('hud-editor-bar');
+    const saveBtn = document.getElementById('save-hud-btn');
+    const resetBtn = document.getElementById('reset-hud-btn');
+    const gameScreen = document.getElementById('game-screen');
+
+    // 1. Fullscreen + Force Horizontal (Landscape) Lock
+    fsBtn?.addEventListener('click', async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape').catch(() => {});
+          }
+          fsBtn.textContent = '⛶ EXIT FS';
+          fsBtn.classList.add('on');
+        } else {
+          await document.exitFullscreen();
+          fsBtn.textContent = '⛶ LANDSCAPE';
+          fsBtn.classList.remove('on');
+        }
+        setTimeout(() => {
+          if (this.renderer && this.camera) {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+          }
+        }, 250);
+      } catch (e) {
+        alert('अपने फोन का Auto-Rotate ऑन करें या Fullscreen अनुमति दें।');
+      }
+    });
+
+    // 2. Load Saved Key Mapping Positions
+    const draggableIds = ['joystick-zone', 'action-buttons', 'radar-wrap', 'radio-bar'];
+    const savedLayout = JSON.parse(localStorage.getItem('sb_hud_layout_v1') || '{}');
+    draggableIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && savedLayout[id]) {
+        el.style.left = savedLayout[id].left;
+        el.style.top = savedLayout[id].top;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+      }
+    });
+
+    // 3. Toggle Key Mapping Edit Mode
+    let isEditing = false;
+    editBtn?.addEventListener('click', () => {
+      isEditing = !isEditing;
+      gameScreen.classList.toggle('hud-editing', isEditing);
+      editorBar.classList.toggle('hidden', !isEditing);
+    });
+
+    // Enable Touch Dragging on HUD Controls during Edit Mode
+    draggableIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      let startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+      el.addEventListener('touchstart', (e) => {
+        if (!isEditing) return;
+        e.stopPropagation();
+        const t = e.touches[0];
+        const rect = el.getBoundingClientRect();
+        startX = t.clientX;
+        startY = t.clientY;
+        origLeft = rect.left;
+        origTop = rect.top;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+      }, { passive: false });
+
+      el.addEventListener('touchmove', (e) => {
+        if (!isEditing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.touches[0];
+        const newLeft = Math.max(4, Math.min(window.innerWidth - el.offsetWidth - 4, origLeft + (t.clientX - startX)));
+        const newTop = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, origTop + (t.clientY - startY)));
+        el.style.left = newLeft + 'px';
+        el.style.top = newTop + 'px';
+      }, { passive: false });
+    });
+
+    // Save Layout
+    saveBtn?.addEventListener('click', () => {
+      const layout = {};
+      draggableIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.style.left) {
+          layout[id] = { left: el.style.left, top: el.style.top };
+        }
+      });
+      localStorage.setItem('sb_hud_layout_v1', JSON.stringify(layout));
+      isEditing = false;
+      gameScreen.classList.remove('hud-editing');
+      editorBar.classList.add('hidden');
+      this.showRadioToast('SETTINGS', '✅ आपकी Custom Key Mapping सेव हो गई है!');
+    });
+
+    // Reset Layout
+    resetBtn?.addEventListener('click', () => {
+      localStorage.removeItem('sb_hud_layout_v1');
+      draggableIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.left = '';
+          el.style.top = '';
+          el.style.right = '';
+          el.style.bottom = '';
+        }
+      });
+      this.showRadioToast('SETTINGS', '🔄 सभी बटन डिफ़ॉल्ट जगह पर रीसेट हो गए!');
+    });
   },
 
   triggerEnd(win, reason) {

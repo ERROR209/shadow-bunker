@@ -136,17 +136,28 @@
         <span id="locks-status" class="locks-badge">⚡ OFF</span>
         <span id="stun-status" class="stun-badge">🔫 3/3</span>
         <button id="mic-btn" class="mic-badge">🎤 OFF</button>
+        <button id="fs-rotate-btn" class="mic-badge">⛶ LANDSCAPE</button>
+        <button id="edit-hud-btn" class="mic-badge">⚙️ KEYS</button>
       </div>
       <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
 
     <div id="objective-banner" class="objective-strip">CHAPTER 1: अंधेरे कमरे से नीला POWER FUSE ढूंढें</div>
 
-    <div class="radar-wrap">
+    <!-- HUD KEY-MAPPING EDITOR BAR -->
+    <div id="hud-editor-bar" class="hud-editor-bar hidden">
+      <span>🎛️ उंगली से बटन खिसकाकर सेट करें</span>
+      <div>
+        <button id="reset-hud-btn" class="mini-btn" style="background:#b45309">RESET</button>
+        <button id="save-hud-btn" class="mini-btn" style="background:#16a34a">SAVE</button>
+      </div>
+    </div>
+
+    <div id="radar-wrap" class="radar-wrap">
       <canvas id="radar-canvas" width="85" height="85"></canvas>
     </div>
 
-    <div class="radio-bar">
+    <div id="radio-bar" class="radio-bar">
       <button class="radio-btn" data-msg="⚠️ Subject-0 पास है! लॉकर में छुपो!">⚠️ Monster</button>
       <button class="radio-btn" data-msg="🔋 Power Fuse मिल गया! जनरेटर पर आओ!">🔋 Fuse</button>
       <button class="radio-btn" data-msg="📄 डायरी से सीक्रेट कोड मिल गया!">📄 Code</button>
@@ -162,7 +173,7 @@
       </div>
     </div>
 
-    <div class="action-buttons">
+    <div id="action-buttons" class="action-buttons">
       <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
       <button id="sprint-btn" class="ctrl-btn sprint">🏃<br><small>RUN</small></button>
       <button id="torch-btn" class="ctrl-btn torch-on">🔦<br><small>TORCH</small></button>
