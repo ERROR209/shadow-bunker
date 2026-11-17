@@ -1472,7 +1472,7 @@ const Game3D = {
     });
 
     // 2. Load Saved Key Mapping Positions
-    const draggableIds = ['joystick-zone', 'action-buttons', 'radar-wrap', 'radio-bar'];
+    const draggableIds = ['joystick-zone', 'stun-btn', 'sprint-btn', 'torch-btn', 'interact-btn', 'radar-wrap', 'radio-bar'];
     const savedLayout = JSON.parse(localStorage.getItem('sb_hud_layout_v1') || '{}');
     draggableIds.forEach(id => {
       const el = document.getElementById(id);
@@ -1500,6 +1500,7 @@ const Game3D = {
 
       el.addEventListener('touchstart', (e) => {
         if (!isEditing) return;
+        e.preventDefault();
         e.stopPropagation();
         const t = e.touches[0];
         const rect = el.getBoundingClientRect();

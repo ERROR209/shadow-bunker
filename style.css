@@ -569,3 +569,37 @@ input[type="text"] {
 }
 .fps-badge.mid { color: #facc15; border-color: rgba(250, 204, 21, 0.45); }
 .fps-badge.low { color: #ef4444; border-color: rgba(239, 68, 68, 0.55); }
+
+/* INDIVIDUAL DRAGGABLE ACTION BUTTONS */
+#action-buttons {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  display: block !important;
+  pointer-events: none !important;
+  background: none !important;
+  outline: none !important;
+  z-index: 20;
+}
+#action-buttons .ctrl-btn {
+  position: fixed;
+  pointer-events: auto;
+  z-index: 21;
+}
+#stun-btn { right: 92px; bottom: 92px; }
+#sprint-btn { right: 24px; bottom: 92px; }
+#torch-btn { right: 92px; bottom: 24px; }
+#interact-btn { right: 24px; bottom: 24px; }
+
+.hud-editing #joystick-zone,
+.hud-editing #stun-btn,
+.hud-editing #sprint-btn,
+.hud-editing #torch-btn,
+.hud-editing #interact-btn,
+.hud-editing #radar-wrap,
+.hud-editing #radio-bar {
+  outline: 2px dashed #38bdf8 !important;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
+  z-index: 80 !important;
+}
