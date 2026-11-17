@@ -8,6 +8,12 @@ const Net = {
   roles: ['SCOUT', 'HACKER', 'ENGINEER', 'MEDIC'],
   colors: [0x38bdf8, 0xfacc15, 0x4ade80, 0xf472b6],
 
+  localStream: null,
+  micEnabled: false,
+  voiceLoud: false,
+  audioElements: {},
+  analyser: null,
+
   initLobby() {
     document.getElementById('create-room-btn').onclick = () => this.createRoom();
     document.getElementById('join-room-btn').onclick = () => this.joinRoom();
@@ -25,6 +31,92 @@ const Net = {
     return val || 'Agent-' + Math.floor(10 + Math.random() * 89);
   },
 
+  setupIncomingCalls() {
+    this.peer.on('call', (call) => {
+      call.answer(this.localStream || undefined);
+      call.on('stream', (remoteStream) => {
+        this.attachRemoteAudio(call.peer, remoteStream);
+      });
+    });
+  },
+
+  attachRemoteAudio(peerId, stream) {
+    let audio = this.audioElements[peerId];
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      audio.playsInline = true;
+      document.body.appendChild(audio);
+      this.audioElements[peerId] = audio;
+    }
+    audio.srcObject = stream;
+  },
+
+  async toggleMic() {
+    const btn = document.getElementById('mic-btn');
+    if (!this.micEnabled) {
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.micEnabled = true;
+        btn.classList.add('on');
+        btn.textContent = '🎤 ON';
+
+        // Setup Loudness Detector so Monster hears loud talking!
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = audioCtx.createMediaStreamSource(this.localStream);
+        this.analyser = audioCtx.createAnalyser();
+        this.analyser.fftSize = 256;
+        src.connect(this.analyser);
+
+        // Call all connected teammates
+        Object.keys(this.players).forEach(pid => {
+          if (pid !== this.myId && this.peer) {
+            const call = this.peer.call(pid, this.localStream);
+            call?.on('stream', (rem) => this.attachRemoteAudio(pid, rem));
+          }
+        });
+      } catch (err) {
+        alert('माइक की अनुमति नहीं मिली! ब्राउज़र सेटिंग में Microphone Allow करें।');
+      }
+    } else {
+      this.micEnabled = false;
+      this.voiceLoud = false;
+      btn.classList.remove('on', 'loud');
+      btn.textContent = '🎤 OFF';
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(t => t.stop());
+        this.localStream = null;
+      }
+    }
+  },
+
+  updateVoiceProximity(me) {
+    // Check own mic volume
+    if (this.micEnabled && this.analyser) {
+      const data = new Uint8Array(this.analyser.frequencyBinCount);
+      this.analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const btn = document.getElementById('mic-btn');
+      if (avg > 38) {
+        this.voiceLoud = true;
+        btn.classList.add('loud');
+        btn.textContent = '🔊 LOUD!';
+      } else {
+        this.voiceLoud = false;
+        btn.classList.remove('loud');
+        btn.textContent = '🎤 ON';
+      }
+    }
+
+    // Adjust teammate voice volume by distance (Proximity Voice)
+    for (const [pid, audio] of Object.entries(this.audioElements)) {
+      const p = this.players[pid];
+      if (!p) continue;
+      const dist = Math.hypot(p.x - me.x, p.z - me.z);
+      audio.volume = Math.max(0.05, Math.min(1, 1 - dist / 24));
+    }
+  },
+
   createRoom() {
     const code = Math.random().toString(36).substring(2, 6).toUpperCase();
     this.isHost = true;
@@ -32,6 +124,7 @@ const Net = {
 
     this.peer.on('open', (id) => {
       this.myId = id;
+      this.setupIncomingCalls();
       this.players[id] = {
         id, name: this.getName(), role: this.roles[0], color: this.colors[0],
         x: -18, z: 18, yaw: 0, torch: true, hiding: false, downed: false, makingNoise: false
@@ -61,6 +154,7 @@ const Net = {
 
     this.peer.on('open', (id) => {
       this.myId = id;
+      this.setupIncomingCalls();
       const conn = this.peer.connect('SB-' + code, { reliable: true });
       this.hostConn = conn;
 
@@ -122,7 +216,10 @@ const Net = {
     } else if (data.type === 'STATE') {
       for (const [id, pData] of Object.entries(data.players)) {
         if (id === this.myId) {
-          if (this.players[id]) this.players[id].downed = pData.downed;
+          if (this.players[id]) {
+            if (!this.players[id].downed && pData.downed) Game3D.triggerJumpscare();
+            this.players[id].downed = pData.downed;
+          }
         } else {
           this.players[id] = pData;
         }
@@ -140,6 +237,8 @@ const Net = {
       Game3D.unlockTerminal(data.lockIdx);
     } else if (data.type === 'LEVEL_2') {
       Game3D.startLevel2();
+    } else if (data.type === 'LEVEL_3') {
+      Game3D.startLevel3();
     } else if (data.type === 'GAMEOVER') {
       Game3D.triggerEnd(data.win, data.reason);
     }

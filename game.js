@@ -31,6 +31,12 @@ const SFX = {
       this.tone(95, 'sawtooth', 0.45, 0.04);
     }
   },
+  jumpscareScream() {
+    this.tone(180, 'sawtooth', 0.65, 0.28);
+    this.tone(620, 'square', 0.55, 0.22);
+    setTimeout(() => this.tone(110, 'sawtooth', 0.6, 0.26), 120);
+    navigator.vibrate?.([150, 50, 200, 50, 250]);
+  },
   stunZap() {
     this.tone(880, 'sawtooth', 0.25, 0.16);
     setTimeout(() => this.tone(420, 'square', 0.25, 0.14), 80);
@@ -161,6 +167,7 @@ const Game3D = {
   bobTimer: 0,
   radarAngle: 0,
   lastNetSync: 0,
+  lastVentJump: 0,
 
   start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
@@ -532,6 +539,7 @@ const Game3D = {
       }
     });
 
+    document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
 
     const sprintBtn = document.getElementById('sprint-btn');
@@ -815,6 +823,7 @@ const Game3D = {
     if (!me) return;
 
     SFX.ambientDrip();
+    Net.updateVoiceProximity(me);
 
     if (me.torch && this.battery > 0) {
       const drainRate = me.role === 'ENGINEER' ? 0.016 : 0.024;
@@ -845,8 +854,13 @@ const Game3D = {
         document.getElementById('timer-badge').textContent = `☢️ ${this.escapeTimeLeft}s`;
         if (this.escapeTimeLeft % 5 === 0) SFX.siren();
         if (this.escapeTimeLeft <= 0 && Net.isHost) {
-          Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'समय खत्म! Sector-09 नष्ट हो गया!' });
-          this.triggerEnd(false, 'समय खत्म! Sector-09 नष्ट हो गया!');
+          if (this.level === 3) {
+            Net.broadcast({ type: 'GAMEOVER', win: true, reason: '🚁 रेस्क्यू हेलीकॉप्टर आ गया! आपकी टीम ने तीनों लेवल जीत लिए!' });
+            this.triggerEnd(true, '🚁 रेस्क्यू हेलीकॉप्टर आ गया! आपकी टीम ने तीनों लेवल जीत लिए!');
+          } else {
+            Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'समय खत्म! Sector-09 नष्ट हो गया!' });
+            this.triggerEnd(false, 'समय खत्म! Sector-09 नष्ट हो गया!');
+          }
         }
       }
     }
@@ -876,7 +890,7 @@ const Game3D = {
       if (!this.collides3D(me.x, me.z + moveZ)) me.z += moveZ;
       this.bobTimer += isRunning ? 0.24 : 0.14;
       SFX.step(isRunning);
-      if (isRunning) me.makingNoise = true;
+      if (isRunning || Net.voiceLoud) me.makingNoise = true;
     }
 
     const bobY = (moveX !== 0 || moveZ !== 0 || this.joy.active) ? Math.sin(this.bobTimer) * 0.05 : 0;
@@ -927,8 +941,19 @@ const Game3D = {
         if (!this.collides3D(hx, this.hunter.z, 0.7)) this.hunter.x = hx;
         if (!this.collides3D(this.hunter.x, hz, 0.7)) this.hunter.z = hz;
 
-        if (minDist < 1.35) nearest.downed = true;
+        if (minDist < 1.35) {
+          nearest.downed = true;
+          if (nearest.id === Net.myId) this.triggerJumpscare();
+        }
       } else {
+        const nowV = performance.now();
+        if (nowV - this.lastVentJump > 28000) {
+          this.lastVentJump = nowV;
+          const vents = [{ x: -16, z: -16 }, { x: 16, z: -16 }, { x: 0, z: 14 }, { x: -14, z: 8 }];
+          const v = vents[Math.floor(Math.random() * vents.length)];
+          this.hunter.x = v.x; this.hunter.z = v.z;
+          SFX.tone(130, 'sawtooth', 0.35, 0.12);
+        }
         this.hunter.patrolAngle += 0.012;
         this.hunter.yaw = this.hunter.patrolAngle;
         const px = this.hunter.x + Math.sin(this.hunter.patrolAngle) * 0.045;
@@ -953,9 +978,9 @@ const Game3D = {
         if (this.level === 1) {
           this.startLevel2();
           Net.broadcast({ type: 'LEVEL_2' });
-        } else {
-          Net.broadcast({ type: 'GAMEOVER', win: true, reason: 'अद्भुत! आपकी टीम ने Sector-09 और Bio-Reactor Core दोनों को पार कर लिया!' });
-          this.triggerEnd(true, 'अद्भुत! आपकी टीम ने Sector-09 और Bio-Reactor Core दोनों को पार कर लिया!');
+        } else if (this.level === 2) {
+          this.startLevel3();
+          Net.broadcast({ type: 'LEVEL_3' });
         }
       }
 
@@ -1190,6 +1215,32 @@ const Game3D = {
     this.scene.fog = new THREE.FogExp2(0x140505, 0.042);
     SFX.siren();
     this.showRadioToast('LEVEL 2', '⚠️ BIO-REACTOR CORE में प्रवेश! लाल धुंध और तेज़ Subject-0 से बचें!');
+  },
+
+  triggerJumpscare() {
+    SFX.jumpscareScream();
+    const ov = document.getElementById('jumpscare-overlay');
+    ov.classList.remove('hidden');
+    setTimeout(() => ov.classList.add('hidden'), 1400);
+  },
+
+  startLevel3() {
+    this.level = 3;
+    this.selfDestructActive = true;
+    this.escapeTimeLeft = 45;
+    this.lastTick = performance.now();
+    document.getElementById('timer-badge').classList.remove('hidden');
+    document.getElementById('timer-badge').textContent = '🚁 45s';
+    document.getElementById('locks-status').textContent = '🚁 HELIPAD';
+    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (SURFACE HELIPAD): 45 सेकंड तक ज़िंदा बचें—हेलीकॉप्टर आ रहा है!';
+
+    const me = Net.players[Net.myId];
+    if (me) { me.x = 0; me.z = 0; me.downed = false; }
+    this.hunter.x = 18; this.hunter.z = -18;
+    this.scene.background = new THREE.Color(0x090d16);
+    this.scene.fog = new THREE.FogExp2(0x090d16, 0.025);
+    SFX.siren();
+    this.showRadioToast('LEVEL 3', '🚁 SURFACE HELIPAD! 45 सेकंड तक Subject-0 से बचकर रहें!');
   },
 
   triggerEnd(win, reason) {

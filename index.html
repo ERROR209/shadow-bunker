@@ -3,18 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>PROJECT ECLIPSE: SECTOR-09 // 3D Horror Thriller</title>
+  <title>SHADOW BUNKER 3D // Multiplayer Survival Horror Game</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
+  <!-- PRE-GAME LANDING PAGE -->
+  <section id="landing-screen" class="landing-screen">
+    <div class="landing-container">
+      <div id="ad-slot-top" class="ad-box">
+        <span class="ad-label">ADVERTISEMENT</span>
+        <div class="ad-placeholder">728x90 / 320x50 Top Ad Banner Space</div>
+      </div>
+
+      <div id="launch-game-banner" class="game-hero-banner" role="button" tabindex="0">
+        <div class="banner-overlay">
+          <div class="live-pill">🟢 ONLINE MULTIPLAYER // VOICE CHAT & 3 LEVELS</div>
+          <h1>SHADOW <span>BUNKER 3D</span></h1>
+          <p>SECTOR-09 SURVIVAL HORROR CO-OP</p>
+          <div class="play-cta-btn">▶ CLICK BANNER TO PLAY</div>
+        </div>
+      </div>
+
+      <div id="ad-slot-mid" class="ad-box">
+        <span class="ad-label">SPONSORED</span>
+        <div class="ad-placeholder">300x250 / Native Ad Space</div>
+      </div>
+
+      <div class="info-section">
+        <h2>🎮 मिशन ब्रीफिंग और फीचर्स</h2>
+        <div class="feature-cards">
+          <div class="f-card">
+            <strong>🎙️ Proximity Voice Chat</strong>
+            <span>दोस्तों से लाइव बात करें—पर ज़ोर से बोलने पर Subject-0 आवाज़ सुन लेगा!</span>
+          </div>
+          <div class="f-card">
+            <strong>😱 Jumpscare & Vent Ambush</strong>
+            <span>राक्षस वेंट से अचानक सामने आ सकता है। टॉर्च और स्टन गन तैयार रखें।</span>
+          </div>
+          <div class="f-card">
+            <strong>🚁 3 Deadly Levels</strong>
+            <span>Sector-09 Lab, Bio-Reactor Core और Surface Helipad से बचकर निकलें।</span>
+          </div>
+        </div>
+      </div>
+
+      <footer class="landing-footer">
+        <p>© 2026 Shadow Bunker 3D • Built by ERROR209</p>
+      </footer>
+    </div>
+  </section>
+
   <!-- LOBBY SCREEN -->
-  <section id="lobby-screen" class="screen active">
+  <section id="lobby-screen" class="screen hidden">
     <div class="lobby-card">
       <div class="badge-top">PROJECT ECLIPSE // SECTOR-09</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। बैटरी बचाएं, जनरेटर चालू करें, डॉ. वर्मा के लॉग्स डिकोड करें, और Subject-0 से बचकर निकलें!</p>
+      <p class="subtitle">अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। माइक पर संभलकर बोलें, 3 कोड डिकोड करें, और Helipad तक पहुंचें!</p>
 
       <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
 
@@ -35,7 +81,7 @@
 
         <div class="squad-header">
           <span>RESCUE TEAM (<span id="player-count">1</span>/4)</span>
-          <span class="flex-note">PC & Mobile Co-Op</span>
+          <span class="flex-note">Voice Co-Op Ready</span>
         </div>
         <ul id="squad-list" class="squad-list"></ul>
 
@@ -60,29 +106,35 @@
     <div id="three-container"></div>
     <div id="danger-overlay" class="danger-overlay"></div>
 
-    <!-- Center Crosshair & Interaction Prompt -->
+    <!-- JUMPSCARE OVERLAY -->
+    <div id="jumpscare-overlay" class="jumpscare-overlay hidden">
+      <div class="scare-face">
+        <div class="scare-eyes"><span></span><span></span></div>
+        <div class="scare-mouth"></div>
+        <p>SUBJECT-0 CAUGHT YOU!</p>
+      </div>
+    </div>
+
     <div id="crosshair" class="crosshair">+</div>
     <div id="interact-hint" class="interact-hint hidden">✋ [USE / E] दबाकर जाँच करें</div>
 
-    <!-- Top HUD -->
     <header class="game-hud">
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
         <span id="battery-badge" class="battery-badge">🔋 100%</span>
         <span id="locks-status" class="locks-badge">⚡ OFF</span>
         <span id="stun-status" class="stun-badge">🔫 3/3</span>
+        <button id="mic-btn" class="mic-badge">🎤 OFF</button>
       </div>
       <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
 
     <div id="objective-banner" class="objective-strip">CHAPTER 1: अंधेरे कमरे से नीला POWER FUSE ढूंढें</div>
 
-    <!-- Live Motion Radar -->
     <div class="radar-wrap">
       <canvas id="radar-canvas" width="85" height="85"></canvas>
     </div>
 
-    <!-- Walkie-Talkie Radio -->
     <div class="radio-bar">
       <button class="radio-btn" data-msg="⚠️ Subject-0 पास है! लॉकर में छुपो!">⚠️ Monster</button>
       <button class="radio-btn" data-msg="🔋 Power Fuse मिल गया! जनरेटर पर आओ!">🔋 Fuse</button>
@@ -91,17 +143,14 @@
     </div>
     <div id="radio-toast" class="radio-toast hidden"></div>
 
-    <!-- Look Touch Zone for Mobile -->
     <div id="look-zone" class="look-zone"></div>
 
-    <!-- Left Virtual Joystick for Mobile -->
     <div id="joystick-zone" class="joystick-zone">
       <div id="joystick-base" class="joystick-base">
         <div id="joystick-stick" class="joystick-stick"></div>
       </div>
     </div>
 
-    <!-- Action Buttons -->
     <div class="action-buttons">
       <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
       <button id="sprint-btn" class="ctrl-btn sprint">🏃<br><small>RUN</small></button>
@@ -109,7 +158,6 @@
       <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>
     </div>
 
-    <!-- Dr. Verma Diary Modal -->
     <div id="note-modal" class="modal hidden">
       <div class="modal-box paper-box">
         <div class="paper-stamp">DR. VERMA'S RECOVERY LOG</div>
@@ -120,7 +168,6 @@
       </div>
     </div>
 
-    <!-- Keypad Modal -->
     <div id="puzzle-modal" class="modal hidden">
       <div class="modal-box">
         <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
@@ -135,7 +182,6 @@
       </div>
     </div>
 
-    <!-- End Screen -->
     <div id="end-modal" class="modal hidden">
       <div class="modal-box">
         <h2 id="end-title">MISSION COMPLETE</h2>
@@ -145,6 +191,12 @@
     </div>
   </section>
 
+  <script>
+    document.getElementById('launch-game-banner').addEventListener('click', () => {
+      document.getElementById('landing-screen').classList.add('hidden');
+      document.getElementById('lobby-screen').classList.remove('hidden');
+    });
+  </script>
   <script src="network.js"></script>
   <script src="game.js"></script>
 </body>
