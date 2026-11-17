@@ -259,6 +259,7 @@ const Net = {
     document.getElementById('lobby-actions').classList.add('hidden');
     document.getElementById('waiting-room').classList.remove('hidden');
     document.getElementById('display-code').textContent = code;
+      this.saveRoomSession(code, true, name);
     this.renderSquad();
   },
 
@@ -292,3 +293,29 @@ const Net = {
 };
 
 window.addEventListener('DOMContentLoaded', () => Net.initLobby());
+
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const rawRoom = sessionStorage.getItem('sb_active_room');
+    const rBtn = document.getElementById('rejoin-squad-btn');
+    if (rawRoom && rBtn) {
+      const sess = JSON.parse(rawRoom);
+      if (Date.now() - sess.ts < 30 * 60 * 1000) {
+        rBtn.textContent = `🔄 REJOIN LIVE SQUAD (${sess.code})`;
+        rBtn.classList.remove('hidden');
+        rBtn.onclick = () => {
+          document.getElementById('landing-screen')?.classList.add('hidden');
+          document.getElementById('lobby-screen').classList.remove('hidden');
+          const nameInp = document.getElementById('player-name');
+          if (nameInp && sess.name) nameInp.value = sess.name;
+          if (sess.isHost) {
+            Net.createRoom(sess.name);
+          } else {
+            document.getElementById('room-code-input').value = sess.code;
+            Net.joinRoom(sess.code, sess.name);
+          }
+        };
+      }
+    }
+  } catch (e) {}
+});
