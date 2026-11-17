@@ -130,6 +130,18 @@ const SFX = {
 
 window.addEventListener('touchstart', () => SFX.init(), { passive: true });
 window.addEventListener('pointerdown', () => SFX.init(), { passive: true });
+window.addEventListener('DOMContentLoaded', () => {
+  const raw = localStorage.getItem('sb_checkpoint_v1');
+  const btn = document.getElementById('resume-mission-btn');
+  if (raw && btn) {
+    try {
+      const cp = JSON.parse(raw);
+      btn.textContent = `▶️ RESUME CHECKPOINT (LEVEL ${cp.level})`;
+      btn.classList.remove('hidden');
+      btn.onclick = () => Game3D.loadCheckpoint(cp);
+    } catch (e) {}
+  }
+});
 
 function makeTexture(type, theme = 1) {
   const c = document.createElement('canvas');
@@ -180,7 +192,7 @@ const Game3D = {
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
-  hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, patrolAngle: 0, stunnedUntil: 0 },
+  hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, patrolAngle: 0, stunnedUntil: 0, stuckFrames: 0 },
   level: 1,
   battery: 100,
   stunCharges: 3,
@@ -217,6 +229,68 @@ const Game3D = {
   sprinting: false,
   nearAction: null,
   animStarted: false,
+
+  saveCheckpoint() {
+    try {
+      const me = Net.players[Net.myId];
+      const state = {
+        level: this.level,
+        battery: this.battery,
+        stunCharges: this.stunCharges,
+        hasFuse: this.hasFuse,
+        powerRestored: this.powerRestored,
+        locks: this.locks,
+        codes: this.codes,
+        playerPos: me ? { x: me.x, z: me.z } : { x: -18, z: 18 },
+        savedAt: Date.now()
+      };
+      localStorage.setItem('sb_checkpoint_v1', JSON.stringify(state));
+    } catch (e) {}
+  },
+
+  clearCheckpoint() {
+    localStorage.removeItem('sb_checkpoint_v1');
+  },
+
+  loadCheckpoint(cp) {
+    document.getElementById('landing-screen')?.classList.add('hidden');
+    document.getElementById('lobby-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+
+    if (!Net.myId) {
+      Net.myId = 'solo_' + Math.floor(Math.random() * 9999);
+      Net.isHost = true;
+      const pName = document.getElementById('player-name')?.value.trim() || 'Agent-09';
+      Net.players[Net.myId] = { id: Net.myId, name: pName, role: 'SCOUT', x: cp.playerPos.x, z: cp.playerPos.z, yaw: 0, torch: true, downed: false, hiding: false };
+    }
+
+    const noteSpots = [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }];
+    const fuseSpot = { x: -16, z: -4 };
+    this.codes = cp.codes || ['123', '456', '789'];
+    this.init3D(noteSpots, fuseSpot);
+
+    this.battery = cp.battery ?? 100;
+    this.stunCharges = cp.stunCharges ?? 3;
+    document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
+    document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/3`;
+
+    if (cp.level === 2) {
+      this.startLevel2();
+    } else if (cp.level === 3) {
+      this.startLevel3();
+    } else {
+      if (cp.hasFuse) { this.hasFuse = true; if (this.fuseMesh) this.fuseMesh.visible = false; }
+      if (cp.powerRestored) this.restorePower();
+      if (Array.isArray(cp.locks)) {
+        cp.locks.forEach((unlocked, i) => { if (unlocked) this.unlockTerminal(i); });
+      }
+      const me = Net.players[Net.myId];
+      if (me && cp.playerPos && !this.checkCollision(cp.playerPos.x, cp.playerPos.z)) {
+        me.x = cp.playerPos.x; me.z = cp.playerPos.z;
+      }
+    }
+    this.showRadioToast('CHECKPOINT', `💾 Restored Level ${this.level} progress!`);
+  },
 
   start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
@@ -960,6 +1034,7 @@ const Game3D = {
       this.hasFuse = true;
       this.fuseMesh.visible = false;
       document.getElementById('objective-banner').textContent = 'CHAPTER 2: Activate the main GENERATOR (red glowing box)';
+      this.saveCheckpoint();
       this.showRadioToast('ITEM', '🔋 Picked up Blue Power Fuse!');
     } else if (act.type === 'GEN') {
       if (!this.hasFuse) return this.showRadioToast('OBJECTIVE', '⚠️ Find the Blue Power Fuse first!');
@@ -996,6 +1071,7 @@ const Game3D = {
     this.genMesh.material.emissive.setHex(0x22c55e);
     document.getElementById('locks-status').textContent = '⚡ ON (0/3)';
     document.getElementById('objective-banner').textContent = 'CHAPTER 3: Read Dr. Verma\'s 3 logs & unlock 3 terminals (0/3)';
+    this.saveCheckpoint();
     this.showRadioToast('POWER', '⚡ Main Power Restored!');
   },
 
@@ -1075,10 +1151,17 @@ const Game3D = {
     this.buildLevelMap(2);
     this.stunCharges = 3;
     document.getElementById('stun-status').textContent = '🔫 3/3';
+    const safeSpots = [
+      { x: -20, z: -6 }, { x: -20, z: 6 }, { x: -18, z: -6 }, { x: -18, z: 6 }
+    ];
     Object.values(Net.players).forEach((p, idx) => {
-      p.x = -20 + idx * 1.5; p.z = 0; p.downed = false; p.hiding = false;
+      const sp = safeSpots[idx % 4];
+      p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false;
     });
-    this.hunter.x = 16; this.hunter.z = 0;
+    // Spawn Monster in completely open corridor away from all pillars
+    this.hunter.x = 20; this.hunter.z = 6;
+    this.hunter.stuckFrames = 0;
+    this.saveCheckpoint();
     this.showRadioToast('LEVEL 2', '☢️ BIO-REACTOR CORE! Seal all 4 Coolant Valves!');
   },
 
@@ -1097,6 +1180,7 @@ const Game3D = {
     });
     this.hunter.x = 18; this.hunter.z = -18;
     SFX.siren();
+    this.saveCheckpoint();
     this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 45 seconds!');
   },
 
@@ -1465,10 +1549,28 @@ const Game3D = {
           const ang = Math.atan2(target.x - this.hunter.x, target.z - this.hunter.z);
           this.hunter.yaw = ang;
           const mSpeed = this.level === 3 ? 0.095 : 0.072;
+          const prevX = this.hunter.x, prevZ = this.hunter.z;
           const nx = this.hunter.x + Math.sin(ang) * mSpeed;
           const nz = this.hunter.z + Math.cos(ang) * mSpeed;
           if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
           if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+
+          // If blocked by a pillar, slide perpendicular or relocate to nearest open corridor
+          if (Math.hypot(this.hunter.x - prevX, this.hunter.z - prevZ) < 0.01) {
+            this.hunter.stuckFrames++;
+            const sideX = this.hunter.x + Math.cos(ang) * mSpeed;
+            const sideZ = this.hunter.z - Math.sin(ang) * mSpeed;
+            if (!this.checkCollision(sideX, this.hunter.z)) this.hunter.x = sideX;
+            if (!this.checkCollision(this.hunter.x, sideZ)) this.hunter.z = sideZ;
+            if (this.hunter.stuckFrames > 45) {
+              const openSpots = [{ x: -20, z: -6 }, { x: 20, z: 6 }, { x: -6, z: 20 }, { x: 6, z: -20 }];
+              const pick = openSpots[Math.floor(Math.random() * openSpots.length)];
+              this.hunter.x = pick.x; this.hunter.z = pick.z;
+              this.hunter.stuckFrames = 0;
+            }
+          } else {
+            this.hunter.stuckFrames = 0;
+          }
 
           if (minDist < 1.35) {
             target.downed = true;
