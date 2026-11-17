@@ -947,12 +947,17 @@ const Game3D = {
         }
       } else {
         const nowV = performance.now();
-        if (nowV - this.lastVentJump > 28000) {
+        if (nowV - this.lastVentJump > 35000) {
           this.lastVentJump = nowV;
-          const vents = [{ x: -16, z: -16 }, { x: 16, z: -16 }, { x: 0, z: 14 }, { x: -14, z: 8 }];
-          const v = vents[Math.floor(Math.random() * vents.length)];
-          this.hunter.x = v.x; this.hunter.z = v.z;
-          SFX.tone(130, 'sawtooth', 0.35, 0.12);
+          const farSpots = [{ x: 20, z: 20 }, { x: -20, z: -20 }, { x: 20, z: -12 }, { x: -20, z: 12 }];
+          const safeSpots = farSpots.filter(s =>
+            Object.values(Net.players).every(p => Math.hypot(p.x - s.x, p.z - s.z) > 15) &&
+            this.lockers.every(lk => Math.hypot(lk.x - s.x, lk.z - s.z) > 8)
+          );
+          if (safeSpots.length > 0) {
+            const v = safeSpots[Math.floor(Math.random() * safeSpots.length)];
+            this.hunter.x = v.x; this.hunter.z = v.z;
+          }
         }
         this.hunter.patrolAngle += 0.012;
         this.hunter.yaw = this.hunter.patrolAngle;
