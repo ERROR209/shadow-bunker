@@ -153,45 +153,73 @@ window.addEventListener('pointerdown', () => SFX.init(), { passive: true });
 
 function makeTexture(type) {
   const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
+  c.width = 512; c.height = 512;
   const ctx = c.getContext('2d');
 
-  if (type === 'concrete') {
-    ctx.fillStyle = '#293548';
-    ctx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 3000; i++) {
-      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.18)';
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
-    }
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(2, 2, 252, 252);
-    ctx.fillStyle = 'rgba(120, 53, 15, 0.3)';
-    ctx.fillRect(30, 100, 20, 120);
-  } else if (type === 'floor') {
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = '#0f172a';
+  if (type === 'wall') {
+    // Detailed Sci-Fi Bunker Reinforced Steel Panels + Hazard Stripes
+    ctx.fillStyle = '#18202c';
+    ctx.fillRect(0, 0, 512, 512);
+    // Metallic panel seams
+    ctx.strokeStyle = '#090d14';
     ctx.lineWidth = 6;
-    ctx.strokeRect(0, 0, 128, 128);
-    ctx.strokeRect(128, 128, 128, 128);
-    ctx.strokeRect(128, 0, 128, 128);
-    ctx.strokeRect(0, 128, 128, 128);
-  } else if (type === 'locker') {
-    ctx.fillStyle = '#0369a1';
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.fillStyle = '#0f172a';
-    for (let y = 30; y < 100; y += 14) ctx.fillRect(40, y, 176, 6);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(195, 120, 16, 36);
+    ctx.strokeRect(4, 4, 248, 380);
+    ctx.strokeRect(260, 4, 248, 380);
+    // Highlight bevels
+    ctx.strokeStyle = '#2d3b4e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(8, 8, 240, 372);
+    ctx.strokeRect(264, 8, 240, 372);
+    // Rivets
+    ctx.fillStyle = '#475569';
+    for (let x = 22; x < 500; x += 56) {
+      ctx.beginPath(); ctx.arc(x, 22, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, 368, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    // Bottom Industrial Yellow-Black Hazard Stripe
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(0, 392, 512, 44);
+    ctx.fillStyle = '#09090b';
+    for (let i = -64; i < 560; i += 48) {
+      ctx.beginPath();
+      ctx.moveTo(i, 392); ctx.lineTo(i + 24, 392);
+      ctx.lineTo(i + 4, 436); ctx.lineTo(i - 20, 436);
+      ctx.closePath(); ctx.fill();
+    }
+    // Grime & weathering
+    for (let i = 0; i < 650; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.03)';
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 6, 14);
+    }
+  } else if (type === 'floor') {
+    // Heavy Industrial Metal Grate & Wet Concrete Tiles
+    ctx.fillStyle = '#0f141d';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.strokeStyle = '#05070a';
+    ctx.lineWidth = 6;
+    for (let i = 0; i <= 512; i += 128) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+    }
+    // Anti-slip diamond tread details
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.08)';
+    for (let y = 16; y < 512; y += 32) {
+      for (let x = 16; x < 512; x += 32) {
+        ctx.fillRect(x, y, 8, 3);
+        ctx.fillRect(x + 12, y + 12, 3, 8);
+      }
+    }
+  } else {
+    // Sci-Fi Ceiling Ribs & Pipes
+    ctx.fillStyle = '#070a10';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#111827';
+    for (let y = 0; y < 512; y += 64) {
+      ctx.fillRect(0, y, 512, 26);
+    }
   }
-
   const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  if (type === 'floor') tex.repeat.set(16, 16);
-  if (type === 'concrete') tex.repeat.set(3, 1);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
 }
 
@@ -258,6 +286,11 @@ const Game3D = {
   lastVentJump: 0,
   flickerLights: [],
   dustSystem: null,
+  velX: 0,
+  velZ: 0,
+  walkBob: 0,
+  stunArcs: [],
+  levelProps: [],
 
   start(codes, noteSpots, fuseSpot) {
     this.codes = codes;
@@ -1022,9 +1055,32 @@ const Game3D = {
 
     const isStunned = performance.now() < this.hunter.stunnedUntil;
     if (this.hunter.mesh) {
-      this.hunter.mesh.position.y = isStunned ? -0.45 : 0;
+      this.hunter.mesh.position.y = isStunned ? -0.42 : 0;
+      // Electric shock jitter & spawning blue sparks around Subject-0
+      if (isStunned) {
+        this.hunter.mesh.rotation.z = (Math.random() - 0.5) * 0.18;
+        if (Math.random() > 0.35) {
+          const spark = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.28, 0.06),
+            new THREE.MeshBasicMaterial({ color: Math.random() > 0.4 ? 0x38bdf8 : 0xffffff })
+          );
+          spark.position.set(
+            this.hunter.mesh.position.x + (Math.random() - 0.5) * 1.1,
+            0.5 + Math.random() * 1.6,
+            this.hunter.mesh.position.z + (Math.random() - 0.5) * 1.1
+          );
+          spark.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+          this.scene.add(spark);
+          setTimeout(() => this.scene.remove(spark), 110);
+        }
+      } else {
+        this.hunter.mesh.rotation.z = THREE.MathUtils.lerp(this.hunter.mesh.rotation.z, 0, 0.2);
+      }
       const glowLight = this.hunter.mesh.children.find(c => c.isPointLight);
-      if (glowLight) glowLight.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
+      if (glowLight) {
+        glowLight.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
+        glowLight.intensity = isStunned ? (2.5 + Math.random() * 2.5) : 1.6;
+      }
     }
     if (this.hunter.mesh) {
       this.hunter.mesh.position.y = isStunned ? -0.45 : 0;
@@ -1347,8 +1403,19 @@ const Game3D = {
     const me = Net.players[Net.myId];
     if (me) { me.x = 0; me.z = 0; me.downed = false; }
     this.hunter.x = 18; this.hunter.z = -18;
-    this.scene.background = new THREE.Color(0x090d16);
-    this.scene.fog = new THREE.FogExp2(0x090d16, 0.025);
+    this.scene.background = new THREE.Color(0x070d19);
+    this.scene.fog = new THREE.FogExp2(0x070d19, 0.022);
+    // Helipad Landing Ring + Beacon Lights
+    const padRing = new THREE.Mesh(
+      new THREE.RingGeometry(3.2, 3.8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+    );
+    padRing.rotation.x = -Math.PI / 2;
+    padRing.position.set(0, 0.03, 0);
+    const beacon = new THREE.PointLight(0x38bdf8, 3.2, 24);
+    beacon.position.set(0, 3.5, 0);
+    this.scene.add(padRing, beacon);
+    this.levelProps.push(padRing, beacon);
     SFX.siren();
     this.showRadioToast('LEVEL 3', '🚁 SURFACE HELIPAD! 45 सेकंड तक Subject-0 से बचकर रहें!');
   },
