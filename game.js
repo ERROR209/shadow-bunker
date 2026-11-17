@@ -1024,8 +1024,8 @@ const Game3D = {
             Net.broadcast({ type: 'GAMEOVER', win: true, reason: '🚁 Rescue Helicopter arrived! Your squad cleared all 3 levels!' });
             this.triggerEnd(true, '🚁 Rescue Helicopter arrived! Your squad cleared all 3 levels!');
           } else {
-            Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'Time's up! Sector-09 self-destructed!' });
-            this.triggerEnd(false, 'Time's up! Sector-09 self-destructed!');
+            Net.broadcast({ type: 'GAMEOVER', win: false, reason: 'Time is up! Sector-09 self-destructed!' });
+            this.triggerEnd(false, 'Time is up! Sector-09 self-destructed!');
           }
         }
       }
@@ -1693,17 +1693,44 @@ const Game3D = {
   },
 
   triggerEnd(win, reason) {
-    this.running = false;
-    document.getElementById('end-title').textContent = win ? '🚁 SECTOR-09 ESCAPED!' : '💀 MISSION FAILED';
+    if (this.gameOver) return;
+    this.gameOver = true;
+    document.getElementById('jumpscare-overlay')?.classList.add('hidden');
+    document.getElementById('end-title').textContent = win ? '🏆 MISSION ACCOMPLISHED' : '💀 SQUAD WIPED OUT';
     document.getElementById('end-title').style.color = win ? '#4ade80' : '#ef4444';
     document.getElementById('end-desc').textContent = reason;
     document.getElementById('end-modal').classList.remove('hidden');
   },
 
-  loop() {
-    if (!this.running) return;
-    this.update();
-    this.renderer.render(this.scene, this.camera);
-    requestAnimationFrame(() => this.loop());
+  resetAndRestart(codes, noteSpots, fuseSpot) {
+    document.getElementById('end-modal').classList.add('hidden');
+    document.getElementById('jumpscare-overlay')?.classList.add('hidden');
+    document.getElementById('timer-badge').classList.add('hidden');
+    this.gameOver = false;
+    this.level = 1;
+    this.battery = 100;
+    this.stunCharges = 3;
+    this.hasFuse = false;
+    this.powerRestored = false;
+    this.selfDestructActive = false;
+    this.locks = [false, false, false];
+    this.codes = codes;
+    this.hunter.x = 18;
+    this.hunter.z = -18;
+    this.hunter.stunnedUntil = 0;
+
+    const spawns = [{ x: -18, z: 18 }, { x: -16, z: 18 }, { x: -18, z: 16 }, { x: -16, z: 16 }];
+    Object.values(Net.players).forEach((p, idx) => {
+      const sp = spawns[idx % 4];
+      p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false; p.torch = true;
+    });
+
+    document.getElementById('battery-badge').textContent = '🔋 100%';
+    document.getElementById('locks-status').textContent = '⚡ OFF';
+    document.getElementById('stun-status').textContent = '🔫 3/3';
+    document.getElementById('objective-banner').textContent = 'CHAPTER 1: Find the blue POWER FUSE in the dark room';
+    this.scene.background = new THREE.Color(0x03050a);
+    this.scene.fog = new THREE.FogExp2(0x03050a, 0.038);
+    this.showRadioToast('MISSION', '🔄 New round started! Good luck, Squad!');
   }
 };
