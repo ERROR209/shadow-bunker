@@ -1007,6 +1007,11 @@ const Game3D = {
     this.batteries.forEach(b => { if (!b.collected) b.mesh.rotation.y += 0.04; });
 
     const isStunned = performance.now() < this.hunter.stunnedUntil;
+    if (this.hunter.mesh) {
+      this.hunter.mesh.position.y = isStunned ? -0.45 : 0;
+      const glowLight = this.hunter.mesh.children.find(c => c.isPointLight);
+      if (glowLight) glowLight.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
+    }
     if (Net.isHost && !isStunned) {
       let nearest = null;
       let minDist = 999;
@@ -1034,19 +1039,6 @@ const Game3D = {
           if (nearest.id === Net.myId) this.triggerJumpscare();
         }
       } else {
-        const nowV = performance.now();
-        if (nowV - this.lastVentJump > 35000) {
-          this.lastVentJump = nowV;
-          const farSpots = [{ x: 20, z: 20 }, { x: -20, z: -20 }, { x: 20, z: -12 }, { x: -20, z: 12 }];
-          const safeSpots = farSpots.filter(s =>
-            Object.values(Net.players).every(p => Math.hypot(p.x - s.x, p.z - s.z) > 15) &&
-            this.lockers.every(lk => Math.hypot(lk.x - s.x, lk.z - s.z) > 8)
-          );
-          if (safeSpots.length > 0) {
-            const v = safeSpots[Math.floor(Math.random() * safeSpots.length)];
-            this.hunter.x = v.x; this.hunter.z = v.z;
-          }
-        }
         this.hunter.patrolAngle += 0.012;
         this.hunter.yaw = this.hunter.patrolAngle;
         const px = this.hunter.x + Math.sin(this.hunter.patrolAngle) * 0.045;
