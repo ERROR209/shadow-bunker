@@ -286,6 +286,8 @@ const Game3D = {
   lastVentJump: 0,
   flickerLights: [],
   dustSystem: null,
+  fpsFrames: 0,
+  fpsLastTime: performance.now(),
   velX: 0,
   velZ: 0,
   walkBob: 0,
@@ -948,6 +950,18 @@ const Game3D = {
     if (!me) return;
 
     SFX.ambientDrip();
+    this.fpsFrames++;
+    const nowFps = performance.now();
+    if (nowFps - this.fpsLastTime >= 500) {
+      const currentFps = Math.round((this.fpsFrames * 1000) / (nowFps - this.fpsLastTime));
+      const fpsEl = document.getElementById('fps-badge');
+      if (fpsEl) {
+        fpsEl.textContent = `FPS: ${currentFps}`;
+        fpsEl.className = 'fps-badge' + (currentFps < 30 ? ' low' : currentFps < 50 ? ' mid' : '');
+      }
+      this.fpsFrames = 0;
+      this.fpsLastTime = nowFps;
+    }
     if (this.dustSystem) {
       this.dustSystem.rotation.y += 0.0008;
       this.dustSystem.position.y = Math.sin(performance.now() * 0.001) * 0.12;

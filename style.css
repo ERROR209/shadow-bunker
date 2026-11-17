@@ -555,3 +555,17 @@ input[type="text"] {
     gap: 10px;
   }
 }
+
+/* LIVE FPS COUNTER */
+.fps-badge {
+  background: rgba(8, 12, 22, 0.88);
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  color: #4ade80;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-family: monospace;
+}
+.fps-badge.mid { color: #facc15; border-color: rgba(250, 204, 21, 0.45); }
+.fps-badge.low { color: #ef4444; border-color: rgba(239, 68, 68, 0.55); }
