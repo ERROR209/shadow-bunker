@@ -943,15 +943,35 @@ const Game3D = {
       if (p.id === Net.myId) return;
       if (!this.teammateMeshes[p.id]) {
         const grp = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.7, 10), new THREE.MeshStandardMaterial({ color: p.color }));
-        body.position.y = 0.85;
-        grp.add(body);
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 1.45, 12), new THREE.MeshStandardMaterial({ color: p.color, emissive: p.color, emissiveIntensity: 0.35 }));
+        body.position.y = 0.75;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+        head.position.y = 1.68;
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.2), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+        visor.position.set(0, 1.7, -0.2);
+        const beacon = new THREE.PointLight(p.color, 2.2, 8);
+        beacon.position.set(0, 1.8, 0);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 256; canvas.height = 64;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(10, 10, 236, 44);
+        ctx.font = "bold 26px sans-serif";
+        ctx.fillStyle = "#4ade80";
+        ctx.textAlign = "center";
+        ctx.fillText(p.name, 128, 42);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+        sprite.scale.set(1.8, 0.45, 1);
+        sprite.position.y = 2.25;
+
+        grp.add(body, head, visor, beacon, sprite);
         this.scene.add(grp);
         this.teammateMeshes[p.id] = grp;
       }
       const m = this.teammateMeshes[p.id];
       m.visible = !p.hiding;
-      m.position.set(p.x, 0, p.z);
+      m.position.set(p.x, p.downed ? -0.6 : 0, p.z);
       m.rotation.y = p.yaw;
     });
 
