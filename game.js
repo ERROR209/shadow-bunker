@@ -2,8 +2,23 @@ const SFX = {
   ctx: null,
   noiseBuffer: null,
   lastStep: 0,
+  lastMonsterStep: 0,
   lastBeat: 0,
   lastAmbient: 0,
+  tracks: {},
+  ambienceStarted: false,
+
+  loadMp3(name, path, loop = false, baseVol = 0.7) {
+    const audio = new Audio(path);
+    audio.loop = loop;
+    audio.preload = 'auto';
+    audio.volume = baseVol;
+    audio._ready = false;
+    audio.addEventListener('canplaythrough', () => { audio._ready = true; }, { once: true });
+    audio.addEventListener('error', () => { audio._ready = false; }, { once: true });
+    this.tracks[name] = audio;
+  },
+
   init() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -21,13 +36,38 @@ const SFX = {
           data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.25;
         }
       }
+      // Preload Real Horror MP3 Files from /sounds/ folder
+      this.loadMp3('step', 'sounds/step.mp3', false, 0.55);
+      this.loadMp3('monster_step', 'sounds/monster_step.mp3', false, 0.85);
+      this.loadMp3('ambience', 'sounds/ambience.mp3', true, 0.35);
+      this.loadMp3('scream', 'sounds/scream.mp3', false, 0.95);
+      this.loadMp3('stun', 'sounds/stun.mp3', false, 0.85);
+      this.loadMp3('heartbeat', 'sounds/heartbeat.mp3', false, 0.8);
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+    // Start looping Dark Horror Ambience Drone once user touches screen
+    if (!this.ambienceStarted && this.tracks.ambience && this.tracks.ambience._ready) {
+      this.tracks.ambience.play().then(() => { this.ambienceStarted = true; }).catch(() => {});
+    }
   },
+
+  playMp3(name, volume = null, rate = 1.0) {
+    const tr = this.tracks[name];
+    if (tr && tr._ready) {
+      try {
+        const clone = tr.cloneNode();
+        clone.volume = Math.max(0, Math.min(1, volume !== null ? volume : tr.volume));
+        clone.playbackRate = rate;
+        clone.play().catch(() => {});
+        return true;
+      } catch (e) {}
+    }
+    return false;
+  },
+
   noise(dur, filterFreq, filterType = 'lowpass', vol = 0.35, q = 1.0) {
-    this.init();
     if (!this.ctx || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
@@ -46,8 +86,8 @@ const SFX = {
     src.start(now);
     src.stop(now + dur);
   },
+
   tone(freq, type, dur, vol = 0.25, endFreq = null, delay = 0) {
-    this.init();
     if (!this.ctx) return;
     const now = this.ctx.currentTime + delay;
     const osc = this.ctx.createOscillator();
@@ -63,68 +103,81 @@ const SFX = {
     osc.start(now);
     osc.stop(now + dur);
   },
+
   ambientDrip() {
+    if (!this.ambienceStarted && this.tracks.ambience && this.tracks.ambience._ready) {
+      this.tracks.ambience.play().then(() => { this.ambienceStarted = true; }).catch(() => {});
+    }
+    if (this.ambienceStarted) return;
     const now = performance.now();
     if (now - this.lastAmbient < 9000) return;
     this.lastAmbient = now;
     this.tone(1150, 'sine', 0.08, 0.05, 1650);
   },
+
   jumpscareScream() {
     this.init();
+    if (this.playMp3('scream', 0.95)) return;
+    // Fallback if scream.mp3 not yet added
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     const osc1 = this.ctx.createOscillator();
-    const osc2 = this.ctx.createOscillator();
     osc1.type = 'sawtooth';
-    osc2.type = 'sawtooth';
     osc1.frequency.setValueAtTime(460, now);
     osc1.frequency.exponentialRampToValueAtTime(840, now + 0.14);
     osc1.frequency.exponentialRampToValueAtTime(320, now + 0.85);
-    osc2.frequency.setValueAtTime(472, now);
-    osc2.frequency.exponentialRampToValueAtTime(870, now + 0.14);
-    osc2.frequency.exponentialRampToValueAtTime(300, now + 0.85);
-
-    const vocalFilter = this.ctx.createBiquadFilter();
-    vocalFilter.type = 'bandpass';
-    vocalFilter.frequency.setValueAtTime(1150, now);
-    vocalFilter.Q.setValueAtTime(4.2, now);
-
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.01, now);
     gain.gain.linearRampToValueAtTime(0.65, now + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
-
-    osc1.connect(vocalFilter);
-    osc2.connect(vocalFilter);
-    vocalFilter.connect(gain);
+    osc1.connect(gain);
     gain.connect(this.ctx.destination);
-    osc1.start(now); osc2.start(now);
-    osc1.stop(now + 0.85); osc2.stop(now + 0.85);
-    this.tone(105, 'sine', 0.6, 0.75, 34);
+    osc1.start(now); osc1.stop(now + 0.85);
   },
+
   stunZap() {
+    this.init();
+    if (this.playMp3('stun', 0.85)) return;
     this.noise(0.2, 2200, 'bandpass', 0.35, 2.0);
     this.tone(620, 'sawtooth', 0.22, 0.24, 160);
   },
+
   siren() {
     this.tone(560, 'sawtooth', 0.35, 0.2, 380);
     this.tone(420, 'sawtooth', 0.35, 0.2, 300, 0.36);
   },
+
   step(sprinting) {
     const now = performance.now();
     if (now - this.lastStep < (sprinting ? 270 : 450)) return;
     this.lastStep = now;
+    if (this.playMp3('step', sprinting ? 0.65 : 0.4, sprinting ? 1.25 : 0.95)) return;
     const p = 0.92 + Math.random() * 0.16;
     this.noise(0.1, (sprinting ? 460 : 350) * p, 'lowpass', sprinting ? 0.45 : 0.3, 0.8);
     this.tone(88 * p, 'sine', 0.08, sprinting ? 0.32 : 0.2, 38);
   },
+
+  monsterStep(dist) {
+    if (dist > 18) return;
+    const now = performance.now();
+    const interval = Math.max(360, dist * 45);
+    if (now - this.lastMonsterStep < interval) return;
+    this.lastMonsterStep = now;
+    const vol = Math.max(0.08, Math.min(0.95, (18 - dist) / 18));
+    if (this.playMp3('monster_step', vol, 0.92)) return;
+    this.tone(62, 'sine', 0.14, vol * 0.7, 28);
+    this.noise(0.12, 220, 'lowpass', vol * 0.45);
+  },
+
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(700, dist * 85);
+    const interval = Math.max(680, dist * 85);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    this.tone(72, 'sine', 0.16, 0.55, 36, 0);
-    this.tone(62, 'sine', 0.19, 0.42, 32, 0.17);
+    const vol = Math.max(0.15, Math.min(0.9, (12 - dist) / 12));
+    if (this.playMp3('heartbeat', vol)) return;
+    this.tone(72, 'sine', 0.16, 0.55 * vol, 36, 0);
+    this.tone(62, 'sine', 0.19, 0.42 * vol, 32, 0.17);
   }
 };
 
@@ -1886,6 +1939,7 @@ const Game3D = {
       }
 
       const dMonster = Math.hypot(this.hunter.x - me.x, this.hunter.z - me.z);
+      if (!isStunned) SFX.monsterStep(dMonster);
       const danger = document.getElementById('danger-overlay');
       if (dMonster < 12 && !me.hiding && !me.downed) {
         SFX.heartbeat(dMonster);
