@@ -9,18 +9,25 @@ const SFX = {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) {
         this.ctx = new AC();
-        // Create 1-second noise buffer for realistic footsteps & horror scream
-        const len = this.ctx.sampleRate;
+        const len = this.ctx.sampleRate * 1.5;
         this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
         const data = this.noiseBuffer.getChannelData(0);
-        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+        // Pink-ish natural noise (much warmer & realistic than harsh white noise)
+        let b0 = 0, b1 = 0, b2 = 0;
+        for (let i = 0; i < len; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99765 * b0 + white * 0.0990460;
+          b1 = 0.96300 * b1 + white * 0.2965164;
+          b2 = 0.57000 * b2 + white * 1.0526913;
+          data[i] = (b0 + b1 + b2 + white * 0.1848) * 0.25;
+        }
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
   },
-  noise(dur, filterFreq, filterType = 'bandpass', vol = 0.35) {
+  noise(dur, filterFreq, filterType = 'lowpass', vol = 0.4, q = 1.2) {
     this.init();
     if (!this.ctx || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
@@ -30,9 +37,11 @@ const SFX = {
     const filter = this.ctx.createBiquadFilter();
     filter.type = filterType;
     filter.frequency.setValueAtTime(filterFreq, now);
+    filter.Q.setValueAtTime(q, now);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     src.connect(filter);
@@ -41,16 +50,17 @@ const SFX = {
     src.start(now);
     src.stop(now + dur);
   },
-  tone(freq, type, dur, vol = 0.25, endFreq = null) {
+  tone(freq, type, dur, vol = 0.25, endFreq = null, delay = 0) {
     this.init();
     if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    const now = this.ctx.currentTime + delay;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, now);
     if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
-    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
     osc.connect(gain);
     gain.connect(this.ctx.destination);
@@ -59,45 +69,82 @@ const SFX = {
   },
   ambientDrip() {
     const now = performance.now();
-    if (now - this.lastAmbient < 8000) return;
+    if (now - this.lastAmbient < 8500) return;
     this.lastAmbient = now;
     if (Math.random() > 0.5) {
-      this.tone(1350, 'sine', 0.09, 0.08, 1750);
+      this.tone(1100, 'sine', 0.08, 0.06, 1650);
     } else {
-      this.noise(0.5, 180, 'lowpass', 0.14);
+      this.noise(0.7, 140, 'lowpass', 0.12);
     }
   },
   jumpscareScream() {
-    // Realistic Horror Screech + Heavy Slam (No cartoon whistle!)
-    this.noise(0.85, 1200, 'bandpass', 0.85);
-    this.noise(0.6, 140, 'lowpass', 0.9);
-    this.tone(190, 'sawtooth', 0.75, 0.55, 72);
-    this.tone(245, 'sawtooth', 0.65, 0.45, 85);
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Demonic / Humanoid Shriek using Dual Formant Filters (Vocal Scream)
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(480, now);
+    osc1.frequency.exponentialRampToValueAtTime(860, now + 0.14);
+    osc1.frequency.exponentialRampToValueAtTime(340, now + 0.85);
+
+    osc2.frequency.setValueAtTime(492, now);
+    osc2.frequency.exponentialRampToValueAtTime(890, now + 0.14);
+    osc2.frequency.exponentialRampToValueAtTime(310, now + 0.85);
+
+    // Vocal throat formant filter ("AAAHHH!" resonance)
+    const vocalFilter = this.ctx.createBiquadFilter();
+    vocalFilter.type = 'bandpass';
+    vocalFilter.frequency.setValueAtTime(1150, now);
+    vocalFilter.frequency.exponentialRampToValueAtTime(1650, now + 0.2);
+    vocalFilter.Q.setValueAtTime(4.5, now);
+
+    const screamGain = this.ctx.createGain();
+    screamGain.gain.setValueAtTime(0.01, now);
+    screamGain.gain.linearRampToValueAtTime(0.75, now + 0.04);
+    screamGain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+    osc1.connect(vocalFilter);
+    osc2.connect(vocalFilter);
+    vocalFilter.connect(screamGain);
+    screamGain.connect(this.ctx.destination);
+
+    osc1.start(now); osc2.start(now);
+    osc1.stop(now + 0.9); osc2.stop(now + 0.9);
+
+    // 2. Heavy Sub-Bass Impact Slam
+    this.tone(110, 'sine', 0.65, 0.85, 32);
+    this.noise(0.35, 320, 'lowpass', 0.6);
   },
   stunZap() {
-    this.noise(0.22, 2400, 'highpass', 0.4);
-    this.tone(680, 'sawtooth', 0.22, 0.28, 180);
+    this.noise(0.2, 2200, 'bandpass', 0.35, 2.0);
+    this.tone(620, 'sawtooth', 0.22, 0.24, 160);
   },
   siren() {
-    this.tone(580, 'sawtooth', 0.35, 0.24, 390);
-    setTimeout(() => this.tone(440, 'sawtooth', 0.35, 0.24, 310), 350);
+    this.tone(560, 'sawtooth', 0.35, 0.2, 380);
+    this.tone(420, 'sawtooth', 0.35, 0.2, 300, 0.36);
   },
   step(sprinting) {
     const now = performance.now();
-    if (now - this.lastStep < (sprinting ? 260 : 420)) return;
+    if (now - this.lastStep < (sprinting ? 270 : 450)) return;
     this.lastStep = now;
-    // Crisp concrete boot step + heel tap (cuts clearly through heartbeat)
-    this.noise(0.075, sprinting ? 1400 : 1050, 'bandpass', sprinting ? 0.55 : 0.38);
-    this.tone(150, 'triangle', 0.055, sprinting ? 0.32 : 0.22, 60);
+    // Realistic heavy boot sole thud on bunker concrete (no wood-block click!)
+    const pitchVar = 0.92 + Math.random() * 0.16;
+    this.noise(0.11, (sprinting ? 480 : 360) * pitchVar, 'lowpass', sprinting ? 0.58 : 0.4, 0.8);
+    this.tone(92 * pitchVar, 'sine', 0.085, sprinting ? 0.38 : 0.25, 38);
   },
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(420, dist * 55);
+    const interval = Math.max(460, dist * 58);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    // Deep Lub-Dub chest thump
-    this.tone(115, 'sine', 0.15, 0.52, 52);
-    setTimeout(() => this.tone(95, 'sine', 0.18, 0.42, 45), 145);
+    // Realistic muffled flesh "LUB-DUB" cardiac pulse (no rubber-ball bounce!)
+    this.tone(72, 'sine', 0.16, 0.68, 36, 0);
+    this.noise(0.11, 130, 'lowpass', 0.32, 1.0);
+    this.tone(62, 'sine', 0.19, 0.52, 32, 0.17);
   }
 };
 
