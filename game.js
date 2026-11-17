@@ -111,12 +111,12 @@ const Game3D = {
   stunBeamMesh: null,
   running: false,
 
+  level: 1,
   battery: 100,
   batteries: [],
   hasFuse: false,
   powerRestored: false,
   selfDestructActive: false,
-  level: 1,
   escapeTimeLeft: 60,
   lastTick: 0,
 
@@ -190,7 +190,6 @@ const Game3D = {
       const me = Net.players[Net.myId];
       document.getElementById('role-badge').textContent = me.role;
 
-      // Apply Role Perks
       if (me.role === 'HACKER') {
         this.stunCharges = 4;
         document.getElementById('stun-status').textContent = '🔫 4/4';
@@ -290,7 +289,6 @@ const Game3D = {
       this.scene.add(mesh);
     });
 
-    // Spare Glowing Green Batteries
     const batCoords = [{ x: -6, z: -18 }, { x: 10, z: 6 }, { x: -18, z: 10 }, { x: 16, z: -14 }];
     this.batteries = batCoords.map(pos => {
       const mesh = new THREE.Mesh(
@@ -302,7 +300,6 @@ const Game3D = {
       return { x: pos.x, z: pos.z, mesh, collected: false };
     });
 
-    // Power Fuse
     const fuseMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
     fuseMesh.position.set(fuseSpot.x, 1.1, fuseSpot.z);
     this.scene.add(fuseMesh);
@@ -351,45 +348,42 @@ const Game3D = {
     this.exitMesh.position.set(this.exitPos.x, 1.8, this.exitPos.z);
     this.scene.add(this.exitMesh);
 
+    // SCARY ANIMATED MUTANT MONSTER (SUBJECT-0)
     const hunterGroup = new THREE.Group();
-    const fleshMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.85, metalness: 0.2 });
+    const fleshMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.85, metalness: 0.25 });
     const veinMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
 
-    // Hunched Mutant Torso & Spine Spikes
-    const mTorso = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.05, 0.42), fleshMat);
+    const mTorso = new THREE.Mesh(new THREE.BoxGeometry(0.66, 1.05, 0.42), fleshMat);
     mTorso.position.set(0, 1.48, 0.08);
     mTorso.rotation.x = 0.28;
 
-    const spine1 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 6), veinMat);
+    const spine1 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.36, 6), veinMat);
     spine1.position.set(0, 1.85, -0.18); spine1.rotation.x = -0.6;
-    const spine2 = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 6), veinMat);
+    const spine2 = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 6), veinMat);
     spine2.position.set(0, 1.5, -0.22); spine2.rotation.x = -0.6;
 
-    // Monster Head & Glowing Predator Eyes
     const mHead = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.38, 0.42), fleshMat);
     mHead.position.set(0, 2.15, 0.26);
-    const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), veinMat);
-    leftEye.position.set(-0.1, 2.18, 0.46);
-    const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), veinMat);
-    rightEye.position.set(0.1, 2.18, 0.46);
+    const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), veinMat);
+    leftEye.position.set(-0.1, 2.18, 0.47);
+    const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), veinMat);
+    rightEye.position.set(0.1, 2.18, 0.47);
 
-    // Long Creepy Arms with Blood-Red Claws
-    const mArmGeo = new THREE.BoxGeometry(0.16, 1.15, 0.16);
+    const mArmGeo = new THREE.BoxGeometry(0.15, 1.15, 0.15);
     const mLeftArm = new THREE.Mesh(mArmGeo, fleshMat);
-    mLeftArm.position.set(-0.46, 1.35, 0.22);
+    mLeftArm.position.set(-0.45, 1.35, 0.22);
     mLeftArm.rotation.x = -0.45;
-    const lClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.35, 5), veinMat);
+    const lClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.38, 5), veinMat);
     lClaw.position.set(0, -0.65, 0.08); lClaw.rotation.x = 0.5;
     mLeftArm.add(lClaw);
 
     const mRightArm = new THREE.Mesh(mArmGeo, fleshMat);
-    mRightArm.position.set(0.46, 1.35, 0.22);
+    mRightArm.position.set(0.45, 1.35, 0.22);
     mRightArm.rotation.x = -0.45;
-    const rClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.35, 5), veinMat);
+    const rClaw = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.38, 5), veinMat);
     rClaw.position.set(0, -0.65, 0.08); rClaw.rotation.x = 0.5;
     mRightArm.add(rClaw);
 
-    // Mutant Legs
     const mLegGeo = new THREE.BoxGeometry(0.2, 0.98, 0.22);
     const mLeftLeg = new THREE.Mesh(mLegGeo, fleshMat);
     mLeftLeg.position.set(-0.2, 0.5, 0);
@@ -653,7 +647,6 @@ const Game3D = {
       }
     }
 
-    // Pick Up Battery Cell
     for (const bat of this.batteries) {
       if (!bat.collected && Math.hypot(bat.x - me.x, bat.z - me.z) < 2.5) {
         bat.collected = true;
@@ -687,7 +680,6 @@ const Game3D = {
       return;
     }
 
-    // Revive Teammate (Medic / Squad Co-op)
     for (const p of Object.values(Net.players)) {
       if (p.id !== Net.myId && p.downed && Math.hypot(p.x - me.x, p.z - me.z) < 3) {
         p.downed = false;
@@ -823,7 +815,6 @@ const Game3D = {
 
     SFX.ambientDrip();
 
-    // Flashlight Battery Drain & Low-Battery Flicker
     if (me.torch && this.battery > 0) {
       const drainRate = me.role === 'ENGINEER' ? 0.016 : 0.024;
       this.battery = Math.max(0, this.battery - drainRate);
@@ -912,7 +903,6 @@ const Game3D = {
     this.notes.forEach(n => { if (n.mesh) n.mesh.rotation.y += 0.03; });
     this.batteries.forEach(b => { if (!b.collected) b.mesh.rotation.y += 0.04; });
 
-    // Monster AI with Sound Detection (Sprint Noise) & Torch Detection
     const isStunned = performance.now() < this.hunter.stunnedUntil;
     if (Net.isHost && !isStunned) {
       let nearest = null;
@@ -921,7 +911,7 @@ const Game3D = {
       Object.values(Net.players).forEach(p => {
         if (p.downed || p.hiding) return;
         const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
-        const range = this.selfDestructActive ? 30 : (p.makingNoise ? 22 : (p.torch ? 16 : 6.5));
+        const range = (this.selfDestructActive || this.level === 2) ? 30 : (p.makingNoise ? 22 : (p.torch ? 16 : 6.5));
         if (d < range && d < minDist) {
           minDist = d;
           nearest = p;
@@ -930,7 +920,7 @@ const Game3D = {
 
       if (nearest) {
         this.hunter.yaw = Math.atan2(nearest.x - this.hunter.x, nearest.z - this.hunter.z);
-        const hSpeed = this.selfDestructActive ? 0.098 : 0.082;
+        const hSpeed = (this.selfDestructActive || this.level === 2) ? 0.098 : 0.082;
         const hx = this.hunter.x + Math.sin(this.hunter.yaw) * hSpeed;
         const hz = this.hunter.z + Math.cos(this.hunter.yaw) * hSpeed;
         if (!this.collides3D(hx, this.hunter.z, 0.7)) this.hunter.x = hx;
@@ -998,7 +988,6 @@ const Game3D = {
         const armorMat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.4, metalness: 0.3 });
         const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
 
-        // Tactical Torso & Chest Armor
         const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.62, 0.26), suitMat);
         torso.position.y = 1.12;
         const vest = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.42, 0.29), armorMat);
@@ -1006,7 +995,6 @@ const Game3D = {
         const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.16), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
         backpack.position.set(0, 1.16, 0.19);
 
-        // Head, Tactical Helmet & Glowing Visor
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 14), skinMat);
         head.position.y = 1.62;
         const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.185, 14, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), armorMat);
@@ -1014,14 +1002,12 @@ const Game3D = {
         const visor = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
         visor.position.set(0, 1.61, -0.14);
 
-        // Left & Right Legs (Pivoted at hip for walking animation)
         const legGeo = new THREE.BoxGeometry(0.15, 0.78, 0.16);
         const leftLeg = new THREE.Mesh(legGeo, suitMat);
         leftLeg.position.set(-0.13, 0.41, 0);
         const rightLeg = new THREE.Mesh(legGeo, suitMat);
         rightLeg.position.set(0.13, 0.41, 0);
 
-        // Left Arm & Right Arm holding 3D Flashlight
         const armGeo = new THREE.BoxGeometry(0.13, 0.56, 0.14);
         const leftArm = new THREE.Mesh(armGeo, suitMat);
         leftArm.position.set(-0.31, 1.12, 0);
@@ -1038,16 +1024,14 @@ const Game3D = {
         torchLight.position.set(0, -0.34, -0.55);
         rightArmGroup.add(rightArm, torchProp, torchLight);
 
-        // Clean Floating Nameplate
-        const canvas = document.createElement("canvas");
+        const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 64;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "rgba(15, 23, 42, 0.78)";
-        ctx.roundRect?.(28, 12, 200, 40, 12) || ctx.fillRect(28, 12, 200, 40);
-        ctx.fill();
-        ctx.font = "bold 24px sans-serif";
-        ctx.fillStyle = "#4ade80";
-        ctx.textAlign = "center";
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+        ctx.fillRect(28, 12, 200, 40);
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillStyle = '#4ade80';
+        ctx.textAlign = 'center';
         ctx.fillText(p.name, 128, 40);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
         sprite.scale.set(1.5, 0.38, 1);
@@ -1102,12 +1086,10 @@ const Game3D = {
     document.getElementById('locks-status').textContent = '⚡ LVL-2 OFF';
     document.getElementById('objective-banner').textContent = '🔥 LEVEL 2 (BIO-REACTOR CORE): नया फ्यूज़ ढूंढें — Subject-0 अब और तेज़ है!';
 
-    // Reset Player & Monster positions for Level 2
     const me = Net.players[Net.myId];
     if (me) { me.x = -18; me.z = 18; }
     this.hunter.x = 16; this.hunter.z = 16;
 
-    // Relocate Fuse, Notes & Reset Terminals with new codes
     if (this.fuseObj) {
       this.fuseObj.picked = false;
       this.fuseObj.x = 14; this.fuseObj.z = -16;
