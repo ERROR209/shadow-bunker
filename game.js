@@ -4,64 +4,74 @@ const SFX = {
   lastBeat: 0,
   lastAmbient: 0,
   init() {
-    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
   },
-  tone(freq, type, dur, vol = 0.08) {
+  tone(freq, type, dur, vol = 0.25, endFreq = null) {
+    this.init();
     if (!this.ctx) return;
+    const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+    osc.frequency.setValueAtTime(freq, now);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
     osc.connect(gain);
     gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + dur);
+    osc.start(now);
+    osc.stop(now + dur);
   },
   ambientDrip() {
     const now = performance.now();
     if (now - this.lastAmbient < 7500) return;
     this.lastAmbient = now;
     if (Math.random() > 0.45) {
-      this.tone(1150, 'sine', 0.09, 0.035);
-      setTimeout(() => this.tone(1520, 'sine', 0.06, 0.025), 75);
+      this.tone(1150, 'sine', 0.1, 0.08);
+      setTimeout(() => this.tone(1520, 'sine', 0.08, 0.06), 75);
     } else {
-      this.tone(95, 'sawtooth', 0.45, 0.04);
+      this.tone(160, 'sawtooth', 0.4, 0.09, 95);
     }
   },
   jumpscareScream() {
-    this.tone(180, 'sawtooth', 0.65, 0.28);
-    this.tone(620, 'square', 0.55, 0.22);
-    setTimeout(() => this.tone(110, 'sawtooth', 0.6, 0.26), 120);
-    navigator.vibrate?.([150, 50, 200, 50, 250]);
+    this.tone(780, 'sawtooth', 0.65, 0.45, 190);
+    this.tone(940, 'square', 0.55, 0.35, 240);
+    setTimeout(() => this.tone(620, 'sawtooth', 0.55, 0.4, 140), 120);
   },
   stunZap() {
-    this.tone(880, 'sawtooth', 0.25, 0.16);
-    setTimeout(() => this.tone(420, 'square', 0.25, 0.14), 80);
-    navigator.vibrate?.([60, 40, 80]);
+    this.tone(880, 'sawtooth', 0.25, 0.28, 320);
+    setTimeout(() => this.tone(520, 'square', 0.22, 0.24), 80);
   },
   siren() {
-    this.tone(520, 'sawtooth', 0.35, 0.14);
-    setTimeout(() => this.tone(380, 'sawtooth', 0.35, 0.14), 350);
+    this.tone(640, 'sawtooth', 0.35, 0.25, 420);
+    setTimeout(() => this.tone(480, 'sawtooth', 0.35, 0.25, 340), 350);
   },
   step(sprinting) {
     const now = performance.now();
-    if (now - this.lastStep < (sprinting ? 250 : 420)) return;
+    if (now - this.lastStep < (sprinting ? 250 : 410)) return;
     this.lastStep = now;
-    this.tone(sprinting ? 115 : 80, 'triangle', 0.07, sprinting ? 0.09 : 0.055);
+    // Punchy boot thud audible on phone speakers
+    this.tone(sprinting ? 210 : 165, 'triangle', 0.09, sprinting ? 0.26 : 0.18, 65);
   },
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(260, dist * 42);
+    const interval = Math.max(280, dist * 42);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    this.tone(55, 'sine', 0.14, 0.22);
-    setTimeout(() => this.tone(46, 'sine', 0.18, 0.16), 130);
-    navigator.vibrate?.(45);
+    // Clear Lub-Dub heartbeat audible on mobile speakers (no vibration)
+    this.tone(145, 'sine', 0.14, 0.42, 75);
+    setTimeout(() => this.tone(125, 'sine', 0.18, 0.34, 65), 130);
   }
 };
+
+window.addEventListener('touchstart', () => SFX.init(), { passive: true });
+window.addEventListener('pointerdown', () => SFX.init(), { passive: true });
 
 function makeTexture(type) {
   const c = document.createElement('canvas');
