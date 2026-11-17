@@ -114,7 +114,6 @@ const Game3D = {
   keys: { w: false, a: false, s: false, d: false, run: false },
   lookTouchId: null,
   lastLookX: 0,
-  lastLookY: 0,
   isMouseDown: false,
 
   wallBoxes: [
@@ -214,7 +213,6 @@ const Game3D = {
       this.scene.add(bulb);
     });
 
-    // Visible 3D Hands
     this.handGroup = new THREE.Group();
     const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.35), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
     leftArm.position.set(-0.24, -0.22, -0.35);
@@ -270,7 +268,6 @@ const Game3D = {
       this.scene.add(mesh);
     });
 
-    // Power Fuse
     const fuseMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
     fuseMesh.position.set(fuseSpot.x, 1.1, fuseSpot.z);
     this.scene.add(fuseMesh);
@@ -283,7 +280,6 @@ const Game3D = {
     this.generatorMesh.position.set(this.generatorPos.x, 1.1, this.generatorPos.z);
     this.scene.add(this.generatorMesh);
 
-    // Dr. Verma's Logs
     const logs = [
       'डॉ. वर्मा (लॉग #1): "Subject-0 की आँखें संवेदनशीलता खो चुकी हैं लेकिन सुनने की शक्ति तेज है। मुख्य एग्ज़िट लॉक #1 का कोड है:"',
       'डॉ. वर्मा (लॉग #2): "हमने पल्स स्टन गन बनाई है जो इसे कुछ पलों के लिए रोक सकती है। लॉक #2 का कोड है:"',
@@ -320,7 +316,6 @@ const Game3D = {
     this.exitMesh.position.set(this.exitPos.x, 1.8, this.exitPos.z);
     this.scene.add(this.exitMesh);
 
-    // Subject-0 Monster
     const hunterGroup = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.65, 2.6, 12), new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 }));
     body.position.y = 1.3;
@@ -360,7 +355,6 @@ const Game3D = {
   },
 
   setupControls() {
-    // Mobile Touch Joystick
     const zone = document.getElementById('joystick-zone');
     const stick = document.getElementById('joystick-stick');
     const maxR = 36;
@@ -414,7 +408,7 @@ const Game3D = {
       }
     }, { passive: true });
 
-    // PC Keyboard WASD & Mouse Support
+    // PC Keyboard WASD Support
     window.addEventListener('keydown', (e) => {
       SFX.init();
       const k = e.key.toLowerCase();
@@ -435,26 +429,27 @@ const Game3D = {
       if (!e.shiftKey) this.keys.run = false;
     });
 
-    // PC Mouse Look (Click & Drag or PointerLock)
-    window.addEventListener('mousedown', (e) => { this.isMouseDown = true; this.lastLookX = e.clientX; });
+    // FIXED PC Mouse Click & Drag Look (Works with Left/Right Mouse Click anywhere on screen)
+    window.addEventListener('mousedown', (e) => {
+      SFX.init();
+      this.isMouseDown = true;
+      this.lastLookX = e.clientX;
+    });
     window.addEventListener('mouseup', () => { this.isMouseDown = false; });
     window.addEventListener('mousemove', (e) => {
       if (!this.isMouseDown) return;
       const dx = e.clientX - this.lastLookX;
       this.lastLookX = e.clientX;
       const me = Net.players[Net.myId];
-      if (me) me.yaw -= dx * 0.0035;
+      if (me) me.yaw -= dx * 0.004;
     });
 
-    // Stun Button Action
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
 
-    // Sprint
     const sprintBtn = document.getElementById('sprint-btn');
     sprintBtn.addEventListener('touchstart', (e) => { e.preventDefault(); SFX.init(); this.sprinting = true; });
     sprintBtn.addEventListener('touchend', () => { this.sprinting = false; });
 
-    // Torch Toggle
     document.getElementById('torch-btn').addEventListener('click', (e) => {
       SFX.init();
       const me = Net.players[Net.myId];
@@ -711,7 +706,6 @@ const Game3D = {
       }
     }
 
-    // Keyboard WASD movement + Mobile Joystick movement
     const isRunning = this.sprinting || this.keys.run;
     const speed = (isRunning ? 0.14 : 0.085) * (me.role === 'SCOUT' ? 1.15 : 1);
     let moveX = 0, moveZ = 0;
