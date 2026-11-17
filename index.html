@@ -14,7 +14,7 @@
     <div class="lobby-card">
       <div class="badge-top">PROJECT ECLIPSE // SECTOR-09</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <p class="subtitle">अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। जनरेटर चालू करें, डॉ. वर्मा के खौफनाक राज़ खोलें, और Subject-0 से बचकर बाहर निकलें!</p>
+      <p class="subtitle">अंडरग्राउंड लैब में आपकी रेस्क्यू टीम फँस गई है। बैटरी बचाएं, जनरेटर चालू करें, डॉ. वर्मा के लॉग्स डिकोड करें, और Subject-0 से बचकर निकलें!</p>
 
       <input type="text" id="player-name" placeholder="अपना एजेंट नाम लिखें..." maxlength="12" />
 
@@ -68,8 +68,9 @@
     <header class="game-hud">
       <div class="hud-left">
         <span id="role-badge" class="role-badge">SCOUT</span>
-        <span id="locks-status" class="locks-badge">⚡ POWER OFF</span>
-        <span id="stun-badge" class="stun-badge">🔫 3/3</span>
+        <span id="battery-badge" class="battery-badge">🔋 100%</span>
+        <span id="locks-status" class="locks-badge">⚡ OFF</span>
+        <span id="stun-status" class="stun-badge">🔫 3/3</span>
       </div>
       <div id="timer-badge" class="timer-badge hidden">☢️ 60s</div>
     </header>
@@ -78,7 +79,7 @@
 
     <!-- Live Motion Radar -->
     <div class="radar-wrap">
-      <canvas id="radar-canvas" width="106" height="106"></canvas>
+      <canvas id="radar-canvas" width="85" height="85"></canvas>
     </div>
 
     <!-- Walkie-Talkie Radio -->

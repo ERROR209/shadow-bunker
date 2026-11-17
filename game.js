@@ -2,6 +2,7 @@ const SFX = {
   ctx: null,
   lastStep: 0,
   lastBeat: 0,
+  lastAmbient: 0,
   init() {
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -19,6 +20,17 @@ const SFX = {
     osc.start();
     osc.stop(this.ctx.currentTime + dur);
   },
+  ambientDrip() {
+    const now = performance.now();
+    if (now - this.lastAmbient < 7500) return;
+    this.lastAmbient = now;
+    if (Math.random() > 0.45) {
+      this.tone(1150, 'sine', 0.09, 0.035);
+      setTimeout(() => this.tone(1520, 'sine', 0.06, 0.025), 75);
+    } else {
+      this.tone(95, 'sawtooth', 0.45, 0.04);
+    }
+  },
   stunZap() {
     this.tone(880, 'sawtooth', 0.25, 0.16);
     setTimeout(() => this.tone(420, 'square', 0.25, 0.14), 80);
@@ -30,17 +42,17 @@ const SFX = {
   },
   step(sprinting) {
     const now = performance.now();
-    if (now - this.lastStep < (sprinting ? 260 : 420)) return;
+    if (now - this.lastStep < (sprinting ? 250 : 420)) return;
     this.lastStep = now;
-    this.tone(sprinting ? 105 : 80, 'triangle', 0.07, 0.06);
+    this.tone(sprinting ? 115 : 80, 'triangle', 0.07, sprinting ? 0.09 : 0.055);
   },
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(280, dist * 45);
+    const interval = Math.max(260, dist * 42);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    this.tone(55, 'sine', 0.14, 0.2);
-    setTimeout(() => this.tone(46, 'sine', 0.18, 0.15), 130);
+    this.tone(55, 'sine', 0.14, 0.22);
+    setTimeout(() => this.tone(46, 'sine', 0.18, 0.16), 130);
     navigator.vibrate?.(45);
   }
 };
@@ -99,6 +111,8 @@ const Game3D = {
   stunBeamMesh: null,
   running: false,
 
+  battery: 100,
+  batteries: [],
   hasFuse: false,
   powerRestored: false,
   selfDestructActive: false,
@@ -151,7 +165,7 @@ const Game3D = {
     document.getElementById('lobby-screen').classList.add('hidden');
     document.getElementById('story-intro').classList.remove('hidden');
 
-    const storyText = 'सुविधाओं से लैस सेक्टर-09 लैब में जैविक हथियारों का परीक्षण चल रहा था।\n\nअचानक "Subject-0" बेकाबू हो गया और उसने पूरी सुरक्षा प्रणाली तबाह कर दी। आपकी टीम को इस डरावने रहस्य से पर्दा उठाने और जिंदा बाहर निकलने के लिए 3 सुरक्षा कोड डिकोड करने होंगे।\n\nसावधान रहें: वह अंधेरे में आपकी टॉर्च की रोशनी देखकर हमला करता है!';
+    const storyText = 'सुविधाओं से लैस सेक्टर-09 लैब में जैविक हथियारों का परीक्षण चल रहा था।\n\nअचानक "Subject-0" बेकाबू हो गया। आपकी टीम को इस डरावने रहस्य से पर्दा उठाने के लिए 3 सुरक्षा कोड डिकोड करने होंगे।\n\nसावधान: दौड़ने (RUN) की आवाज़ और टॉर्च की रोशनी से वह सीधे आपकी ओर हमला करेगा—और टॉर्च की बैटरी सीमित है!';
     let idx = 0;
     const el = document.getElementById('story-typewriter');
     el.innerHTML = '';
@@ -175,6 +189,12 @@ const Game3D = {
       const me = Net.players[Net.myId];
       document.getElementById('role-badge').textContent = me.role;
 
+      // Apply Role Perks
+      if (me.role === 'HACKER') {
+        this.stunCharges = 4;
+        document.getElementById('stun-status').textContent = '🔫 4/4';
+      }
+
       this.initThree(noteSpots, fuseSpot);
       this.setupControls();
       this.running = true;
@@ -185,8 +205,8 @@ const Game3D = {
   initThree(noteSpots, fuseSpot) {
     const container = document.getElementById('three-container');
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x050811);
-    this.scene.fog = new THREE.FogExp2(0x050811, 0.034);
+    this.scene.background = new THREE.Color(0x04070e);
+    this.scene.fog = new THREE.FogExp2(0x04070e, 0.036);
 
     this.camera = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.1, 65);
     this.camera.position.set(Net.players[Net.myId].x, 1.65, Net.players[Net.myId].z);
@@ -198,11 +218,11 @@ const Game3D = {
     container.innerHTML = '';
     container.appendChild(this.renderer.domElement);
 
-    const hemiLight = new THREE.HemisphereLight(0x475569, 0x0f172a, 0.95);
+    const hemiLight = new THREE.HemisphereLight(0x475569, 0x0f172a, 0.85);
     this.scene.add(hemiLight);
 
     [[-16, -16], [0, 0], [16, 16], [18, -18], [-16, 16]].forEach(([lx, lz]) => {
-      const pLight = new THREE.PointLight(0xdc2626, 2.4, 18);
+      const pLight = new THREE.PointLight(0xdc2626, 2.2, 18);
       pLight.position.set(lx, 3.6, lz);
       this.scene.add(pLight);
 
@@ -239,7 +259,7 @@ const Game3D = {
     this.handGroup.add(leftArm, torchBody, rightArm, gunBody, gunCore, this.stunBeamMesh);
     this.camera.add(this.handGroup);
 
-    this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 30, Math.PI / 4, 0.45, 1);
+    this.flashlight = new THREE.SpotLight(0xfffbeb, 7.8, 30, Math.PI / 4, 0.45, 1);
     this.flashTarget = new THREE.Object3D();
     this.scene.add(this.flashlight);
     this.scene.add(this.flashTarget);
@@ -269,6 +289,19 @@ const Game3D = {
       this.scene.add(mesh);
     });
 
+    // Spare Glowing Green Batteries
+    const batCoords = [{ x: -6, z: -18 }, { x: 10, z: 6 }, { x: -18, z: 10 }, { x: 16, z: -14 }];
+    this.batteries = batCoords.map(pos => {
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 0.36, 10),
+        new THREE.MeshBasicMaterial({ color: 0x4ade80 })
+      );
+      mesh.position.set(pos.x, 0.65, pos.z);
+      this.scene.add(mesh);
+      return { x: pos.x, z: pos.z, mesh, collected: false };
+    });
+
+    // Power Fuse
     const fuseMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
     fuseMesh.position.set(fuseSpot.x, 1.1, fuseSpot.z);
     this.scene.add(fuseMesh);
@@ -282,9 +315,9 @@ const Game3D = {
     this.scene.add(this.generatorMesh);
 
     const logs = [
-      'डॉ. वर्मा (लॉग #1): "Subject-0 की आँखें संवेदनशीलता खो चुकी हैं लेकिन सुनने की शक्ति तेज है। मुख्य एग्ज़िट लॉक #1 का कोड है:"',
-      'डॉ. वर्मा (लॉग #2): "हमने पल्स स्टन गन बनाई है जो इसे कुछ पलों के लिए रोक सकती है। लॉक #2 का कोड है:"',
-      'डॉ. वर्मा (लॉग #3): "सिस्टम में ऑटो-डिस्ट्रक्ट लगा है। तीनों लॉक खुलते ही 60 सेकंड में लिफ्ट तक पहुँचना होगा! लॉक #3 का कोड है:"'
+      'डॉ. वर्मा (लॉग #1): "Subject-0 दौड़ने वालों के कदमों की आवाज़ दूर से सुन लेता है! लॉकर में छुपें। एग्ज़िट लॉक #1 कोड:"',
+      'डॉ. वर्मा (लॉग #2): "टॉर्च की बैटरी खत्म होने से पहले हरे बैटरी सेल उठाते रहें। लॉक #2 कोड:"',
+      'डॉ. वर्मा (लॉग #3): "तीनों लॉक खुलते ही 60 सेकंड का ऑटो-डिस्ट्रक्ट शुरू हो जाएगा! लॉक #3 कोड:"'
     ];
     this.notes = noteSpots.map((pos, i) => {
       const ped = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: wallTex }));
@@ -408,14 +441,12 @@ const Game3D = {
       }
     }, { passive: true });
 
-    // Handle PC Keyboard WASD + Numpad / Digits for Keypad & Esc/Enter for Modals
     window.addEventListener('keydown', (e) => {
       SFX.init();
       const k = e.key.toLowerCase();
       const noteModal = document.getElementById('note-modal');
       const puzzleModal = document.getElementById('puzzle-modal');
 
-      // If Note Modal is open, close on Enter or Escape
       if (!noteModal.classList.contains('hidden')) {
         if (e.key === 'Enter' || e.key === 'Escape' || k === 'e') {
           noteModal.classList.add('hidden');
@@ -423,7 +454,6 @@ const Game3D = {
         return;
       }
 
-      // If Puzzle Keypad Modal is open, handle keyboard numbers & Enter/Esc
       if (!puzzleModal.classList.contains('hidden')) {
         if (e.key >= '0' && e.key <= '9') {
           this.handleKeypadInput(e.key);
@@ -442,6 +472,8 @@ const Game3D = {
       if (k === 'd' || k === 'arrowright') this.keys.d = true;
       if (e.shiftKey) this.keys.run = true;
       if (k === 'e' || k === ' ') this.triggerInteract();
+      if (k === 'f') document.getElementById('torch-btn').click();
+      if (k === 'q') this.fireStun();
     });
 
     window.addEventListener('keyup', (e) => {
@@ -476,7 +508,7 @@ const Game3D = {
     document.getElementById('torch-btn').addEventListener('click', (e) => {
       SFX.init();
       const me = Net.players[Net.myId];
-      if (!me || me.downed || me.hiding) return;
+      if (!me || me.downed || me.hiding || this.battery <= 0) return;
       me.torch = !me.torch;
       this.flashlight.visible = me.torch;
       SFX.tone(620, 'square', 0.04, 0.06);
@@ -544,7 +576,8 @@ const Game3D = {
     if (!me || me.downed || me.hiding || this.stunCharges <= 0) return;
 
     this.stunCharges--;
-    document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/3`;
+    const maxCharges = me.role === 'HACKER' ? 4 : 3;
+    document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/${maxCharges}`;
     SFX.stunZap();
 
     this.stunBeamMesh.visible = true;
@@ -566,8 +599,10 @@ const Game3D = {
 
     if (me.hiding) {
       me.hiding = false;
-      me.torch = true;
-      this.flashlight.visible = true;
+      if (this.battery > 0) {
+        me.torch = true;
+        this.flashlight.visible = true;
+      }
       return;
     }
     for (const lk of this.lockers) {
@@ -576,6 +611,18 @@ const Game3D = {
         me.torch = false;
         this.flashlight.visible = false;
         this.showRadioToast('STEALTH', '🔒 आप मेटल लॉकर के अंदर छुप गए हैं');
+        return;
+      }
+    }
+
+    // Pick Up Battery Cell
+    for (const bat of this.batteries) {
+      if (!bat.collected && Math.hypot(bat.x - me.x, bat.z - me.z) < 2.5) {
+        bat.collected = true;
+        bat.mesh.visible = false;
+        this.battery = Math.min(100, this.battery + 45);
+        SFX.tone(860, 'sine', 0.14, 0.1);
+        this.showRadioToast('BATTERY', '🔋 +45% टॉर्च बैटरी रिचार्ज हुई!');
         return;
       }
     }
@@ -592,7 +639,7 @@ const Game3D = {
     }
 
     if (!this.powerRestored && Math.hypot(this.generatorPos.x - me.x, this.generatorPos.z - me.z) < 3) {
-      if (this.hasFuse) {
+      if (this.hasFuse || me.role === 'ENGINEER') {
         this.restorePower();
         if (Net.isHost) Net.broadcast({ type: 'POWER_ON' });
         else Net.sendToHost({ type: 'POWER_ON' });
@@ -600,6 +647,16 @@ const Game3D = {
         this.showRadioToast('GENERATOR', '❌ पहले नीला Power Fuse ढूंढें!');
       }
       return;
+    }
+
+    // Revive Teammate (Medic / Squad Co-op)
+    for (const p of Object.values(Net.players)) {
+      if (p.id !== Net.myId && p.downed && Math.hypot(p.x - me.x, p.z - me.z) < 3) {
+        p.downed = false;
+        if (!Net.isHost) Net.sendToHost({ type: 'REVIVE', targetId: p.id });
+        this.showRadioToast('MEDIC', `❤️ ${p.name} को बचा लिया गया!`);
+        return;
+      }
     }
 
     for (const n of this.notes) {
@@ -684,6 +741,7 @@ const Game3D = {
     ctx.lineTo(r + Math.cos(this.radarAngle) * 40, r + Math.sin(this.radarAngle) * 40);
     ctx.stroke();
 
+    const radarRange = me.role === 'SCOUT' ? 52 : 40;
     const plot = (wx, wz, color, size = 3) => {
       const dx = wx - me.x;
       const dz = wz - me.z;
@@ -691,12 +749,14 @@ const Game3D = {
       const sin = Math.sin(me.yaw);
       const rx = (dx * cos - dz * sin) * 1.8;
       const rz = (dx * sin + dz * cos) * 1.8;
-      if (Math.hypot(rx, rz) > 40) return;
+      if (Math.hypot(rx, rz) > radarRange) return;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(r + rx, r + rz, size, 0, Math.PI * 2);
       ctx.fill();
     };
+
+    this.batteries.forEach(b => { if (!b.collected) plot(b.x, b.z, '#22c55e', 2.2); });
 
     if (!this.powerRestored) {
       if (this.fuseObj && !this.fuseObj.picked) plot(this.fuseObj.x, this.fuseObj.z, '#38bdf8', 3.5);
@@ -723,6 +783,30 @@ const Game3D = {
     const me = Net.players[Net.myId];
     if (!me) return;
 
+    SFX.ambientDrip();
+
+    // Flashlight Battery Drain & Low-Battery Flicker
+    if (me.torch && this.battery > 0) {
+      const drainRate = me.role === 'ENGINEER' ? 0.016 : 0.024;
+      this.battery = Math.max(0, this.battery - drainRate);
+      const batEl = document.getElementById('battery-badge');
+      batEl.textContent = `🔋 ${Math.ceil(this.battery)}%`;
+      batEl.classList.toggle('low', this.battery < 22);
+
+      if (this.battery < 20) {
+        this.flashlight.intensity = Math.random() > 0.25 ? 6.5 : 0.8;
+      } else {
+        this.flashlight.intensity = 7.8;
+      }
+
+      if (this.battery <= 0) {
+        me.torch = false;
+        this.flashlight.visible = false;
+        document.getElementById('torch-btn').classList.remove('torch-on');
+        this.showRadioToast('TORCH', '⚠️ टॉर्च की बैटरी खत्म हो गई! हरा बैटरी सेल ढूंढें!');
+      }
+    }
+
     if (this.selfDestructActive) {
       const now = performance.now();
       if (now - this.lastTick >= 1000) {
@@ -738,7 +822,7 @@ const Game3D = {
     }
 
     const isRunning = this.sprinting || this.keys.run;
-    const speed = (isRunning ? 0.14 : 0.085) * (me.role === 'SCOUT' ? 1.15 : 1);
+    const speed = (isRunning ? 0.145 : 0.085) * (me.role === 'SCOUT' ? 1.2 : 1);
     let moveX = 0, moveZ = 0;
 
     const forwardX = -Math.sin(me.yaw);
@@ -756,11 +840,13 @@ const Game3D = {
       if (this.keys.d) { moveX += rightX * speed; moveZ += rightZ * speed; }
     }
 
-    if (moveX !== 0 || moveZ !== 0) {
+    me.makingNoise = false;
+    if ((moveX !== 0 || moveZ !== 0) && !me.downed && !me.hiding) {
       if (!this.collides3D(me.x + moveX, me.z)) me.x += moveX;
       if (!this.collides3D(me.x, me.z + moveZ)) me.z += moveZ;
       this.bobTimer += isRunning ? 0.24 : 0.14;
       SFX.step(isRunning);
+      if (isRunning) me.makingNoise = true;
     }
 
     const bobY = (moveX !== 0 || moveZ !== 0 || this.joy.active) ? Math.sin(this.bobTimer) * 0.05 : 0;
@@ -776,6 +862,7 @@ const Game3D = {
     this.flashTarget.position.set(me.x - Math.sin(me.yaw) * 10, 1.5, me.z - Math.cos(me.yaw) * 10);
 
     const nearSomething =
+      this.batteries.some(b => !b.collected && Math.hypot(b.x - me.x, b.z - me.z) < 2.5) ||
       (this.fuseObj && !this.fuseObj.picked && Math.hypot(this.fuseObj.x - me.x, this.fuseObj.z - me.z) < 2.8) ||
       (!this.powerRestored && Math.hypot(this.generatorPos.x - me.x, this.generatorPos.z - me.z) < 3) ||
       this.notes.some(n => Math.hypot(n.x - me.x, n.z - me.z) < 2.8) ||
@@ -785,7 +872,9 @@ const Game3D = {
 
     if (this.fuseObj && this.fuseObj.mesh) this.fuseObj.mesh.rotation.y += 0.05;
     this.notes.forEach(n => { if (n.mesh) n.mesh.rotation.y += 0.03; });
+    this.batteries.forEach(b => { if (!b.collected) b.mesh.rotation.y += 0.04; });
 
+    // Monster AI with Sound Detection (Sprint Noise) & Torch Detection
     const isStunned = performance.now() < this.hunter.stunnedUntil;
     if (Net.isHost && !isStunned) {
       let nearest = null;
@@ -794,7 +883,7 @@ const Game3D = {
       Object.values(Net.players).forEach(p => {
         if (p.downed || p.hiding) return;
         const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
-        const range = this.selfDestructActive ? 28 : (p.torch ? 16 : 7);
+        const range = this.selfDestructActive ? 30 : (p.makingNoise ? 22 : (p.torch ? 16 : 6.5));
         if (d < range && d < minDist) {
           minDist = d;
           nearest = p;
@@ -803,7 +892,7 @@ const Game3D = {
 
       if (nearest) {
         this.hunter.yaw = Math.atan2(nearest.x - this.hunter.x, nearest.z - this.hunter.z);
-        const hSpeed = this.selfDestructActive ? 0.095 : 0.08;
+        const hSpeed = this.selfDestructActive ? 0.098 : 0.082;
         const hx = this.hunter.x + Math.sin(this.hunter.yaw) * hSpeed;
         const hz = this.hunter.z + Math.cos(this.hunter.yaw) * hSpeed;
         if (!this.collides3D(hx, this.hunter.z, 0.7)) this.hunter.x = hx;
@@ -841,7 +930,7 @@ const Game3D = {
       Net.sendToHost({
         type: 'MOVE',
         id: Net.myId,
-        state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding }
+        state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding, makingNoise: me.makingNoise }
       });
     }
 

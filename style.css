@@ -128,7 +128,6 @@ input[type="text"] {
 .wait-msg { text-align: center; font-size: 0.8rem; color: #fbbf24; margin-top: 10px; }
 .wait-msg.hidden { display: none; }
 
-/* STORY SCREEN */
 .story-screen {
   position: fixed;
   inset: 0;
@@ -198,32 +197,34 @@ input[type="text"] {
   pointer-events: none;
 }
 
-.hud-left { display: flex; gap: 5px; flex-wrap: wrap; }
+.hud-left { display: flex; gap: 4px; flex-wrap: wrap; }
 
-.role-badge, .locks-badge, .stun-badge, .timer-badge {
+.role-badge, .battery-badge, .locks-badge, .stun-badge, .timer-badge {
   background: rgba(8, 12, 22, 0.86);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-radius: 8px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
 }
 
 .role-badge { color: #38bdf8; }
+.battery-badge { color: #4ade80; }
+.battery-badge.low { color: #ef4444; border-color: #ef4444; }
 .locks-badge { color: #fb923c; }
 .stun-badge { color: #c084fc; }
 .timer-badge {
   background: #991b1b;
   color: #fff;
   border-color: #ef4444;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 .timer-badge.hidden { display: none; }
 
 .objective-strip {
   position: fixed;
-  top: 48px;
+  top: 46px;
   left: 10px;
   right: 10px;
   z-index: 15;
@@ -231,7 +232,7 @@ input[type="text"] {
   border-left: 3px solid #facc15;
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #fef08a;
   pointer-events: none;
@@ -239,7 +240,7 @@ input[type="text"] {
 
 .radar-wrap {
   position: fixed;
-  top: 92px;
+  top: 90px;
   right: 10px;
   width: 85px;
   height: 85px;
@@ -254,7 +255,7 @@ input[type="text"] {
 
 .radio-bar {
   position: fixed;
-  top: 86px;
+  top: 84px;
   left: 10px;
   right: 105px;
   z-index: 15;
@@ -276,20 +277,19 @@ input[type="text"] {
 
 .radio-toast {
   position: fixed;
-  top: 130px;
+  top: 128px;
   left: 12px;
   z-index: 20;
   background: rgba(220, 38, 38, 0.94);
   color: #fff;
   padding: 6px 12px;
   border-radius: 16px;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 700;
-  max-width: 210px;
+  max-width: 215px;
 }
 .radio-toast.hidden { display: none; }
 
-/* Portrait/Vertical Mobile Optimized Controls */
 .joystick-zone {
   position: fixed;
   bottom: 24px;
@@ -413,7 +413,6 @@ input[type="text"] {
 .key.clear { background: #b45309; }
 .key.close { background: #be123c; }
 
-/* Hide mobile controls on wide desktop screens */
 @media (min-width: 900px) {
   .joystick-zone, .action-buttons, .look-zone, .radio-bar { display: none; }
 }
