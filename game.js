@@ -138,7 +138,7 @@ const SFX = {
   },
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(460, dist * 58);
+    const interval = Math.max(680, dist * 85);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
     // Realistic muffled flesh "LUB-DUB" cardiac pulse (no rubber-ball bounce!)
