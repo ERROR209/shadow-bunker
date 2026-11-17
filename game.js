@@ -1,16 +1,45 @@
 const SFX = {
   ctx: null,
+  noiseBuffer: null,
   lastStep: 0,
   lastBeat: 0,
   lastAmbient: 0,
   init() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) this.ctx = new AC();
+      if (AC) {
+        this.ctx = new AC();
+        // Create 1-second noise buffer for realistic footsteps & horror scream
+        const len = this.ctx.sampleRate;
+        this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const data = this.noiseBuffer.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+  },
+  noise(dur, filterFreq, filterType = 'bandpass', vol = 0.35) {
+    this.init();
+    if (!this.ctx || !this.noiseBuffer) return;
+    const now = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(filterFreq, now);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    src.start(now);
+    src.stop(now + dur);
   },
   tone(freq, type, dur, vol = 0.25, endFreq = null) {
     this.init();
@@ -30,43 +59,45 @@ const SFX = {
   },
   ambientDrip() {
     const now = performance.now();
-    if (now - this.lastAmbient < 7500) return;
+    if (now - this.lastAmbient < 8000) return;
     this.lastAmbient = now;
-    if (Math.random() > 0.45) {
-      this.tone(1150, 'sine', 0.1, 0.08);
-      setTimeout(() => this.tone(1520, 'sine', 0.08, 0.06), 75);
+    if (Math.random() > 0.5) {
+      this.tone(1350, 'sine', 0.09, 0.08, 1750);
     } else {
-      this.tone(160, 'sawtooth', 0.4, 0.09, 95);
+      this.noise(0.5, 180, 'lowpass', 0.14);
     }
   },
   jumpscareScream() {
-    this.tone(780, 'sawtooth', 0.65, 0.45, 190);
-    this.tone(940, 'square', 0.55, 0.35, 240);
-    setTimeout(() => this.tone(620, 'sawtooth', 0.55, 0.4, 140), 120);
+    // Realistic Horror Screech + Heavy Slam (No cartoon whistle!)
+    this.noise(0.85, 1200, 'bandpass', 0.85);
+    this.noise(0.6, 140, 'lowpass', 0.9);
+    this.tone(190, 'sawtooth', 0.75, 0.55, 72);
+    this.tone(245, 'sawtooth', 0.65, 0.45, 85);
   },
   stunZap() {
-    this.tone(880, 'sawtooth', 0.25, 0.28, 320);
-    setTimeout(() => this.tone(520, 'square', 0.22, 0.24), 80);
+    this.noise(0.22, 2400, 'highpass', 0.4);
+    this.tone(680, 'sawtooth', 0.22, 0.28, 180);
   },
   siren() {
-    this.tone(640, 'sawtooth', 0.35, 0.25, 420);
-    setTimeout(() => this.tone(480, 'sawtooth', 0.35, 0.25, 340), 350);
+    this.tone(580, 'sawtooth', 0.35, 0.24, 390);
+    setTimeout(() => this.tone(440, 'sawtooth', 0.35, 0.24, 310), 350);
   },
   step(sprinting) {
     const now = performance.now();
-    if (now - this.lastStep < (sprinting ? 250 : 410)) return;
+    if (now - this.lastStep < (sprinting ? 260 : 420)) return;
     this.lastStep = now;
-    // Punchy boot thud audible on phone speakers
-    this.tone(sprinting ? 210 : 165, 'triangle', 0.09, sprinting ? 0.26 : 0.18, 65);
+    // Crisp concrete boot step + heel tap (cuts clearly through heartbeat)
+    this.noise(0.075, sprinting ? 1400 : 1050, 'bandpass', sprinting ? 0.55 : 0.38);
+    this.tone(150, 'triangle', 0.055, sprinting ? 0.32 : 0.22, 60);
   },
   heartbeat(dist) {
     const now = performance.now();
-    const interval = Math.max(280, dist * 42);
+    const interval = Math.max(420, dist * 55);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    // Clear Lub-Dub heartbeat audible on mobile speakers (no vibration)
-    this.tone(145, 'sine', 0.14, 0.42, 75);
-    setTimeout(() => this.tone(125, 'sine', 0.18, 0.34, 65), 130);
+    // Deep Lub-Dub chest thump
+    this.tone(115, 'sine', 0.15, 0.52, 52);
+    setTimeout(() => this.tone(95, 'sine', 0.18, 0.42, 45), 145);
   }
 };
 
