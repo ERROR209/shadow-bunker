@@ -548,6 +548,85 @@ const Game3D = {
     });
   },
 
+  createTeammateAvatar(player) {
+    const grp = new THREE.Group();
+    const suitMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.5 });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.36), suitMat);
+    torso.position.y = 1.15;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), headMat);
+    head.position.y = 1.88;
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.68, 0.22), suitMat);
+    legL.position.set(-0.17, 0.34, 0);
+    const legR = legL.clone();
+    legR.position.x = 0.17;
+
+    // Teammate Flashlight Beam
+    const torchLight = new THREE.PointLight(0xbae6fd, 1.8, 9);
+    torchLight.position.set(0, 1.4, -0.5);
+
+    // Floating Name Tag Sprite above teammate's head
+    const cvs = document.createElement('canvas');
+    cvs.width = 256; cvs.height = 64;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
+    ctx.fillRect(16, 10, 224, 44);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(16, 10, 224, 44);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(player.name || 'Agent', 128, 40);
+
+    const nameTex = new THREE.CanvasTexture(cvs);
+    const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTex, transparent: true }));
+    nameSprite.position.set(0, 2.45, 0);
+    nameSprite.scale.set(1.6, 0.4, 1);
+
+    grp.add(torso, head, legL, legR, torchLight, nameSprite);
+    this.scene.add(grp);
+    return { grp, torchLight };
+  },
+
+  syncTeammates() {
+    if (!this.scene) return;
+    const activeIds = new Set();
+
+    for (const p of Object.values(Net.players)) {
+      if (p.id === Net.myId) continue;
+      activeIds.add(p.id);
+
+      if (!this.teammateMeshes[p.id]) {
+        this.teammateMeshes[p.id] = this.createTeammateAvatar(p);
+      }
+      const tm = this.teammateMeshes[p.id];
+      tm.grp.visible = !p.hiding;
+      tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x, 0.3);
+      tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z, 0.3);
+      tm.grp.rotation.y = p.yaw || 0;
+
+      // Lying down pose if downed so teammates can visually see & revive them
+      if (p.downed) {
+        tm.grp.rotation.x = -Math.PI / 2;
+        tm.grp.position.y = 0.25;
+      } else {
+        tm.grp.rotation.x = 0;
+        tm.grp.position.y = 0;
+      }
+      tm.torchLight.visible = !!p.torch && !p.downed;
+    }
+
+    // Remove disconnected teammates
+    for (const id of Object.keys(this.teammateMeshes)) {
+      if (!activeIds.has(id)) {
+        this.scene.remove(this.teammateMeshes[id].grp);
+        delete this.teammateMeshes[id];
+      }
+    }
+  },
+
   buildMonster() {
     const grp = new THREE.Group();
     const skin = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.3 });
@@ -1086,6 +1165,19 @@ const Game3D = {
       ctx.beginPath(); ctx.arc(cx + erx * ec, cy + erz * ec, 4.5, 0, Math.PI * 2); ctx.fill();
     }
 
+    // Teammates Blue Dots on Radar
+    for (const p of Object.values(Net.players)) {
+      if (p.id === Net.myId || p.hiding) continue;
+      const px = p.x - me.x;
+      const pz = p.z - me.z;
+      const prx = (px * cos - pz * sin) * 1.4;
+      const prz = (px * sin + pz * cos) * 1.4;
+      const pd = Math.hypot(prx, prz);
+      const pc = pd > 36 ? 36 / pd : 1;
+      ctx.fillStyle = p.downed ? '#facc15' : '#38bdf8';
+      ctx.beginPath(); ctx.arc(cx + prx * pc, cy + prz * pc, 3.8, 0, Math.PI * 2); ctx.fill();
+    }
+
     // Monster Dot
     const dx = this.hunter.x - me.x;
     const dz = this.hunter.z - me.z;
@@ -1123,6 +1215,7 @@ const Game3D = {
     if (!this.gameOver) {
       SFX.ambientDrip();
       Net.updateVoiceProximity(me);
+      this.syncTeammates();
 
       // Rotate Level 2 Valves for visual polish
       this.valves.forEach(v => { if (!v.fixed) v.wheel.rotation.y += 0.02; });
