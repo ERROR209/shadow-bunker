@@ -1017,6 +1017,11 @@ const Game3D = {
       const glowLight = this.hunter.mesh.children.find(c => c.isPointLight);
       if (glowLight) glowLight.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
     }
+    if (this.hunter.mesh) {
+      this.hunter.mesh.position.y = isStunned ? -0.45 : 0;
+      const glowLight = this.hunter.mesh.children.find(c => c.isPointLight);
+      if (glowLight) glowLight.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
+    }
     if (Net.isHost && !isStunned) {
       let nearest = null;
       let minDist = 999;
