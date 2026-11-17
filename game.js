@@ -42,7 +42,7 @@ const SFX = {
       this.loadMp3('ambience', 'sounds/ambience.mp3', true, 0.35);
       this.loadMp3('scream', 'sounds/scream.mp3', false, 0.95);
       this.loadMp3('stun', 'sounds/stun.mp3', false, 0.85);
-      this.loadMp3('heartbeat', 'sounds/heartbeat.mp3', false, 0.8);
+      this.loadMp3('heartbeat', 'sounds/heartbeat.mp3', false, 1.0);
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
@@ -174,7 +174,7 @@ const SFX = {
     const interval = Math.max(680, dist * 85);
     if (now - this.lastBeat < interval) return;
     this.lastBeat = now;
-    const vol = Math.max(0.15, Math.min(0.9, (12 - dist) / 12));
+    const vol = Math.max(0.45, Math.min(1.0, (15 - dist) / 11));
     if (this.playMp3('heartbeat', vol)) return;
     this.tone(72, 'sine', 0.16, 0.55 * vol, 36, 0);
     this.tone(62, 'sine', 0.19, 0.42 * vol, 32, 0.17);
@@ -1941,7 +1941,7 @@ const Game3D = {
       const dMonster = Math.hypot(this.hunter.x - me.x, this.hunter.z - me.z);
       if (!isStunned) SFX.monsterStep(dMonster);
       const danger = document.getElementById('danger-overlay');
-      if (dMonster < 12 && !me.hiding && !me.downed) {
+      if (dMonster < 15 && !me.hiding && !me.downed) {
         SFX.heartbeat(dMonster);
         danger.style.boxShadow = `inset 0 0 ${Math.round((12 - dMonster) * 10)}px rgba(220,38,38,0.65)`;
       } else {
