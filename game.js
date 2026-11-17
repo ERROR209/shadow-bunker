@@ -943,35 +943,88 @@ const Game3D = {
       if (p.id === Net.myId) return;
       if (!this.teammateMeshes[p.id]) {
         const grp = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 1.45, 12), new THREE.MeshStandardMaterial({ color: p.color, emissive: p.color, emissiveIntensity: 0.35 }));
-        body.position.y = 0.75;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
-        head.position.y = 1.68;
-        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.2), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-        visor.position.set(0, 1.7, -0.2);
-        const beacon = new THREE.PointLight(p.color, 2.2, 8);
-        beacon.position.set(0, 1.8, 0);
+        const suitMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+        const armorMat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.4, metalness: 0.3 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
 
+        // Tactical Torso & Chest Armor
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.62, 0.26), suitMat);
+        torso.position.y = 1.12;
+        const vest = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.42, 0.29), armorMat);
+        vest.position.y = 1.16;
+        const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.16), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+        backpack.position.set(0, 1.16, 0.19);
+
+        // Head, Tactical Helmet & Glowing Visor
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 14), skinMat);
+        head.position.y = 1.62;
+        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.185, 14, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), armorMat);
+        helmet.position.y = 1.63;
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+        visor.position.set(0, 1.61, -0.14);
+
+        // Left & Right Legs (Pivoted at hip for walking animation)
+        const legGeo = new THREE.BoxGeometry(0.15, 0.78, 0.16);
+        const leftLeg = new THREE.Mesh(legGeo, suitMat);
+        leftLeg.position.set(-0.13, 0.41, 0);
+        const rightLeg = new THREE.Mesh(legGeo, suitMat);
+        rightLeg.position.set(0.13, 0.41, 0);
+
+        // Left Arm & Right Arm holding 3D Flashlight
+        const armGeo = new THREE.BoxGeometry(0.13, 0.56, 0.14);
+        const leftArm = new THREE.Mesh(armGeo, suitMat);
+        leftArm.position.set(-0.31, 1.12, 0);
+
+        const rightArmGroup = new THREE.Group();
+        rightArmGroup.position.set(0.31, 1.32, 0);
+        const rightArm = new THREE.Mesh(armGeo, suitMat);
+        rightArm.position.set(0, -0.22, -0.12);
+        rightArm.rotation.x = Math.PI / 3;
+        const torchProp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+        torchProp.rotation.x = Math.PI / 2;
+        torchProp.position.set(0, -0.34, -0.34);
+        const torchLight = new THREE.PointLight(0xfffbeb, 1.8, 7);
+        torchLight.position.set(0, -0.34, -0.55);
+        rightArmGroup.add(rightArm, torchProp, torchLight);
+
+        // Clean Floating Nameplate
         const canvas = document.createElement("canvas");
         canvas.width = 256; canvas.height = 64;
         const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "rgba(0,0,0,0.65)";
-        ctx.fillRect(10, 10, 236, 44);
-        ctx.font = "bold 26px sans-serif";
+        ctx.fillStyle = "rgba(15, 23, 42, 0.78)";
+        ctx.roundRect?.(28, 12, 200, 40, 12) || ctx.fillRect(28, 12, 200, 40);
+        ctx.fill();
+        ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = "#4ade80";
         ctx.textAlign = "center";
-        ctx.fillText(p.name, 128, 42);
+        ctx.fillText(p.name, 128, 40);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-        sprite.scale.set(1.8, 0.45, 1);
-        sprite.position.y = 2.25;
+        sprite.scale.set(1.5, 0.38, 1);
+        sprite.position.y = 2.08;
 
-        grp.add(body, head, visor, beacon, sprite);
+        grp.add(torso, vest, backpack, head, helmet, visor, leftLeg, rightLeg, leftArm, rightArmGroup, sprite);
+        grp.userData = { leftLeg, rightLeg, leftArm, torchLight, lastX: p.x, lastZ: p.z, walkPhase: 0 };
         this.scene.add(grp);
         this.teammateMeshes[p.id] = grp;
       }
       const m = this.teammateMeshes[p.id];
       m.visible = !p.hiding;
-      m.position.set(p.x, p.downed ? -0.6 : 0, p.z);
+      const ud = m.userData;
+      const moved = Math.hypot(p.x - ud.lastX, p.z - ud.lastZ);
+      ud.lastX = p.x;
+      ud.lastZ = p.z;
+      if (moved > 0.004) {
+        ud.walkPhase += 0.22;
+        ud.leftLeg.rotation.x = Math.sin(ud.walkPhase) * 0.55;
+        ud.rightLeg.rotation.x = -Math.sin(ud.walkPhase) * 0.55;
+        ud.leftArm.rotation.x = -Math.sin(ud.walkPhase) * 0.4;
+      } else {
+        ud.leftLeg.rotation.x = 0;
+        ud.rightLeg.rotation.x = 0;
+        ud.leftArm.rotation.x = 0;
+      }
+      ud.torchLight.visible = !!p.torch;
+      m.position.set(p.x, p.downed ? -0.85 : 0, p.z);
       m.rotation.y = p.yaw;
     });
 
