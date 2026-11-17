@@ -175,6 +175,8 @@ const Game3D = {
   renderer: null,
   flashlight: null,
   playerHandGroup: null,
+  selfAvatar: null,
+  thirdPerson: false,
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
@@ -264,19 +266,36 @@ const Game3D = {
     this.camera.add(this.flashlight);
     this.camera.add(this.flashlight.target);
 
+    // 1. Prominent First-Person Tactical Hands, Flashlight & Electric Stun Gun
     this.playerHandGroup = new THREE.Group();
-    const armMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
-    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.45), armMat);
-    leftArm.position.set(-0.28, -0.26, -0.35);
-    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.45), armMat);
-    rightArm.position.set(0.28, -0.26, -0.35);
-    const stunBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.09, 0.11, 0.32),
-      new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x7e22ce, emissiveIntensity: 0.5 })
+    const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 });
+    const gloveMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 });
+
+    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.46), sleeveMat);
+    leftArm.position.set(-0.3, -0.22, -0.38);
+    const torchTube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.04, 0.26, 12),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.5 })
     );
-    stunBody.position.set(0.28, -0.19, -0.52);
-    this.playerHandGroup.add(leftArm, rightArm, stunBody);
+    torchTube.rotation.x = Math.PI / 2;
+    torchTube.position.set(-0.3, -0.18, -0.56);
+
+    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.46), sleeveMat);
+    rightArm.position.set(0.3, -0.22, -0.38);
+    const rightHand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.12), gloveMat);
+    rightHand.position.set(0.3, -0.21, -0.62);
+    const stunGun = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.11, 0.34),
+      new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.8 })
+    );
+    stunGun.position.set(0.3, -0.15, -0.62);
+
+    this.playerHandGroup.add(leftArm, torchTube, rightArm, rightHand, stunGun);
     this.camera.add(this.playerHandGroup);
+
+    // 2. Full 3D Self-Character Body (Visible in 3rd-Person Mode!)
+    this.selfAvatar = this.createTeammateAvatar(me || { name: 'YOU' });
+    this.selfAvatar.grp.visible = false;
     this.scene.add(this.camera);
 
     this.mapGroup = new THREE.Group();
@@ -722,6 +741,16 @@ const Game3D = {
     document.getElementById('interact-btn').addEventListener('click', () => this.interact());
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
     document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
+    const camBtn = document.getElementById('cam-toggle-btn');
+    if (camBtn) {
+      camBtn.onclick = () => {
+        this.thirdPerson = !this.thirdPerson;
+        camBtn.textContent = this.thirdPerson ? '🎥 3RD' : '🎥 1ST';
+        camBtn.classList.toggle('on', this.thirdPerson);
+        if (this.playerHandGroup) this.playerHandGroup.visible = !this.thirdPerson;
+        if (this.selfAvatar) this.selfAvatar.grp.visible = this.thirdPerson && !Net.players[Net.myId]?.hiding;
+      };
+    }
 
     const sprintBtn = document.getElementById('sprint-btn');
     sprintBtn.addEventListener('touchstart', (e) => {
@@ -1267,8 +1296,28 @@ const Game3D = {
         }
 
         const bob = me.downed ? 0 : Math.sin(this.walkBob) * 0.04;
-        this.camera.position.set(me.x, (me.downed ? 0.55 : 1.62) + bob, me.z);
-        this.camera.rotation.y = me.yaw;
+        if (this.playerHandGroup) {
+          this.playerHandGroup.position.y = Math.sin(this.walkBob * 2) * 0.015;
+          this.playerHandGroup.position.x = Math.cos(this.walkBob) * 0.015;
+        }
+        if (this.thirdPerson) {
+          if (this.selfAvatar) {
+            this.selfAvatar.grp.visible = !me.hiding;
+            this.selfAvatar.grp.position.set(me.x, me.downed ? 0.25 : 0, me.z);
+            this.selfAvatar.grp.rotation.y = me.yaw;
+            this.selfAvatar.grp.rotation.x = me.downed ? -Math.PI / 2 : 0;
+          }
+          // Over-the-shoulder 3rd-Person Camera
+          const camDist = 2.6;
+          const cx = me.x + Math.sin(me.yaw) * camDist;
+          const cz = me.z + Math.cos(me.yaw) * camDist;
+          this.camera.position.set(cx, 2.25 + bob, cz);
+          this.camera.rotation.y = me.yaw;
+        } else {
+          if (this.selfAvatar) this.selfAvatar.grp.visible = false;
+          this.camera.position.set(me.x, (me.downed ? 0.55 : 1.62) + bob, me.z);
+          this.camera.rotation.y = me.yaw;
+        }
       }
 
       // Battery Drain
