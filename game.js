@@ -2163,7 +2163,7 @@ const Game3D = {
     this.stats = { stuns: 0, objectives: 0, revives: 0 };
     this.codes = codes;
     this.buildLevelMap(1, noteSpots, fuseSpot);
-    this.hunter.x = 18; this.hunter.z = -18; this.hunter.stunnedUntil = 0;
+    this.hunter.x = 32; this.hunter.z = -32; this.hunter.stunnedUntil = 0; this.levelStartGrace = performance.now() + 5000;
 
     const spawns = [{ x: -18, z: 18 }, { x: -16, z: 18 }, { x: -18, z: 16 }, { x: -16, z: 16 }];
     Object.values(Net.players).forEach((p, idx) => {
