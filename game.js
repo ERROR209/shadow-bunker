@@ -1714,6 +1714,8 @@ const Game3D = {
     };
 
     this.setupHudCustomizer();
+
+    this.playCutscene(1);
   },
 
   setupHudCustomizer() {
