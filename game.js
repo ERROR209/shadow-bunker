@@ -442,7 +442,7 @@ const Lobby3D = {
     islandFill.position.set(0, 5.5, 5.5);
     this.scene.add(islandFill);
 
-        // Touch Joystick & Swipe Look for Spawn Island
+        // Touch Joystick & Swipe Look for Spawn Island (Multi-touch safe)
     const lookZone = document.getElementById('lobby-look-zone');
     let lookId = null, lastX = 0;
     if (lookZone) {
@@ -453,22 +453,22 @@ const Lobby3D = {
       lookZone.addEventListener('touchmove', (e) => {
         for (const t of e.changedTouches) {
           if (t.identifier === lookId) {
-            this.localPos.yaw -= (t.clientX - lastX) * 0.007;
+            this.localPos.yaw -= (t.clientX - lastX) * 0.008;
             lastX = t.clientX;
           }
         }
+      }, { passive: true });
+      lookZone.addEventListener('touchend', (e) => {
+        for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null;
       }, { passive: true });
     }
 
     const joyZone = document.getElementById('lobby-joy-zone');
     const stick = document.getElementById('lobby-joy-stick');
+    let joyId = null;
     if (joyZone && stick) {
-      joyZone.addEventListener('touchstart', (e) => { e.preventDefault(); this.joy.active = true; }, { passive: false });
-      joyZone.addEventListener('touchmove', (e) => {
-        if (!this.joy.active) return;
-        e.preventDefault();
+      const updateJoy = (t) => {
         const r = joyZone.getBoundingClientRect();
-        const t = e.touches[0];
         let dx = t.clientX - (r.left + r.width / 2);
         let dy = t.clientY - (r.top + r.height / 2);
         const d = Math.hypot(dx, dy);
@@ -476,13 +476,39 @@ const Lobby3D = {
         stick.style.transform = `translate(${dx}px, ${dy}px)`;
         this.joy.dx = dx / 34;
         this.joy.dy = dy / 34;
+      };
+      joyZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.changedTouches[0];
+        joyId = t.identifier;
+        this.joy.active = true;
+        updateJoy(t);
       }, { passive: false });
-      const endJoy = () => { this.joy.active = false; this.joy.dx = 0; this.joy.dy = 0; stick.style.transform = 'translate(0,0)'; };
+      joyZone.addEventListener('touchmove', (e) => {
+        if (!this.joy.active) return;
+        e.preventDefault();
+        e.stopPropagation();
+        for (const t of e.changedTouches) {
+          if (t.identifier === joyId) updateJoy(t);
+        }
+      }, { passive: false });
+      const endJoy = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === joyId) {
+            joyId = null;
+            this.joy.active = false;
+            this.joy.dx = 0;
+            this.joy.dy = 0;
+            stick.style.transform = 'translate(0,0)';
+          }
+        }
+      };
       joyZone.addEventListener('touchend', endJoy);
       joyZone.addEventListener('touchcancel', endJoy);
     }
 
-    window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
+        window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
     // Bind Role Selector & Ready Toggle
@@ -565,16 +591,18 @@ const Lobby3D = {
       const mz = (-fwd * cos - str * sin);
       const len = Math.hypot(mx, mz);
       if (len > 0.05) {
-        const nx = this.localPos.x + (mx / len) * 0.11;
-        const nz = this.localPos.z + (mz / len) * 0.11;
+        const nx = this.localPos.x + (mx / len) * 0.12;
+        const nz = this.localPos.z + (mz / len) * 0.12;
         if (Math.hypot(nx, nz) < 15.5) {
           this.localPos.x = nx;
           this.localPos.z = nz;
         }
+        me.lyaw = Math.atan2(-mx, -mz);
+      } else {
+        me.lyaw = me.lyaw ?? this.localPos.yaw;
       }
       me.lx = this.localPos.x;
       me.lz = this.localPos.z;
-      me.lyaw = this.localPos.yaw;
 
       // Frame Character in center of screen with Helicopter & Island in background
       const camDist = window.innerHeight > window.innerWidth ? 5.2 : 3.8;
