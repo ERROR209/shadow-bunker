@@ -1,5 +1,18 @@
 const AgentProfile = {
   KEY: 'sb09_agent_profile_v1',
+  suits: [
+    { id: 'DEFAULT', name: 'Standard Issue Navy', cost: 0, color: 0x0284c7, visor: 0x38bdf8 },
+    { id: 'STEALTH', name: 'Phantom Night Ops', cost: 250, color: 0x1e293b, visor: 0x22c55e },
+    { id: 'ARCTIC', name: 'Himalayan White Ghost', cost: 600, color: 0xe2e8f0, visor: 0x0ea5e9 },
+    { id: 'CRIMSON', name: 'Red Viper Spec-Ops', cost: 1100, color: 0xb91c1c, visor: 0xfacc15 },
+    { id: 'COMMANDER', name: 'Sector-09 Gold Elite', cost: 2000, color: 0xd97706, visor: 0xfef08a }
+  ],
+  getEquippedSuit() {
+    const d = this.load();
+    if (!d.unlockedSuits) d.unlockedSuits = ['DEFAULT'];
+    if (!d.equippedSuit) d.equippedSuit = 'DEFAULT';
+    return this.suits.find(s => s.id === d.equippedSuit) || this.suits[0];
+  },
   data: null,
 
   load() {
@@ -194,6 +207,167 @@ const Net = {
         }
       };
     }
+
+    // Render BGMI Home Squad Slots, Suit Shop & Interactive Role Selector
+    const roleDescs = {
+      SCOUT: '🏃 Shadow Dash: 1.5x Speed + Silent Footsteps',
+      ENGINEER: '🔧 Sonic Decoy: Lures Subject-0 away for 11s',
+      MEDIC: '💉 Adrenaline Surge: Instant Revive + 100% Squad Stamina',
+      TECH: '⚡ EMP Overload: Disables all Lasers for 14s'
+    };
+
+    const renderHomeSquadSlots = () => {
+      const slotList = document.getElementById('home-slot-list');
+      const startBtn = document.getElementById('solo-or-squad-start-btn');
+      const roomTag = document.getElementById('home-room-tag');
+      if (!slotList) return;
+      const pName = AgentProfile.load().name || 'You';
+      const pRole = AgentProfile.load().role || 'SCOUT';
+      const activePlayers = Object.values(this.players || {});
+      const slots = [];
+      if (activePlayers.length > 0) {
+        activePlayers.forEach((p, idx) => {
+          slots.push(`<div style="background:rgba(30,41,59,0.85);border-left:3px solid ${this.squadColors[idx % 4]};padding:4px 8px;border-radius:6px;font-size:0.72rem;color:#fff;display:flex;justify-content:space-between;">
+            <span><b>${idx + 1}. ${p.name}</b></span><span style="color:#38bdf8;">[${p.role || 'SCOUT'}]</span>
+          </div>`);
+        });
+      } else {
+        slots.push(`<div style="background:rgba(30,41,59,0.85);border-left:3px solid #38bdf8;padding:4px 8px;border-radius:6px;font-size:0.72rem;color:#fff;display:flex;justify-content:space-between;">
+          <span><b>1. ${pName} (You)</b></span><span style="color:#38bdf8;">[${pRole}]</span>
+        </div>`);
+      }
+      while (slots.length < 4) {
+        slots.push(`<div style="background:rgba(15,23,42,0.55);border:1px dashed #334155;padding:3px 8px;border-radius:6px;font-size:0.68rem;color:#64748b;">+ Empty Squad Slot (Create/Join Team)</div>`);
+      }
+      slotList.innerHTML = slots.join('');
+      if (startBtn) {
+        startBtn.textContent = activePlayers.length > 1 ? `🚀 DEPLOY SQUAD (${activePlayers.length}/4)` : '🚀 START SOLO';
+      }
+      if (roomTag) {
+        roomTag.textContent = this.roomCode ? ('CODE: ' + this.roomCode) : 'SOLO / READY';
+      }
+    };
+    renderHomeSquadSlots();
+    this.renderHomeSquadSlots = renderHomeSquadSlots;
+
+    // Class Selection Buttons on Home 3D Stage
+    document.querySelectorAll('.home-role-btn').forEach(btn => {
+      const applyActiveStyle = () => {
+        const cur = AgentProfile.load().role || 'SCOUT';
+        document.querySelectorAll('.home-role-btn').forEach(b => {
+          const active = b.dataset.role === cur;
+          b.style.background = active ? '#0284c7' : 'rgba(15,23,42,0.88)';
+          b.style.borderColor = active ? '#38bdf8' : '#475569';
+          b.style.color = active ? '#fff' : '#cbd5e1';
+        });
+        const descEl = document.getElementById('home-role-desc');
+        if (descEl) descEl.textContent = roleDescs[cur] || '';
+      };
+      applyActiveStyle();
+      btn.onclick = () => {
+        const r = btn.dataset.role;
+        AgentProfile.load().role = r;
+        AgentProfile.save();
+        applyActiveStyle();
+        renderHomeSquadSlots();
+        if (window.HomeShowcase3D) HomeShowcase3D.refreshCharacter();
+      };
+    });
+
+    // Suit Armory Shop Drawer
+    const renderShop = () => {
+      const list = document.getElementById('suit-shop-list');
+      if (!list) return;
+      const d = AgentProfile.load();
+      if (!d.unlockedSuits) d.unlockedSuits = ['DEFAULT'];
+      list.innerHTML = AgentProfile.suits.map(s => {
+        const unlocked = d.unlockedSuits.includes(s.id);
+        const equipped = d.equippedSuit === s.id;
+        const hex = '#' + s.color.toString(16).padStart(6, '0');
+        let btnHtml = '';
+        if (equipped) {
+          btnHtml = '<span style="background:#16a34a;color:#fff;padding:4px 9px;border-radius:6px;font-size:0.68rem;font-weight:800;">EQUIPPED</span>';
+        } else if (unlocked) {
+          btnHtml = `<button type="button" data-suit="${s.id}" class="equip-suit-btn" style="background:#0284c7;border:none;color:#fff;padding:4px 10px;border-radius:6px;font-size:0.68rem;font-weight:800;cursor:pointer;">EQUIP</button>`;
+        } else {
+          btnHtml = `<button type="button" data-suit="${s.id}" class="buy-suit-btn" style="background:#eab308;border:none;color:#090d16;padding:4px 10px;border-radius:6px;font-size:0.68rem;font-weight:900;cursor:pointer;">🔓 ${s.cost} XP</button>`;
+        }
+        return `<div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:7px 9px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:16px;height:16px;border-radius:4px;background:${hex};border:1px solid #fff;display:inline-block;"></span>
+            <div><div style="color:#f8fafc;font-size:0.75rem;font-weight:800;">${s.name}</div><div style="color:#94a3b8;font-size:0.64rem;">${s.cost === 0 ? 'Free Standard Gear' : s.cost + ' XP Required'}</div></div>
+          </div>
+          ${btnHtml}
+        </div>`;
+      }).join('');
+
+      list.querySelectorAll('.buy-suit-btn').forEach(b => {
+        b.onclick = () => {
+          const suit = AgentProfile.suits.find(x => x.id === b.dataset.suit);
+          if (!suit) return;
+          if ((d.xp || 0) < suit.cost) {
+            alert(`⚠️ Need ${suit.cost} XP to unlock ${suit.name}! Play missions or grab Secret Intel to earn more XP.`);
+            return;
+          }
+          d.unlockedSuits.push(suit.id);
+          d.equippedSuit = suit.id;
+          AgentProfile.save();
+          renderShop();
+          if (window.HomeShowcase3D) HomeShowcase3D.refreshCharacter();
+        };
+      });
+      list.querySelectorAll('.equip-suit-btn').forEach(b => {
+        b.onclick = () => {
+          d.equippedSuit = b.dataset.suit;
+          AgentProfile.save();
+          renderShop();
+          if (window.HomeShowcase3D) HomeShowcase3D.refreshCharacter();
+        };
+      });
+    };
+
+    document.getElementById('toggle-shop-btn')?.addEventListener('click', () => {
+      const dr = document.getElementById('armory-drawer');
+      if (dr) { dr.classList.toggle('hidden'); renderShop(); }
+    });
+    document.getElementById('close-shop-btn')?.addEventListener('click', () => {
+      document.getElementById('armory-drawer')?.classList.add('hidden');
+    });
+
+    // Toggle Join Code Input Row
+    document.getElementById('toggle-join-btn')?.addEventListener('click', () => {
+      const row = document.getElementById('join-code-row');
+      if (row) row.classList.toggle('hidden');
+    });
+
+    // 1-Click START SOLO / DEPLOY SQUAD button directly from 3D Home Lobby!
+    document.getElementById('solo-or-squad-start-btn')?.addEventListener('click', () => {
+      if (typeof SFX !== 'undefined') SFX.init();
+      const name = document.getElementById('player-name')?.value.trim() || AgentProfile.load().name || ('Agent-' + Math.floor(10 + Math.random() * 89));
+      const role = AgentProfile.load().role || 'SCOUT';
+      AgentProfile.load().name = name;
+      AgentProfile.save();
+
+      this.isHost = true;
+      this.myId = this.getDeviceUid();
+      this.players = {
+        [this.myId]: { id: this.myId, name, role, x: -32, z: 32, yaw: 0, torch: true, hp: 100, downed: false, hiding: false }
+      };
+      document.getElementById('menu-screen')?.classList.add('hidden');
+      document.getElementById('game-screen')?.classList.remove('hidden');
+
+      const codes = [
+        String(Math.floor(100 + Math.random() * 899)),
+        String(Math.floor(100 + Math.random() * 899)),
+        String(Math.floor(100 + Math.random() * 899))
+      ];
+      const pool = [
+        { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
+        { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
+      ].sort(() => Math.random() - 0.5);
+      Game3D.start(codes, [pool[1], pool[2], pool[3]], pool[0]);
+    });
+
     if (createBtn) {
       createBtn.onclick = () => {
         if (this.isConnecting || this.roomCode) return;

@@ -2433,3 +2433,122 @@ const Game3D = {
     this.renderer.render(this.scene, this.camera);
   }
 };
+
+const HomeShowcase3D = {
+  scene: null,
+  camera: null,
+  renderer: null,
+  charGroup: null,
+  rotY: 0.25,
+  dragging: false,
+  lastX: 0,
+
+  init() {
+    const canvas = document.getElementById('home-3d-canvas');
+    if (!canvas || typeof THREE === 'undefined') return;
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x050914);
+    this.scene.fog = new THREE.FogExp2(0x050914, 0.055);
+
+    this.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 60);
+    this.camera.position.set(0, 1.65, 3.8);
+    this.camera.lookAt(0, 1.15, 0);
+
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Bunker Helipad / Armory Pedestal Stage
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(14, 36),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6, metalness: 0.4 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    this.scene.add(floor);
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.05, 1.22, 36),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.02;
+    this.scene.add(ring);
+
+    const amb = new THREE.AmbientLight(0x94a3b8, 0.75);
+    const keyLight = new THREE.SpotLight(0x38bdf8, 4.5, 18, 0.7);
+    keyLight.position.set(2.5, 5.2, 3.5);
+    const rimLight = new THREE.PointLight(0xfacc15, 2.2, 12);
+    rimLight.position.set(-2.5, 2.8, -2.2);
+    this.scene.add(amb, keyLight, rimLight);
+
+    this.refreshCharacter();
+
+    // Drag to rotate 3D character 360 degrees
+    canvas.addEventListener('pointerdown', (e) => { this.dragging = true; this.lastX = e.clientX; });
+    window.addEventListener('pointerup', () => { this.dragging = false; });
+    window.addEventListener('pointermove', (e) => {
+      if (!this.dragging) return;
+      this.rotY += (e.clientX - this.lastX) * 0.012;
+      this.lastX = e.clientX;
+    });
+
+    const loop = () => {
+      requestAnimationFrame(loop);
+      const menu = document.getElementById('menu-screen');
+      if (!menu || menu.classList.contains('hidden')) return;
+      if (this.camera && this.renderer) {
+        const w = window.innerWidth, h = window.innerHeight;
+        if (Math.abs(this.camera.aspect - w / h) > 0.01) {
+          this.camera.aspect = w / h;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(w, h);
+        }
+      }
+      if (this.charGroup) {
+        if (!this.dragging) this.rotY += 0.004;
+        this.charGroup.rotation.y = this.rotY;
+        this.charGroup.position.y = Math.sin(performance.now() * 0.003) * 0.035;
+      }
+      this.renderer.render(this.scene, this.camera);
+    };
+    loop();
+  },
+
+  refreshCharacter() {
+    if (!this.scene) return;
+    if (this.charGroup) this.scene.remove(this.charGroup);
+    const suit = window.AgentProfile ? AgentProfile.getEquippedSuit() : { color: 0x0284c7, visor: 0x38bdf8 };
+    const role = window.AgentProfile ? (AgentProfile.load().role || 'SCOUT') : 'SCOUT';
+
+    const g = new THREE.Group();
+    const suitMat = new THREE.MeshStandardMaterial({ color: suit.color, roughness: 0.45, metalness: 0.35 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde68a });
+    const visorMat = new THREE.MeshBasicMaterial({ color: suit.visor });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.85, 0.38), suitMat); torso.position.y = 1.15;
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.56, 0.24), darkMat); pack.position.set(0, 1.2, -0.28);
+    const packCore = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.36, 0.05), visorMat); packCore.position.set(0, 1.2, -0.41);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.46, 0.46), skinMat); head.position.y = 1.84;
+    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.24, 0.52), darkMat); helmet.position.y = 1.98;
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.14, 0.08), visorMat); visor.position.set(0, 1.84, 0.24);
+
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.72, 0.26), suitMat); legL.position.set(-0.18, 0.36, 0);
+    const legR = legL.clone(); legR.position.x = 0.18;
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.72, 0.22), suitMat); armL.position.set(-0.46, 1.15, 0);
+    const armR = armL.clone(); armR.position.x = 0.46;
+    const torch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.32, 10), darkMat);
+    torch.rotation.x = Math.PI / 2; torch.position.set(0.46, 0.82, 0.18);
+
+    // Role Shoulder Badge
+    const roleBadgeColor = role === 'MEDIC' ? 0x22c55e : (role === 'ENGINEER' ? 0xf59e0b : (role === 'TECH' ? 0xa855f7 : 0x38bdf8));
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.3), new THREE.MeshBasicMaterial({ color: roleBadgeColor }));
+    pad.position.set(-0.46, 1.52, 0);
+
+    g.add(torso, pack, packCore, head, helmet, visor, legL, legR, armL, armR, torch, pad);
+    this.charGroup = g;
+    this.scene.add(g);
+  }
+};
+window.HomeShowcase3D = HomeShowcase3D;
+window.addEventListener('DOMContentLoaded', () => HomeShowcase3D.init());
