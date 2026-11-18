@@ -725,6 +725,8 @@ const Game3D = {
   heliLanded: false,
   heliTakeoff: false,
   heliTakeoffStart: 0,
+  inCutscene: false,
+  cutsceneTimer: null,
   turboUntil: 0,
   stats: { stuns: 0, objectives: 0, revives: 0 },
   locks: [false, false, false],
@@ -804,6 +806,70 @@ const Game3D = {
       }
     }
     this.showRadioToast('CHECKPOINT', `💾 Restored Level ${this.level} progress!`);
+  },
+
+  playCutscene(lvl, onFinish) {
+    this.inCutscene = true;
+    const overlay = document.getElementById('cutscene-overlay');
+    const hud = document.getElementById('hud');
+    const chapEl = document.getElementById('cutscene-chapter');
+    const spkEl = document.getElementById('cutscene-speaker');
+    const subEl = document.getElementById('cutscene-subtitle');
+    const skipBtn = document.getElementById('skip-cutscene-btn');
+
+    if (hud) hud.classList.add('hidden');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.style.display = 'flex';
+    }
+
+    const scripts = {
+      1: [
+        { t: 0, chap: '🎬 PROLOGUE: PROJECT TITAN (2029)', spk: '📡 HQ COMMAND', sub: 'Sector-09 research bunker went dark 2 hours ago. Dr. Verma is missing.', cam: [-32, 3.2, 34], look: [-34, 1.2, 34] },
+        { t: 2800, chap: '🎬 LEVEL 1: THE DEAD LAB', spk: '📡 HQ COMMAND', sub: 'Restore the Main Generator, upload 3 Purple Data Drives to North Server & unlock 3 Terminals.', cam: [0, 3.6, -24], look: [0, 1.2, -34] },
+        { t: 5600, chap: '⚠️ THREAT DETECTED: SUBJECT-0', spk: '🎙️ DR. VERMA (RECORDING)', sub: 'It hunts flashlight beams and sprinting footsteps... Hide in Green Lockers to survive!', cam: [26, 2.8, -24], look: [32, 1.4, -32] }
+      ],
+      2: [
+        { t: 0, chap: '🎬 LEVEL 2: BIO-REACTOR MELTDOWN', spk: '🚨 BUNKER AI', sub: 'Core temperature critical! Find 2 Golden Keycards, unlock South Switch & seal 6 Coolant Valves!', cam: [0, 4.5, 16], look: [0, 2.0, 0] },
+        { t: 3200, chap: '⚠️ SUBJECT-0 APPROACHING', spk: '📡 HQ COMMAND', sub: 'Watch out for red Laser Tripwires—tripping them alerts Subject-0 immediately!', cam: [-24, 3.0, 24], look: [-31, 1.4, 31] }
+      ],
+      3: [
+        { t: 0, chap: '🎬 FINAL LEVEL: ROOFTOP EXTRACTION', spk: '🚁 RESCUE PILOT', sub: 'Chopper inbound to Helipad H! Hold the rooftop for 52 seconds until landing!', cam: [14, 5.5, 14], look: [0, 1.2, 0] },
+        { t: 3000, chap: '⚠️ FINAL STAND', spk: '📡 HQ COMMAND', sub: 'Subject-0 climbed the elevator shaft! Survive until the chopper lands and press [USE] to board!', cam: [24, 3.2, -24], look: [32, 1.4, -32] }
+      ]
+    };
+
+    const shots = scripts[lvl] || scripts[1];
+    const totalDur = lvl === 1 ? 8200 : 5800;
+    this.cutsceneShots = shots;
+    this.cutsceneStart = performance.now();
+
+    const applyShot = (s) => {
+      if (chapEl) chapEl.textContent = s.chap;
+      if (spkEl) spkEl.textContent = s.spk;
+      if (subEl) subEl.textContent = s.sub;
+      if (typeof SFX !== 'undefined' && SFX.tone) SFX.tone(520, 'sine', 0.12, 0.18, 680);
+    };
+    applyShot(shots[0]);
+
+    const timers = shots.slice(1).map(s => setTimeout(() => { if (this.inCutscene) applyShot(s); }, s.t));
+
+    const finishCutscene = () => {
+      if (!this.inCutscene) return;
+      this.inCutscene = false;
+      timers.forEach(clearTimeout);
+      if (this.cutsceneTimer) clearTimeout(this.cutsceneTimer);
+      if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.style.display = 'none';
+      }
+      if (hud) hud.classList.remove('hidden');
+      this.levelStartGrace = performance.now() + 4000;
+      if (onFinish) onFinish();
+    };
+
+    if (skipBtn) skipBtn.onclick = finishCutscene;
+    this.cutsceneTimer = setTimeout(finishCutscene, totalDur);
   },
 
   start(codes, noteSpots, fuseSpot) {
@@ -913,7 +979,12 @@ const Game3D = {
     if (!this.animStarted) {
       this.animStarted = true;
       this.animate();
-      if (window.innerWidth > 900) {
+      this.playCutscene(1, () => {
+        if (window.innerWidth > 900) {
+          this.showRadioToast('PC CONTROLS', '🖱️ Click screen for Mouse Look • WASD Move • Shift Run • E Use • F Torch • Q/Right-Click Stun • V Cam • M Mic • 1-4 Radio');
+        }
+      });
+      if (false) {
         this.showRadioToast('PC CONTROLS', '🖱️ Click screen for Mouse Look • WASD Move • Shift Run • E Use • F Torch • Q/Right-Click Stun • V Cam • M Mic • 1-4 Radio');
       }
     }
