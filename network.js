@@ -204,6 +204,7 @@ const Net = {
         this.players[data.id].ready = data.ready;
         this.updateSquadUI();
         if (this.isHost) this.broadcast({ type: 'SQUAD', players: this.players });
+      if (conn && conn.open) conn.send({ type: 'SQUAD', players: this.players });
       }
     } else if (data.type === 'RADIO') {
       Game3D.showRadioToast(data.sender, data.msg);
