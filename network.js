@@ -120,7 +120,7 @@ const Net = {
         ready: true,
         x: -18, z: 18, yaw: 0,
         lx: -1.2, lz: 3.8, lyaw: 0,
-        torch: true, downed: false, hiding: false
+        torch: true, downed: false, hiding: false, boarded: false
       }
     };
 
@@ -261,6 +261,19 @@ const Net = {
     } else if (data.type === 'LEVEL_3') {
       Game3D.startLevel3();
       this.broadcast(data);
+        } else if (data.type === 'BOARD_HELI') {
+      if (this.players[data.id]) {
+        this.players[data.id].boarded = true;
+        this.players[data.id].hiding = true;
+        this.broadcast({ type: 'SQUAD', players: this.players });
+        if (typeof Game3D !== 'undefined' && Game3D.checkHeliTakeoff) {
+          Game3D.checkHeliTakeoff();
+        }
+      }
+    } else if (data.type === 'HELI_TAKEOFF') {
+      if (typeof Game3D !== 'undefined' && Game3D.startHeliTakeoff) {
+        Game3D.startHeliTakeoff();
+      }
     } else if (data.type === 'REVIVE') {
       if (this.players[data.targetId]) this.players[data.targetId].downed = false;
     } else if (data.type === 'RADIO') {
@@ -340,6 +353,10 @@ const Net = {
       Game3D.startLevel3();
     } else if (data.type === 'RADIO') {
       Game3D.showRadioToast(data.sender, data.msg);
+        } else if (data.type === 'HELI_TAKEOFF') {
+      if (typeof Game3D !== 'undefined' && Game3D.startHeliTakeoff) {
+        Game3D.startHeliTakeoff();
+      }
     } else if (data.type === 'GAMEOVER') {
       Game3D.triggerEnd(data.win, data.reason);
     }

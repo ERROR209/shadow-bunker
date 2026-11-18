@@ -675,6 +675,9 @@ const Game3D = {
   pickups: [],
   chopperGroup: null,
   chopperRotor: null,
+  heliLanded: false,
+  heliTakeoff: false,
+  heliTakeoffStart: 0,
   turboUntil: 0,
   stats: { stuns: 0, objectives: 0, revives: 0 },
   locks: [false, false, false],
@@ -1088,16 +1091,36 @@ const Game3D = {
       crates.forEach(c => this.addWall(c.x, c.z, 2.6, 2.6, wallTex, 2.2));
       this.addSafeLockers([{ x: -20, z: -20 }, { x: 20, z: 20 }]);
 
+      this.heliLanded = false;
+      this.heliTakeoff = false;
       const heli = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7 }));
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 3.2), new THREE.MeshStandardMaterial({ color: 0x334155 }));
-      tail.position.set(0, 0.2, 3.6);
-      const rotor = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.08, 0.35), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-      rotor.position.set(0, 0.95, 0);
-      const searchLight = new THREE.PointLight(0xfacc15, 5, 25);
-      searchLight.position.set(0, -1.2, 0);
-      heli.add(body, tail, rotor, searchLight);
-      heli.position.set(0, 18, 0);
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.35 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85 });
+      const glassMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.4), hullMat);
+      body.position.y = 1.25;
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.15, 1.4), glassMat);
+      nose.position.set(0, 1.15, -2.35);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.55, 3.4), hullMat);
+      tail.position.set(0, 1.45, 3.5);
+      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.2, 0.75), darkMat);
+      tailFin.position.set(0, 1.9, 4.9);
+
+      const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.0), darkMat);
+      skidL.position.set(-1.1, 0.08, -0.2);
+      const skidR = skidL.clone(); skidR.position.x = 1.1;
+
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.45, 10), darkMat);
+      mast.position.set(0, 2.15, 0);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.08, 0.36), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      rotor.position.set(0, 2.38, 0);
+
+      const searchLight = new THREE.PointLight(0xfacc15, 5.5, 28);
+      searchLight.position.set(0, 0.5, 0);
+
+      heli.add(body, nose, tail, tailFin, skidL, skidR, mast, rotor, searchLight);
+      heli.position.set(0, 22, 0);
       this.mapGroup.add(heli);
       this.chopperGroup = heli;
       this.chopperRotor = rotor;
@@ -1560,9 +1583,18 @@ const Game3D = {
         this.showRadioToast('SUPPLY', '⚡ Picked up Stun Cell (+1 Charge)!');
       }
     } else if (act.type === 'BOARD_HELI') {
-      const msg = '🚁 Squad boarded the Rescue Helicopter! All 3 levels cleared!';
-      if (Net.isHost) Net.broadcast({ type: 'GAMEOVER', win: true, reason: msg });
-      this.triggerEnd(true, msg);
+      if (me.boarded) return;
+      me.boarded = true;
+      me.hiding = true;
+      me.x = 0;
+      me.z = 0;
+      this.showRadioToast('EXTRACTION', '🚁 You got into the Rescue Helicopter! Safe from Subject-0!');
+      if (Net.isHost) {
+        Net.broadcast({ type: 'SQUAD', players: Net.players });
+        this.checkHeliTakeoff();
+      } else {
+        Net.sendToHost({ type: 'BOARD_HELI', id: Net.myId });
+      }
     } else if (act.type === 'FUSE') {
       this.hasFuse = true;
       this.fuseMesh.visible = false;
@@ -1716,7 +1748,7 @@ const Game3D = {
     document.getElementById('locks-status').textContent = '🚁 HELIPAD';
     document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (ROOFTOP HELIPAD): Survive 45s until helicopter extraction!';
     Object.values(Net.players).forEach((p, idx) => {
-      p.x = -2 + idx * 1.4; p.z = 2; p.downed = false; p.hiding = false;
+      p.x = -2 + idx * 1.4; p.z = 2; p.downed = false; p.hiding = false; p.boarded = false;
     });
     this.hunter.x = 18; this.hunter.z = -18;
     SFX.siren();
@@ -1729,6 +1761,29 @@ const Game3D = {
     const ov = document.getElementById('jumpscare-overlay');
     ov.classList.remove('hidden');
     setTimeout(() => ov.classList.add('hidden'), 1300);
+  },
+
+  checkHeliTakeoff() {
+    if (this.heliTakeoff || this.level !== 3) return;
+    const alivePlayers = Object.values(Net.players).filter(p => !p.downed);
+    if (alivePlayers.length > 0 && alivePlayers.every(p => p.boarded)) {
+      if (Net.isHost) Net.broadcast({ type: 'HELI_TAKEOFF' });
+      this.startHeliTakeoff();
+    }
+  },
+
+  startHeliTakeoff() {
+    if (this.heliTakeoff) return;
+    this.heliTakeoff = true;
+    this.heliTakeoffStart = performance.now();
+    this.selfDestructActive = false;
+    SFX.siren();
+    this.showRadioToast('EXTRACTION', '🚁 ALL AGENTS BOARDED! TAKING OFF!');
+    setTimeout(() => {
+      const msg = '🚁 Squad extracted by Rescue Helicopter! All 3 levels cleared!';
+      if (Net.isHost) Net.broadcast({ type: 'GAMEOVER', win: true, reason: msg });
+      this.triggerEnd(true, msg);
+    }, 3000);
   },
 
   triggerEnd(win, reason) {
@@ -1773,7 +1828,7 @@ const Game3D = {
     const spawns = [{ x: -18, z: 18 }, { x: -16, z: 18 }, { x: -18, z: 16 }, { x: -16, z: 16 }];
     Object.values(Net.players).forEach((p, idx) => {
       const sp = spawns[idx % 4];
-      p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false; p.torch = true;
+      p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false; p.boarded = false; p.torch = true;
     });
 
     document.getElementById('battery-badge').textContent = '🔋 100%';
@@ -1887,15 +1942,32 @@ const Game3D = {
       this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
 
       if (this.level === 3 && this.chopperGroup) {
-        this.chopperRotor.rotation.y += 0.35;
-        const targetY = this.escapeTimeLeft <= 12 ? 1.1 : 18;
-        this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.03);
+        this.chopperRotor.rotation.y += this.heliTakeoff ? 0.65 : 0.38;
+        if (this.heliTakeoff) {
+          this.chopperGroup.position.y += 0.14;
+          this.chopperGroup.position.z -= 0.05;
+          this.chopperGroup.rotation.x = THREE.MathUtils.lerp(this.chopperGroup.rotation.x, -0.18, 0.04);
+        } else {
+          const targetY = this.escapeTimeLeft <= 12 ? 0.05 : 22;
+          this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.035);
+          if (!this.heliLanded && this.chopperGroup.position.y < 0.35) {
+            this.heliLanded = true;
+            this.showRadioToast('HELICOPTER', '🚁 Rescue Helicopter landed on Helipad! Press [USE] to Get In!');
+          }
+        }
       }
 
       const aliveTeammates = Object.values(Net.players).filter(p => p.id !== Net.myId && !p.downed);
       const specBar = document.getElementById('spectate-bar');
 
-      if (me.downed && aliveTeammates.length > 0) {
+      if ((me.boarded || this.heliTakeoff) && this.chopperGroup) {
+        specBar.classList.add('hidden');
+        hint.classList.add('hidden');
+        const cy = this.chopperGroup.position.y;
+        const cz = this.chopperGroup.position.z;
+        this.camera.position.set(6.5, Math.max(2.4, cy + 1.8), cz + 7.5);
+        this.camera.lookAt(0, cy + 1.2, cz);
+      } else if (me.downed && aliveTeammates.length > 0) {
         specBar.classList.remove('hidden');
         const targetMate = aliveTeammates[this.spectateIndex % aliveTeammates.length];
         document.getElementById('spectate-target-name').textContent = `${targetMate.name} (${targetMate.role})`;
@@ -2020,9 +2092,9 @@ const Game3D = {
             }
           }
         }
-        if (!this.nearAction && this.level === 3 && this.escapeTimeLeft <= 12 && Math.hypot(me.x, me.z) < 4.5) {
+        if (!this.nearAction && this.level === 3 && !me.boarded && this.heliLanded && Math.hypot(me.x, me.z) < 4.8) {
           this.nearAction = { type: 'BOARD_HELI' };
-          hint.textContent = '🚁 [USE] BOARD RESCUE HELICOPTER!';
+          hint.textContent = '🚁 [USE] GET IN HELICOPTER!';
         }
         if (!this.nearAction) {
           for (const p of Object.values(Net.players)) {
@@ -2060,9 +2132,15 @@ const Game3D = {
           document.getElementById('timer-badge').textContent = (this.level === 3 ? '🚁 ' : '☢️ ') + `${this.escapeTimeLeft}s`;
           if (this.escapeTimeLeft <= 0 && Net.isHost) {
             if (this.level === 3) {
-              const msg = '🚁 Rescue Helicopter arrived! Your squad cleared all 3 levels!';
-              Net.broadcast({ type: 'GAMEOVER', win: true, reason: msg });
-              this.triggerEnd(true, msg);
+              const anyBoarded = Object.values(Net.players).some(p => p.boarded);
+              if (anyBoarded) {
+                Net.broadcast({ type: 'HELI_TAKEOFF' });
+                this.startHeliTakeoff();
+              } else {
+                const msg = '🚁 Helicopter had to abort! Nobody boarded in time!';
+                Net.broadcast({ type: 'GAMEOVER', win: false, reason: msg });
+                this.triggerEnd(false, msg);
+              }
             } else {
               const msg = 'Time is up! Facility meltdown triggered!';
               Net.broadcast({ type: 'GAMEOVER', win: false, reason: msg });
@@ -2096,7 +2174,7 @@ const Game3D = {
         let target = null, minDist = 999;
 
         for (const p of Object.values(Net.players)) {
-          if (p.downed || p.hiding) continue;
+          if (p.downed || p.hiding || p.boarded) continue;
           const d = Math.hypot(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
