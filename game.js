@@ -233,6 +233,14 @@ const Game3D = {
   level: 1,
   battery: 100,
   stamina: 100,
+  sanity: 100,
+  crouching: false,
+  inCCTV: false,
+  cctvIdx: 0,
+  flares: [],
+  activePing: null,
+  sensorRevealUntil: 0,
+  lastHallucination: 0,
   nvgActive: false,
   skillCooldownUntil: 0,
   scoutBuffUntil: 0,
@@ -557,6 +565,8 @@ const Game3D = {
     this.bioSamples = [];
     this.blastSwitches = [];
     this.intelBoxes = [];
+    this.flares = [];
+    this.cctvConsoles = [];
     this.pickups = [];
     this.lasers = [];
     this.exitBeacon = null;
@@ -640,6 +650,15 @@ const Game3D = {
   buildLevelMap(lvl, noteSpots = this.savedNoteSpots || [{ x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 }], fuseSpot = this.savedFuseSpot || { x: -28, z: -6 }) {
     this.clearMap();
     this.level = lvl;
+    this.configureMonsterVariant(lvl);
+    // Add Live CCTV Security Monitor Desk near spawn corridor
+    const cctvDesk = new THREE.Mesh(
+      new THREE.BoxGeometry(1.3, 1.1, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x22c55e, emissiveIntensity: 0.65 })
+    );
+    cctvDesk.position.set(-24, 0.55, 34);
+    this.mapGroup.add(cctvDesk);
+    this.cctvConsoles.push({ x: -24, z: 34, mesh: cctvDesk });
 
     const floorTex = makeTexture('floor', lvl);
     floorTex.repeat.set(22, 22);
@@ -1610,6 +1629,8 @@ const Game3D = {
       document.getElementById('note-body').textContent = act.note.text;
       document.getElementById('note-code-reveal').textContent = this.codes[act.note.idx];
       document.getElementById('note-modal').classList.remove('hidden');
+    } else if (act.type === 'CCTV') {
+      this.openCCTV();
     } else if (act.type === 'INTEL') {
       act.box.taken = true;
       act.box.mesh.visible = false;
@@ -2176,6 +2197,15 @@ const Game3D = {
         if (!this.nearAction && this.level === 1 && Math.hypot(-34 - me.x, 34 - me.z) < 2.8) {
           this.nearAction = { type: 'GEN' };
           hint.textContent = '⚡ [USE] Activate Generator';
+        }
+        if (!this.nearAction && this.cctvConsoles) {
+          for (const c of this.cctvConsoles) {
+            if (Math.hypot(c.x - me.x, c.z - me.z) < 2.4) {
+              this.nearAction = { type: 'CCTV' };
+              hint.textContent = '📹 [USE] Open Live Bunker CCTV Cameras';
+              break;
+            }
+          }
         }
         if (!this.nearAction && this.intelBoxes) {
           for (const b of this.intelBoxes) {

@@ -135,6 +135,7 @@ const Net = {
   micEnabled: false,
   voiceLoud: false,
   isConnecting: false,
+  difficulty: 'NORMAL',
   squadColors: ['#38bdf8', '#4ade80', '#facc15', '#f472b6'],
   getPlayerColor(id) {
     const ids = Object.keys(this.players).sort();
@@ -248,6 +249,16 @@ const Net = {
       }
     };
     renderHomeSquadSlots();
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.onclick = () => {
+        this.difficulty = btn.dataset.diff || 'NORMAL';
+        document.querySelectorAll('.diff-btn').forEach(b => {
+          const active = b.dataset.diff === this.difficulty;
+          b.style.background = active ? (this.difficulty === 'INFERNO' ? '#dc2626' : (this.difficulty === 'NIGHTMARE' ? '#ea580c' : '#16a34a')) : 'transparent';
+          b.style.color = active ? '#fff' : '#94a3b8';
+        });
+      };
+    });
     this.renderHomeSquadSlots = renderHomeSquadSlots;
 
     // Class Selection Buttons on Home 3D Stage
