@@ -694,12 +694,20 @@ const Game3D = {
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
-  hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, aiState: 'PATROL', goalX: -16, goalZ: 16, scanUntil: 0, investigateUntil: 0 },
+  hunter: { x: 32, z: -32, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, aiState: 'PATROL', goalX: 28, goalZ: 24, scanUntil: 0, investigateUntil: 0 },
   level: 1,
   battery: 100,
   stunCharges: 2,
   hasFuse: false,
   powerRestored: false,
+  drivesCollected: 0,
+  drivesUploaded: false,
+  dataDrives: [],
+  serverMesh: null,
+  keycardsCollected: 0,
+  reactorUnlocked: false,
+  keycards: [],
+  reactorSwitchMesh: null,
   fuseMesh: null,
   genMesh: null,
   exitMesh: null,
@@ -888,6 +896,9 @@ const Game3D = {
     this.mapGroup = new THREE.Group();
     this.scene.add(this.mapGroup);
 
+    this.levelStartGrace = performance.now() + 5000;
+    const initSpawns = [{ x: -32, z: 32 }, { x: -30, z: 32 }, { x: -32, z: 30 }, { x: -30, z: 30 }];
+    Object.values(Net.players).forEach((p, idx) => { const sp = initSpawns[idx % 4]; p.x = sp.x; p.z = sp.z; });
     this.buildLevelMap(1, noteSpots, fuseSpot);
     this.buildMonster();
     this.setupControls();
@@ -917,6 +928,8 @@ const Game3D = {
     this.notes = [];
     this.terminals = [];
     this.valves = [];
+    this.dataDrives = [];
+    this.keycards = [];
     this.pickups = [];
     this.lasers = [];
     this.exitBeacon = null;
@@ -997,162 +1010,214 @@ const Game3D = {
     this.lasers.push({ minX: x - w / 2 - 0.25, maxX: x + w / 2 + 0.25, minZ: z - d / 2 - 0.25, maxZ: z + d / 2 + 0.25 });
   },
 
-  buildLevelMap(lvl, noteSpots = this.savedNoteSpots || [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }], fuseSpot = this.savedFuseSpot || { x: -16, z: -4 }) {
+  buildLevelMap(lvl, noteSpots = this.savedNoteSpots || [{ x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 }], fuseSpot = this.savedFuseSpot || { x: -28, z: -6 }) {
     this.clearMap();
     this.level = lvl;
 
     const floorTex = makeTexture('floor', lvl);
-    floorTex.repeat.set(14, 14);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.7 }));
+    floorTex.repeat.set(22, 22);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.7 }));
     floor.rotation.x = -Math.PI / 2;
     this.mapGroup.add(floor);
 
     const wallTex = makeTexture('wall', lvl);
-    const wallHeight = lvl === 3 ? 1.8 : 4.0;
-    this.addWall(0, -24, 48, 1, wallTex, wallHeight);
-    this.addWall(0, 24, 48, 1, wallTex, wallHeight);
-    this.addWall(-24, 0, 1, 48, wallTex, wallHeight);
-    this.addWall(24, 0, 1, 48, wallTex, wallHeight);
+    const wallHeight = lvl === 3 ? 2.0 : 4.2;
+    this.addWall(0, -40, 80, 1.2, wallTex, wallHeight);
+    this.addWall(0, 40, 80, 1.2, wallTex, wallHeight);
+    this.addWall(-40, 0, 1.2, 80, wallTex, wallHeight);
+    this.addWall(40, 0, 1.2, 80, wallTex, wallHeight);
 
     if (lvl === 1) {
       this.scene.background = new THREE.Color(0x020408);
-      this.scene.fog = new THREE.FogExp2(0x020408, 0.068);
+      this.scene.fog = new THREE.FogExp2(0x020408, 0.052);
 
-      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
-      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0;
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
 
-      this.addWall(-8, 10, 14, 0.8, wallTex);
-      this.addWall(8, 10, 12, 0.8, wallTex);
-      this.addWall(-10, -6, 0.8, 14, wallTex);
-      this.addWall(6, -8, 14, 0.8, wallTex);
-      this.addWall(14, 2, 0.8, 12, wallTex);
-      this.addWall(-2, -16, 12, 0.8, wallTex);
+      // Spacious Lab Wings & Corridors (wide doorways so player & monster never get stuck)
+      this.addWall(-16, 18, 22, 0.9, wallTex);
+      this.addWall(16, 18, 22, 0.9, wallTex);
+      this.addWall(-18, -10, 0.9, 24, wallTex);
+      this.addWall(14, -12, 24, 0.9, wallTex);
+      this.addWall(24, 4, 0.9, 20, wallTex);
+      this.addWall(-4, -26, 20, 0.9, wallTex);
+      this.addWall(0, 2, 12, 0.9, wallTex);
 
-      this.addSafeLockers([{ x: -20, z: 6 }, { x: -2, z: 6 }, { x: 10, z: -12 }, { x: 20, z: 14 }]);
+      // 8 Safe Lockers spread across all sectors
+      this.addSafeLockers([
+        { x: -34, z: 24 }, { x: -34, z: 4 }, { x: -8, z: 12 }, { x: 8, z: 12 },
+        { x: 18, z: -20 }, { x: 34, z: 22 }, { x: -12, z: -32 }, { x: 34, z: -8 }
+      ]);
 
+      // Stage 1: Power Fuse & Main Generator
       this.fuseMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.24, 0.24, 0.7, 12),
-        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 1.4 })
+        new THREE.CylinderGeometry(0.28, 0.28, 0.75, 12),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 1.5 })
       );
       this.fuseMesh.position.set(fuseSpot.x, 0.95, fuseSpot.z);
-      const fuseLight = new THREE.PointLight(0x38bdf8, 2.0, 7);
+      const fuseLight = new THREE.PointLight(0x38bdf8, 2.2, 8);
       fuseLight.position.set(fuseSpot.x, 1.3, fuseSpot.z);
       this.mapGroup.add(this.fuseMesh, fuseLight);
 
       this.genMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, 1.8, 1.2),
-        new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 0.8 })
+        new THREE.BoxGeometry(1.8, 1.9, 1.3),
+        new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 0.9 })
       );
-      this.genMesh.position.set(-20, 0.9, 20);
+      this.genMesh.position.set(-34, 0.95, 34);
       this.mapGroup.add(this.genMesh);
 
+      // Stage 2 (NEW): 3 Encrypted Data Drives + Main Server Console
+      const driveSpots = [{ x: -32, z: -20 }, { x: 6, z: -6 }, { x: 32, z: 28 }];
+      driveSpots.forEach((ds, idx) => {
+        const dMesh = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.36, 0),
+          new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x9333ea, emissiveIntensity: 1.4 })
+        );
+        dMesh.position.set(ds.x, 1.0, ds.z);
+        const dLight = new THREE.PointLight(0xc084fc, 1.6, 6);
+        dLight.position.set(ds.x, 1.3, ds.z);
+        this.mapGroup.add(dMesh, dLight);
+        this.dataDrives.push({ x: ds.x, z: ds.z, idx, taken: false, mesh: dMesh, light: dLight });
+      });
+
+      this.serverMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.7, 2.0, 1.1),
+        new THREE.MeshStandardMaterial({ color: 0x581c87, emissive: 0x7e22ce, emissiveIntensity: 0.85 })
+      );
+      this.serverMesh.position.set(0, 1.0, -34);
+      this.mapGroup.add(this.serverMesh);
+
+      // Stage 3: Dr. Verma Logs & 3 Security Terminals
       const logTexts = [
-        'Dr. Verma Log #1: Subject-0 hunts by sound. Use the blue code below on Terminal #1:',
-        'Dr. Verma Log #2: Stun Gun freezes Subject-0 with high-voltage arcs. Terminal #2 code:',
+        'Dr. Verma Log #1: Subject-0 tracks flashlight beams & sprinting footsteps. Terminal #1 code:',
+        'Dr. Verma Log #2: Upload all 3 Purple Data Drives at the North Server first! Terminal #2 code:',
         'Dr. Verma Log #3: Final override code for Terminal #3 before Bio-Reactor elevator:'
       ];
       noteSpots.forEach((spot, idx) => {
-        const stand = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.85, 0.9), new THREE.MeshStandardMaterial({ map: wallTex }));
+        const stand = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.85, 1.0), new THREE.MeshStandardMaterial({ map: wallTex }));
         stand.position.set(spot.x, 0.425, spot.z);
-        const paper = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.55), new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 0.75 }));
+        const paper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.6), new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 0.85 }));
         paper.position.set(spot.x, 0.88, spot.z);
         this.mapGroup.add(stand, paper);
         this.notes.push({ x: spot.x, z: spot.z, idx, text: logTexts[idx] });
       });
 
-      const termSpots = [{ x: -6, z: 21 }, { x: 12, z: 21 }, { x: 21, z: -4 }];
+      const termSpots = [{ x: -10, z: 35 }, { x: 18, z: 35 }, { x: 35, z: -6 }];
       termSpots.forEach((spot, idx) => {
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.6, 0.8), new THREE.MeshStandardMaterial({ color: 0xb91c1c, emissive: 0xef4444, emissiveIntensity: 0.65 }));
-        box.position.set(spot.x, 0.8, spot.z);
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.7, 0.9), new THREE.MeshStandardMaterial({ color: 0xb91c1c, emissive: 0xef4444, emissiveIntensity: 0.7 }));
+        box.position.set(spot.x, 0.85, spot.z);
         this.mapGroup.add(box);
         this.terminals.push({ x: spot.x, z: spot.z, idx, mesh: box });
       });
 
-      this.addLaserGrid(-1, 10, 4.2, 0.12);
-      this.addLaserGrid(14, -12, 0.12, 6.5);
-      this.addLaserGrid(-10, 4, 0.12, 5.5);
-      this.createExitDoorWithBeacon(20, -23.3);
+      this.addLaserGrid(-2, 18, 5.0, 0.12);
+      this.addLaserGrid(24, -18, 0.12, 7.0);
+      this.createExitDoorWithBeacon(34, -39.2);
 
     } else if (lvl === 2) {
       this.scene.background = new THREE.Color(0x090203);
-      this.scene.fog = new THREE.FogExp2(0x090203, 0.058);
+      this.scene.fog = new THREE.FogExp2(0x090203, 0.048);
 
-      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
-      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0;
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
 
       const core = new THREE.Mesh(
-        new THREE.CylinderGeometry(2.2, 2.2, 4.0, 24),
-        new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 1.2, transparent: true, opacity: 0.85 })
+        new THREE.CylinderGeometry(3.2, 3.2, 4.2, 24),
+        new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 1.3, transparent: true, opacity: 0.85 })
       );
-      core.position.set(0, 2.0, 0);
-      const coreLight = new THREE.PointLight(0xf97316, 4.0, 24);
-      coreLight.position.set(0, 2.2, 0);
+      core.position.set(0, 2.1, 0);
+      const coreLight = new THREE.PointLight(0xf97316, 4.5, 32);
+      coreLight.position.set(0, 2.4, 0);
       this.mapGroup.add(core, coreLight);
-      this.wallBoxes.push({ minX: -2.4, maxX: 2.4, minZ: -2.4, maxZ: 2.4 });
+      this.wallBoxes.push({ minX: -3.4, maxX: 3.4, minZ: -3.4, maxZ: 3.4 });
 
       const pillars = [
-        { x: -10, z: -10 }, { x: 10, z: -10 }, { x: -10, z: 10 }, { x: 10, z: 10 },
-        { x: 0, z: -15 }, { x: 0, z: 15 }, { x: -15, z: 0 }, { x: 15, z: 0 }
+        { x: -16, z: -16 }, { x: 16, z: -16 }, { x: -16, z: 16 }, { x: 16, z: 16 },
+        { x: 0, z: -24 }, { x: 0, z: 24 }, { x: -24, z: 0 }, { x: 24, z: 0 }
       ];
-      pillars.forEach(p => this.addWall(p.x, p.z, 2.4, 2.4, wallTex));
+      pillars.forEach(p => this.addWall(p.x, p.z, 3.2, 3.2, wallTex));
 
-      this.addSafeLockers([{ x: -21, z: 0 }, { x: 21, z: 0 }, { x: 0, z: -21 }, { x: 0, z: 21 }]);
+      this.addSafeLockers([
+        { x: -35, z: -12 }, { x: -35, z: 12 }, { x: 35, z: -12 }, { x: 35, z: 12 },
+        { x: -12, z: -35 }, { x: 12, z: 35 }
+      ]);
 
-      this.addLaserGrid(-10, 0, 5.5, 0.12);
-      this.addLaserGrid(10, 0, 5.5, 0.12);
-      this.addLaserGrid(0, -10, 0.12, 5.5);
+      // Stage 1 (NEW): 2 Golden Override Keycards + Reactor Control Switch
+      const cardSpots = [{ x: -28, z: 28 }, { x: 28, z: -28 }];
+      cardSpots.forEach((cs, idx) => {
+        const kMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.35, 0.08),
+          new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xeab308, emissiveIntensity: 1.5 })
+        );
+        kMesh.position.set(cs.x, 1.05, cs.z);
+        const kLight = new THREE.PointLight(0xfacc15, 1.8, 6);
+        kLight.position.set(cs.x, 1.3, cs.z);
+        this.mapGroup.add(kMesh, kLight);
+        this.keycards.push({ x: cs.x, z: cs.z, idx, taken: false, mesh: kMesh, light: kLight });
+      });
+
+      this.reactorSwitchMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 1.8, 1.1),
+        new THREE.MeshStandardMaterial({ color: 0xb45309, emissive: 0xf59e0b, emissiveIntensity: 0.9 })
+      );
+      this.reactorSwitchMesh.position.set(0, 0.9, 34);
+      this.mapGroup.add(this.reactorSwitchMesh);
+
+      // Stage 2: 6 Overheating Coolant Valves
+      this.addLaserGrid(-16, 0, 6.5, 0.12);
+      this.addLaserGrid(16, 0, 6.5, 0.12);
       const valveSpots = [
-        { x: -19, z: -19 }, { x: 19, z: -19 }, { x: -19, z: 19 },
-        { x: 19, z: 19 }, { x: -19, z: 0 }, { x: 19, z: 0 }
+        { x: -31, z: -31 }, { x: 31, z: -31 }, { x: -31, z: 31 },
+        { x: 31, z: 31 }, { x: -31, z: 0 }, { x: 31, z: 0 }
       ];
       valveSpots.forEach((vs, idx) => {
         const stand = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.65, 0.75, 1.3, 14),
+          new THREE.CylinderGeometry(0.75, 0.85, 1.35, 14),
           new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
         );
-        stand.position.set(vs.x, 0.65, vs.z);
+        stand.position.set(vs.x, 0.675, vs.z);
         const wheel = new THREE.Mesh(
-          new THREE.TorusGeometry(0.45, 0.09, 10, 20),
-          new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.9 })
+          new THREE.TorusGeometry(0.5, 0.1, 10, 20),
+          new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.95 })
         );
-        wheel.position.set(vs.x, 1.45, vs.z);
-        const vLight = new THREE.PointLight(0xef4444, 1.6, 7);
-        vLight.position.set(vs.x, 2.0, vs.z);
+        wheel.position.set(vs.x, 1.5, vs.z);
+        const vLight = new THREE.PointLight(0xef4444, 1.8, 8);
+        vLight.position.set(vs.x, 2.1, vs.z);
         this.mapGroup.add(stand, wheel, vLight);
         this.valves.push({ x: vs.x, z: vs.z, idx, fixed: false, wheel, light: vLight });
       });
 
-      this.createExitDoorWithBeacon(0, -23.3);
+      this.createExitDoorWithBeacon(0, -39.2);
 
     } else if (lvl === 3) {
       this.scene.background = new THREE.Color(0x060b16);
-      this.scene.fog = new THREE.FogExp2(0x060b16, 0.018);
+      this.scene.fog = new THREE.FogExp2(0x060b16, 0.016);
 
       const padOuter = new THREE.Mesh(
-        new THREE.RingGeometry(4.2, 4.9, 36),
+        new THREE.RingGeometry(4.8, 5.6, 36),
         new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
       );
       padOuter.rotation.x = -Math.PI / 2;
       padOuter.position.y = 0.03;
 
-      const hBar1 = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 3.6), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
-      hBar1.rotation.x = -Math.PI / 2; hBar1.position.set(-1.1, 0.03, 0);
-      const hBar2 = hBar1.clone(); hBar2.position.set(1.1, 0.03, 0);
-      const hCross = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.7), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+      const hBar1 = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 3.8), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+      hBar1.rotation.x = -Math.PI / 2; hBar1.position.set(-1.15, 0.03, 0);
+      const hBar2 = hBar1.clone(); hBar2.position.set(1.15, 0.03, 0);
+      const hCross = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.75), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
       hCross.rotation.x = -Math.PI / 2; hCross.position.set(0, 0.03, 0);
 
-      const heliLight = new THREE.PointLight(0x38bdf8, 3.5, 32);
-      heliLight.position.set(0, 6, 0);
+      const heliLight = new THREE.PointLight(0x38bdf8, 4.0, 42);
+      heliLight.position.set(0, 7, 0);
       this.mapGroup.add(padOuter, hBar1, hBar2, hCross, heliLight);
 
       const crates = [
-        { x: -9, z: -9 }, { x: 9, z: -9 }, { x: -9, z: 9 }, { x: 9, z: 9 },
-        { x: -16, z: 0 }, { x: 16, z: 0 }
+        { x: -14, z: -14 }, { x: 14, z: -14 }, { x: -14, z: 14 }, { x: 14, z: 14 },
+        { x: -24, z: 0 }, { x: 24, z: 0 }, { x: 0, z: -24 }, { x: 0, z: 24 }
       ];
-      crates.forEach(c => this.addWall(c.x, c.z, 2.6, 2.6, wallTex, 2.2));
-      this.addSafeLockers([{ x: -20, z: -20 }, { x: 20, z: 20 }]);
+      crates.forEach(c => this.addWall(c.x, c.z, 3.2, 3.2, wallTex, 2.3));
+      this.addSafeLockers([{ x: -32, z: -32 }, { x: 32, z: 32 }, { x: -32, z: 32 }, { x: 32, z: -32 }]);
 
       this.heliLanded = false;
       this.heliTakeoff = false;
@@ -1190,17 +1255,17 @@ const Game3D = {
     }
 
     const pickupSpots = [
-      { x: -16, z: 12, kind: 'BATTERY' }, { x: 16, z: -10, kind: 'BATTERY' }, { x: 0, z: 0, kind: 'BATTERY' },
-      { x: -12, z: -18, kind: 'STUN' }, { x: 14, z: 18, kind: 'STUN' }, { x: -6, z: 12, kind: 'STUN' }
+      { x: -24, z: 22, kind: 'BATTERY' }, { x: 26, z: -18, kind: 'BATTERY' }, { x: 0, z: 10, kind: 'BATTERY' },
+      { x: -20, z: -28, kind: 'STUN' }, { x: 24, z: 26, kind: 'STUN' }, { x: -10, z: 20, kind: 'STUN' }
     ];
     pickupSpots.forEach(ps => {
       const isBat = ps.kind === 'BATTERY';
       const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.45, 0.45, 0.45),
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
         new THREE.MeshStandardMaterial({
           color: isBat ? 0x22c55e : 0xc084fc,
           emissive: isBat ? 0x16a34a : 0x9333ea,
-          emissiveIntensity: 1.1
+          emissiveIntensity: 1.2
         })
       );
       mesh.position.set(ps.x, 0.65, ps.z);
@@ -1209,10 +1274,10 @@ const Game3D = {
     });
 
     [
-      { x: -14, z: 14 }, { x: 14, z: 14 }, { x: -14, z: -14 }, { x: 14, z: -14 }
+      { x: -24, z: 24 }, { x: 24, z: 24 }, { x: -24, z: -24 }, { x: 24, z: -24 }
     ].forEach(lc => {
-      const pLight = new THREE.PointLight(lvl === 2 ? 0xfb923c : 0x64748b, lvl === 3 ? 0.45 : 0.12, 14);
-      pLight.position.set(lc.x, 3.5, lc.z);
+      const pLight = new THREE.PointLight(lvl === 2 ? 0xfb923c : 0x64748b, lvl === 3 ? 0.55 : 0.14, 18);
+      pLight.position.set(lc.x, 3.6, lc.z);
       this.mapGroup.add(pLight);
     });
   },
@@ -1286,12 +1351,12 @@ const Game3D = {
   pickNextPatrolWaypoint() {
     const waypoints = this.level === 2
       ? [
-          { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 },
-          { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 }
+          { x: -30, z: -30 }, { x: 30, z: -30 }, { x: -30, z: 30 }, { x: 30, z: 30 },
+          { x: 0, z: -32 }, { x: 0, z: 32 }, { x: -32, z: 0 }, { x: 32, z: 0 }
         ]
       : [
-          { x: -18, z: 18 }, { x: -18, z: -18 }, { x: 18, z: -18 }, { x: 18, z: 18 },
-          { x: 0, z: 16 }, { x: 0, z: -12 }, { x: -14, z: 2 }, { x: 14, z: 2 }
+          { x: -30, z: 30 }, { x: -30, z: -30 }, { x: 30, z: -30 }, { x: 30, z: 30 },
+          { x: 0, z: 28 }, { x: 0, z: -24 }, { x: -26, z: 4 }, { x: 26, z: 4 }
         ];
     const choices = waypoints.filter(w => Math.hypot(w.x - this.hunter.x, w.z - this.hunter.z) > 6);
     const next = choices[Math.floor(Math.random() * choices.length)] || waypoints[0];
@@ -1711,17 +1776,51 @@ const Game3D = {
       document.getElementById('note-body').textContent = act.note.text;
       document.getElementById('note-code-reveal').textContent = this.codes[act.note.idx];
       document.getElementById('note-modal').classList.remove('hidden');
+    } else if (act.type === 'DRIVE') {
+      act.drive.taken = true;
+      act.drive.mesh.visible = false;
+      act.drive.light.visible = false;
+      this.drivesCollected++;
+      this.stats.objectives++;
+      SFX.tone(680, 'sine', 0.2, 0.25, 920);
+      this.showRadioToast('DATA DRIVE', `💾 Collected Encrypted Drive (${this.drivesCollected}/3)!`);
+    } else if (act.type === 'SERVER') {
+      if (!this.powerRestored) return this.showRadioToast('OFFLINE', '⚠️ Restore Generator Power first!');
+      if (this.drivesCollected < 3) return this.showRadioToast('SERVER', `⚠️ Collect all 3 Purple Data Drives first (${this.drivesCollected}/3)!`);
+      this.drivesUploaded = true;
+      this.serverMesh.material.color.setHex(0x16a34a);
+      this.serverMesh.material.emissive.setHex(0x22c55e);
+      document.getElementById('objective-banner').textContent = 'CHAPTER 3: Read Dr. Verma logs & unlock all 3 Terminals!';
+      this.showRadioToast('SERVER', '✅ All 3 Data Drives uploaded! Security Terminals unlocked!');
+    } else if (act.type === 'KEYCARD') {
+      act.card.taken = true;
+      act.card.mesh.visible = false;
+      act.card.light.visible = false;
+      this.keycardsCollected++;
+      this.stats.objectives++;
+      SFX.tone(740, 'triangle', 0.22, 0.25, 1020);
+      this.showRadioToast('KEYCARD', `🔑 Picked up Golden Override Keycard (${this.keycardsCollected}/2)!`);
+    } else if (act.type === 'REACTOR_SWITCH') {
+      if (this.keycardsCollected < 2) return this.showRadioToast('LOCKED', `⚠️ Find both Golden Keycards first (${this.keycardsCollected}/2)!`);
+      this.reactorUnlocked = true;
+      this.reactorSwitchMesh.material.color.setHex(0x16a34a);
+      this.reactorSwitchMesh.material.emissive.setHex(0x22c55e);
+      document.getElementById('objective-banner').textContent = '☢️ LEVEL 2: Now seal all 6 Coolant Valves!';
+      this.showRadioToast('REACTOR', '✅ Valve Pressure Locks released! Seal all 6 Coolant Valves!');
+    } else if (act.type === 'VALVE') {
+      if (!this.reactorUnlocked) return this.showRadioToast('LOCKED', '⚠️ Collect 2 Keycards & activate the South Reactor Switch first!');
+      this.fixValve(act.valve.idx);
+      if (Net.isHost) Net.broadcast({ type: 'UNLOCK', lockIdx: act.valve.idx });
+      else Net.sendToHost({ type: 'UNLOCK', lockIdx: act.valve.idx });
     } else if (act.type === 'TERM') {
       if (!this.powerRestored) return this.showRadioToast('LOCKED', '⚠️ Restore Generator power first!');
+      if (!this.drivesUploaded) return this.showRadioToast('LOCKED', '⚠️ Upload 3 Data Drives at the North Server Console first!');
       this.activeTerminalIdx = act.term.idx;
       this.typedCode = '';
       this.updateKeypadUI();
       document.getElementById('puzzle-title').textContent = `SECURITY TERMINAL #${act.term.idx + 1}`;
       document.getElementById('puzzle-modal').classList.remove('hidden');
-    } else if (act.type === 'VALVE') {
-      this.fixValve(act.valve.idx);
-      if (Net.isHost) Net.broadcast({ type: 'UNLOCK', lockIdx: act.valve.idx });
-      else Net.sendToHost({ type: 'UNLOCK', lockIdx: act.valve.idx });
+
     } else if (act.type === 'REVIVE') {
       act.target.downed = false;
       this.stats.revives++;
@@ -1743,7 +1842,7 @@ const Game3D = {
     this.genMesh.material.color.setHex(0x16a34a);
     this.genMesh.material.emissive.setHex(0x22c55e);
     document.getElementById('locks-status').textContent = '⚡ ON (0/3)';
-    document.getElementById('objective-banner').textContent = 'CHAPTER 3: Read Dr. Verma\'s 3 logs & unlock 3 terminals (0/3)';
+    document.getElementById('objective-banner').textContent = 'CHAPTER 2: Collect 3 Purple Data Drives & upload at North Server!';
     this.saveCheckpoint();
     this.showRadioToast('POWER', '⚡ Main Power Restored!');
   },
@@ -1819,19 +1918,22 @@ const Game3D = {
   },
 
   startLevel2() {
+    this.keycardsCollected = 0;
+    this.reactorUnlocked = false;
     this.selfDestructActive = false;
     document.getElementById('timer-badge').classList.add('hidden');
     document.getElementById('locks-status').textContent = '☢️ VALVES 0/6';
-    document.getElementById('objective-banner').textContent = '☢️ LEVEL 2 (BIO-REACTOR): Seal all 6 Coolant Valves while dodging Laser Tripwires!';
+    document.getElementById('objective-banner').textContent = '☢️ LEVEL 2: Find 2 Golden Keycards, unlock South Switch & seal 6 Coolant Valves!';
     this.buildLevelMap(2);
     this.stunCharges = 2;
     document.getElementById('stun-status').textContent = '🔫 2/2';
-    const safeSpots = [{ x: -20, z: -6 }, { x: -20, z: 6 }, { x: -18, z: -6 }, { x: -18, z: 6 }];
+    this.levelStartGrace = performance.now() + 5000;
+    const safeSpots = [{ x: -34, z: -8 }, { x: -34, z: 8 }, { x: -32, z: -8 }, { x: -32, z: 8 }];
     Object.values(Net.players).forEach((p, idx) => {
       const sp = safeSpots[idx % 4];
       p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false;
     });
-    this.hunter.x = 20; this.hunter.z = 6;
+    this.hunter.x = 34; this.hunter.z = 6;
     this.hunter.stuckFrames = 0;
     this.pickNextPatrolWaypoint();
     this.saveCheckpoint();
@@ -1851,7 +1953,7 @@ const Game3D = {
     Object.values(Net.players).forEach((p, idx) => {
       p.x = -2 + idx * 1.4; p.z = 2; p.downed = false; p.hiding = false; p.boarded = false;
     });
-    this.hunter.x = 18; this.hunter.z = -18;
+    this.hunter.x = 32; this.hunter.z = -32; this.levelStartGrace = performance.now() + 4000;
     SFX.siren();
     this.saveCheckpoint();
     this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 52 seconds on the rooftop!');
@@ -1921,6 +2023,10 @@ const Game3D = {
     this.stunCharges = 2;
     this.hasFuse = false;
     this.powerRestored = false;
+    this.drivesCollected = 0;
+    this.drivesUploaded = false;
+    this.keycardsCollected = 0;
+    this.reactorUnlocked = false;
     this.selfDestructActive = false;
     this.locks = [false, false, false];
     this.stats = { stuns: 0, objectives: 0, revives: 0 };
@@ -1942,7 +2048,7 @@ const Game3D = {
   },
 
   checkCollision(x, z) {
-    if (x < -23.1 || x > 23.1 || z < -23.1 || z > 23.1) return true;
+    if (x < -38.8 || x > 38.8 || z < -38.8 || z > 38.8) return true;
     for (const w of this.wallBoxes) {
       if (x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ) return true;
     }
@@ -2043,6 +2149,8 @@ const Game3D = {
       this.valves.forEach(v => { if (!v.fixed) v.wheel.rotation.y += 0.02; });
       if (this.exitBeacon && this.exitBeacon.visible) this.exitBeacon.rotation.y += 0.03;
       this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
+      this.dataDrives.forEach(d => { if (!d.taken) d.mesh.rotation.y += 0.04; });
+      this.keycards.forEach(k => { if (!k.taken) k.mesh.rotation.y += 0.04; });
 
       if (this.level === 3 && this.chopperGroup) {
         const heliActive = this.heliTakeoff || this.escapeTimeLeft <= 15;
@@ -2177,9 +2285,35 @@ const Game3D = {
           this.nearAction = { type: 'FUSE' };
           hint.textContent = '🔋 [USE] Pick up Power Fuse';
         }
-        if (!this.nearAction && this.level === 1 && Math.hypot(-20 - me.x, 20 - me.z) < 2.6) {
+        if (!this.nearAction && this.level === 1 && Math.hypot(-34 - me.x, 34 - me.z) < 2.8) {
           this.nearAction = { type: 'GEN' };
           hint.textContent = '⚡ [USE] Activate Generator';
+        }
+        if (!this.nearAction && this.level === 1) {
+          for (const d of this.dataDrives) {
+            if (!d.taken && Math.hypot(d.x - me.x, d.z - me.z) < 2.4) {
+              this.nearAction = { type: 'DRIVE', drive: d };
+              hint.textContent = `💾 [USE] Grab Data Drive #${d.idx + 1}`;
+              break;
+            }
+          }
+        }
+        if (!this.nearAction && this.level === 1 && !this.drivesUploaded && Math.hypot(0 - me.x, -34 - me.z) < 2.8) {
+          this.nearAction = { type: 'SERVER' };
+          hint.textContent = `🖥️ [USE] Upload Data Drives (${this.drivesCollected}/3)`;
+        }
+        if (!this.nearAction && this.level === 2) {
+          for (const k of this.keycards) {
+            if (!k.taken && Math.hypot(k.x - me.x, k.z - me.z) < 2.4) {
+              this.nearAction = { type: 'KEYCARD', card: k };
+              hint.textContent = `🔑 [USE] Grab Golden Keycard #${k.idx + 1}`;
+              break;
+            }
+          }
+        }
+        if (!this.nearAction && this.level === 2 && !this.reactorUnlocked && Math.hypot(0 - me.x, 34 - me.z) < 2.8) {
+          this.nearAction = { type: 'REACTOR_SWITCH' };
+          hint.textContent = `🎛️ [USE] Unlock Valve System (${this.keycardsCollected}/2 Keycards)`;
         }
         if (!this.nearAction && this.level === 1) {
           for (const n of this.notes) {
@@ -2294,7 +2428,7 @@ const Game3D = {
         if (aura) aura.color.setHex(isStunned ? 0x38bdf8 : 0xff0000);
       }
 
-      if (Net.isHost && !isStunned) {
+      if (Net.isHost && !isStunned && (!this.levelStartGrace || performance.now() > this.levelStartGrace)) {
         const nowAI = performance.now();
         let target = null, minDist = 999;
 
@@ -2304,7 +2438,7 @@ const Game3D = {
           const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
           const inFront = angleDiff < 1.25;
-          const detectRange = this.level === 3 ? 34 : (p.makingNoise ? 27 : (inFront ? (p.torch ? 20 : 13) : 8.0));
+          const detectRange = this.level === 3 ? 28 : (p.makingNoise ? 22 : (inFront ? (p.torch ? 17 : 9.5) : 4.2));
           if (d < detectRange && d < minDist) { minDist = d; target = p; }
         }
 
@@ -2313,7 +2447,7 @@ const Game3D = {
           this.hunter.goalX = target.x;
           this.hunter.goalZ = target.z;
           this.hunter.investigateUntil = nowAI + 4200;
-          const mSpeed = this.level === 3 ? 0.102 : 0.088;
+          const mSpeed = this.level === 3 ? 0.086 : 0.072;
           this.moveHunterToward(target.x, target.z, mSpeed);
 
           if (minDist < 1.35) {
@@ -2325,7 +2459,7 @@ const Game3D = {
         } else if (nowAI < this.hunter.investigateUntil) {
           this.hunter.aiState = 'INVESTIGATE';
           const distToLast = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
-          if (distToLast > 1.4) this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.085);
+          if (distToLast > 1.4) this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.062);
           else this.hunter.yaw += Math.sin(nowAI * 0.006) * 0.045;
         } else if (nowAI < this.hunter.scanUntil) {
           this.hunter.aiState = 'SCAN';
@@ -2337,7 +2471,7 @@ const Game3D = {
             this.hunter.scanUntil = nowAI + 1800;
             this.pickNextPatrolWaypoint();
           } else {
-            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.072);
+            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.052);
           }
         }
 
