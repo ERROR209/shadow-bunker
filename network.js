@@ -110,8 +110,12 @@ const Net = {
               String(Math.floor(100 + Math.random() * 899)),
               String(Math.floor(100 + Math.random() * 899))
             ];
-            const fuseSpot = { x: -28, z: -6 };
-            const noteSpots = [{ x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 }];
+            const pool = [
+              { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
+              { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
+            ].sort(() => Math.random() - 0.5);
+            const fuseSpot = pool[0];
+            const noteSpots = [pool[1], pool[2], pool[3]];
             this.broadcast({ type: 'START', players: this.players, codes, noteSpots, fuseSpot });
             Game3D.start(codes, noteSpots, fuseSpot);
           }

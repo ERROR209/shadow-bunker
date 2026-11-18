@@ -159,6 +159,7 @@
         <span id="stun-status" class="stun-badge">🔫 3/3</span>
         <button id="mic-btn" class="mic-badge">🎤 OFF</button>
         <button id="fs-rotate-btn" class="mic-badge">⛶ LANDSCAPE</button>
+        <button id="nvg-toggle-btn" class="mini-btn" style="background:#052e16;border:1px solid #22c55e;color:#4ade80;">🥽 NVG</button>
         <button id="sfx-toggle-btn" class="mini-btn" style="background:#1e293b;border:1px solid #475569;">🔊 SFX</button>
         <button id="cam-toggle-btn" class="mic-badge">🎥 1ST</button>
         <button id="edit-hud-btn" class="mic-badge">⚙️ KEYS</button>
@@ -167,6 +168,7 @@
       <div id="timer-badge" class="timer-badge hidden">☢️ 65s</div>
     </header>
 
+    <div id="agent-rank-pill" style="display:inline-block;background:rgba(30,41,59,0.88);border:1px solid #facc15;color:#facc15;padding:2px 9px;border-radius:999px;font-size:0.7rem;font-weight:800;margin-right:6px;">🎖️ ROOKIE • 0 XP</div>
     <div id="waypoint-compass" style="display:inline-flex;align-items:center;gap:8px;background:rgba(15,23,42,0.85);border:1px solid #38bdf8;color:#38bdf8;padding:3px 10px;border-radius:999px;font-size:0.74rem;font-weight:800;margin-bottom:4px;letter-spacing:0.5px;">
       <span>🧭 TARGET:</span><span id="waypoint-arrow" style="font-size:0.95rem;color:#facc15;">⬆️</span><span id="waypoint-dist" style="color:#f8fafc;">--m</span>
       <span style="color:#475569;">|</span>
@@ -211,7 +213,8 @@
     </div>
 
     <div id="action-buttons" class="action-buttons">
-      <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
+      <button id="skill-btn" class="action-btn" style="background:rgba(14,165,233,0.28);border-color:#38bdf8;color:#e0f2fe;">✨ SKILL</button>
+        <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
       <button id="sprint-btn" class="ctrl-btn sprint">🏃<br><small>RUN</small></button>
       <button id="torch-btn" class="ctrl-btn torch-on">🔦<br><small>TORCH</small></button>
       <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>

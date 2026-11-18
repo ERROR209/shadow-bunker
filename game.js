@@ -233,6 +233,18 @@ const Game3D = {
   level: 1,
   battery: 100,
   stamina: 100,
+  nvgActive: false,
+  skillCooldownUntil: 0,
+  scoutBuffUntil: 0,
+  empUntil: 0,
+  decoyPos: null,
+  decoyUntil: 0,
+  bioSamples: [],
+  samplesCollected: 0,
+  blastSwitches: [],
+  switchesActivated: 0,
+  intelBoxes: [],
+  agentXP: parseInt(localStorage.getItem('sb_agent_xp') || '0', 10),
   lastHeartbeat: 0,
   stunCharges: 2,
   hasFuse: false,
@@ -515,7 +527,8 @@ const Game3D = {
 
     if (!this.animStarted) {
       this.animStarted = true;
-      this.animate();
+      this.updateRankUI();
+    this.animate();
       this.playCutscene(1, () => {
         if (window.innerWidth > 900) {
           this.showRadioToast('PC CONTROLS', '🖱️ Click screen for Mouse Look • WASD Move • Shift Run • E Use • F Torch • Q/Right-Click Stun • V Cam • M Mic • 1-4 Radio');
@@ -538,6 +551,9 @@ const Game3D = {
     this.valves = [];
     this.dataDrives = [];
     this.keycards = [];
+    this.bioSamples = [];
+    this.blastSwitches = [];
+    this.intelBoxes = [];
     this.pickups = [];
     this.lasers = [];
     this.exitBeacon = null;
@@ -629,21 +645,33 @@ const Game3D = {
     this.mapGroup.add(floor);
 
     const wallTex = makeTexture('wall', lvl);
-    const wallHeight = lvl === 3 ? 2.0 : 4.2;
+    const wallHeight = lvl === 5 ? 2.0 : 4.2;
     this.addWall(0, -40, 80, 1.2, wallTex, wallHeight);
     this.addWall(0, 40, 80, 1.2, wallTex, wallHeight);
     this.addWall(-40, 0, 1.2, 80, wallTex, wallHeight);
     this.addWall(40, 0, 1.2, 80, wallTex, wallHeight);
 
+    // Add 2 Bonus Secret Intel Briefcases in every level for extra XP!
+    const intelCandidates = [
+      { x: -34, z: -34 }, { x: 34, z: 34 }, { x: -22, z: 6 }, { x: 22, z: -14 }, { x: 0, z: 22 }
+    ].sort(() => Math.random() - 0.5);
+    [intelCandidates[0], intelCandidates[1]].forEach((ic, idx) => {
+      const bMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.65, 0.25, 0.45),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 1.4 })
+      );
+      bMesh.position.set(ic.x, 0.9, ic.z);
+      this.mapGroup.add(bMesh);
+      this.intelBoxes.push({ x: ic.x, z: ic.z, idx, taken: false, mesh: bMesh });
+    });
+
     if (lvl === 1) {
       this.scene.background = new THREE.Color(0x020408);
       this.scene.fog = new THREE.FogExp2(0x020408, 0.052);
-
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
 
-      // Spacious Lab Wings & Corridors (wide doorways so player & monster never get stuck)
       this.addWall(-16, 18, 22, 0.9, wallTex);
       this.addWall(16, 18, 22, 0.9, wallTex);
       this.addWall(-18, -10, 0.9, 24, wallTex);
@@ -652,13 +680,11 @@ const Game3D = {
       this.addWall(-4, -26, 20, 0.9, wallTex);
       this.addWall(0, 2, 12, 0.9, wallTex);
 
-      // 8 Safe Lockers spread across all sectors
       this.addSafeLockers([
         { x: -34, z: 24 }, { x: -34, z: 4 }, { x: -8, z: 12 }, { x: 8, z: 12 },
         { x: 18, z: -20 }, { x: 34, z: 22 }, { x: -12, z: -32 }, { x: 34, z: -8 }
       ]);
 
-      // Stage 1: Power Fuse & Main Generator
       this.fuseMesh = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.28, 0.75, 12),
         new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 1.5 })
@@ -675,9 +701,11 @@ const Game3D = {
       this.genMesh.position.set(-34, 0.95, 34);
       this.mapGroup.add(this.genMesh);
 
-      // Stage 2 (NEW): 3 Encrypted Data Drives + Main Server Console
-      const driveSpots = [{ x: -32, z: -20 }, { x: 6, z: -6 }, { x: 32, z: 28 }];
-      driveSpots.forEach((ds, idx) => {
+      const drivePool = [
+        { x: -32, z: -20 }, { x: 6, z: -6 }, { x: 32, z: 28 },
+        { x: -14, z: 28 }, { x: 28, z: -26 }, { x: -26, z: 6 }
+      ].sort(() => Math.random() - 0.5);
+      [drivePool[0], drivePool[1], drivePool[2]].forEach((ds, idx) => {
         const dMesh = new THREE.Mesh(
           new THREE.OctahedronGeometry(0.36, 0),
           new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x9333ea, emissiveIntensity: 1.4 })
@@ -696,11 +724,10 @@ const Game3D = {
       this.serverMesh.position.set(0, 1.0, -34);
       this.mapGroup.add(this.serverMesh);
 
-      // Stage 3: Dr. Verma Logs & 3 Security Terminals
       const logTexts = [
-        'Dr. Verma Log #1: Subject-0 tracks flashlight beams & sprinting footsteps. Terminal #1 code:',
-        'Dr. Verma Log #2: Upload all 3 Purple Data Drives at the North Server first! Terminal #2 code:',
-        'Dr. Verma Log #3: Final override code for Terminal #3 before Bio-Reactor elevator:'
+        'Dr. Verma Log #1: Subject-0 hunts light & sprinting footsteps. Terminal #1 code:',
+        'Dr. Verma Log #2: Upload all 3 Data Drives at North Server first! Terminal #2 code:',
+        'Dr. Verma Log #3: Final override code for Terminal #3 before Medical Quarantine:'
       ];
       noteSpots.forEach((spot, idx) => {
         const stand = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.85, 1.0), new THREE.MeshStandardMaterial({ map: wallTex }));
@@ -724,9 +751,46 @@ const Game3D = {
       this.createExitDoorWithBeacon(34, -39.2);
 
     } else if (lvl === 2) {
+      // LEVEL 2: MEDICAL QUARANTINE WING (4 Bio-Containment Samples)
+      this.scene.background = new THREE.Color(0x020a08);
+      this.scene.fog = new THREE.FogExp2(0x020a08, 0.048);
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
+      this.mapGroup.add(ceil);
+
+      this.addWall(-18, 16, 18, 0.9, wallTex);
+      this.addWall(18, 16, 18, 0.9, wallTex);
+      this.addWall(-18, -16, 18, 0.9, wallTex);
+      this.addWall(18, -16, 18, 0.9, wallTex);
+      this.addWall(0, 0, 0.9, 22, wallTex);
+
+      this.addSafeLockers([
+        { x: -34, z: 0 }, { x: 34, z: 0 }, { x: -10, z: 28 }, { x: 10, z: -28 }, { x: -28, z: -28 }, { x: 28, z: 28 }
+      ]);
+
+      const sampleSpots = [
+        { x: -30, z: -26 }, { x: 30, z: -26 }, { x: 30, z: 26 }, { x: -12, z: 6 }
+      ];
+      sampleSpots.forEach((ss, idx) => {
+        const vial = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.28, 0.28, 0.85, 14),
+          new THREE.MeshStandardMaterial({ color: 0x4ade80, emissive: 0x22c55e, emissiveIntensity: 1.5 })
+        );
+        vial.position.set(ss.x, 1.0, ss.z);
+        const sLight = new THREE.PointLight(0x22c55e, 1.8, 7);
+        sLight.position.set(ss.x, 1.4, ss.z);
+        this.mapGroup.add(vial, sLight);
+        this.bioSamples.push({ x: ss.x, z: ss.z, idx, taken: false, mesh: vial, light: sLight });
+      });
+
+      this.addLaserGrid(-18, 0, 7.0, 0.12);
+      this.addLaserGrid(18, 0, 7.0, 0.12);
+      this.createExitDoorWithBeacon(0, -39.2);
+
+    } else if (lvl === 3) {
+      // LEVEL 3: BIO-REACTOR CORE (2 Golden Keycards + South Switch + 6 Coolant Valves)
       this.scene.background = new THREE.Color(0x090203);
       this.scene.fog = new THREE.FogExp2(0x090203, 0.048);
-
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
@@ -748,13 +812,11 @@ const Game3D = {
       pillars.forEach(p => this.addWall(p.x, p.z, 3.2, 3.2, wallTex));
 
       this.addSafeLockers([
-        { x: -35, z: -12 }, { x: -35, z: 12 }, { x: 35, z: -12 }, { x: 35, z: 12 },
-        { x: -12, z: -35 }, { x: 12, z: 35 }
+        { x: -35, z: -12 }, { x: -35, z: 12 }, { x: 35, z: -12 }, { x: 35, z: 12 }, { x: -12, z: -35 }, { x: 12, z: 35 }
       ]);
 
-      // Stage 1 (NEW): 2 Golden Override Keycards + Reactor Control Switch
-      const cardSpots = [{ x: -28, z: 28 }, { x: 28, z: -28 }];
-      cardSpots.forEach((cs, idx) => {
+      const cardPool = [{ x: -28, z: 28 }, { x: 28, z: -28 }, { x: -28, z: -24 }, { x: 26, z: 26 }].sort(() => Math.random() - 0.5);
+      [cardPool[0], cardPool[1]].forEach((cs, idx) => {
         const kMesh = new THREE.Mesh(
           new THREE.BoxGeometry(0.55, 0.35, 0.08),
           new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xeab308, emissiveIntensity: 1.5 })
@@ -773,7 +835,6 @@ const Game3D = {
       this.reactorSwitchMesh.position.set(0, 0.9, 34);
       this.mapGroup.add(this.reactorSwitchMesh);
 
-      // Stage 2: 6 Overheating Coolant Valves
       this.addLaserGrid(-16, 0, 6.5, 0.12);
       this.addLaserGrid(16, 0, 6.5, 0.12);
       const valveSpots = [
@@ -781,15 +842,9 @@ const Game3D = {
         { x: 31, z: 31 }, { x: -31, z: 0 }, { x: 31, z: 0 }
       ];
       valveSpots.forEach((vs, idx) => {
-        const stand = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.75, 0.85, 1.35, 14),
-          new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
-        );
+        const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 1.35, 14), new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 }));
         stand.position.set(vs.x, 0.675, vs.z);
-        const wheel = new THREE.Mesh(
-          new THREE.TorusGeometry(0.5, 0.1, 10, 20),
-          new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.95 })
-        );
+        const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.1, 10, 20), new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.95 }));
         wheel.position.set(vs.x, 1.5, vs.z);
         const vLight = new THREE.PointLight(0xef4444, 1.8, 8);
         vLight.position.set(vs.x, 2.1, vs.z);
@@ -799,23 +854,52 @@ const Game3D = {
 
       this.createExitDoorWithBeacon(0, -39.2);
 
-    } else if (lvl === 3) {
+    } else if (lvl === 4) {
+      // LEVEL 4: FLOODED COMMAND TUNNEL (4 Blast Override Switches)
+      this.scene.background = new THREE.Color(0x040712);
+      this.scene.fog = new THREE.FogExp2(0x040712, 0.054);
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
+      this.mapGroup.add(ceil);
+
+      this.addWall(-14, 22, 24, 0.9, wallTex);
+      this.addWall(14, 10, 24, 0.9, wallTex);
+      this.addWall(-14, -6, 24, 0.9, wallTex);
+      this.addWall(14, -22, 24, 0.9, wallTex);
+
+      this.addSafeLockers([
+        { x: -34, z: 14 }, { x: 34, z: 2 }, { x: -34, z: -14 }, { x: 34, z: -30 }, { x: 0, z: 32 }
+      ]);
+
+      const swSpots = [
+        { x: -28, z: 14 }, { x: 28, z: 2 }, { x: -28, z: -14 }, { x: 28, z: -28 }
+      ];
+      swSpots.forEach((sw, idx) => {
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(1.1, 1.7, 0.8),
+          new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x38bdf8, emissiveIntensity: 1.0 })
+        );
+        box.position.set(sw.x, 0.85, sw.z);
+        this.mapGroup.add(box);
+        this.blastSwitches.push({ x: sw.x, z: sw.z, idx, active: false, mesh: box });
+      });
+
+      this.addLaserGrid(0, 16, 0.12, 8.0);
+      this.addLaserGrid(0, -14, 0.12, 8.0);
+      this.createExitDoorWithBeacon(-32, -39.2);
+
+    } else if (lvl === 5) {
+      // LEVEL 5: ROOFTOP HELIPAD EXTRACTION
       this.scene.background = new THREE.Color(0x060b16);
       this.scene.fog = new THREE.FogExp2(0x060b16, 0.016);
 
-      const padOuter = new THREE.Mesh(
-        new THREE.RingGeometry(4.8, 5.6, 36),
-        new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
-      );
-      padOuter.rotation.x = -Math.PI / 2;
-      padOuter.position.y = 0.03;
-
+      const padOuter = new THREE.Mesh(new THREE.RingGeometry(4.8, 5.6, 36), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+      padOuter.rotation.x = -Math.PI / 2; padOuter.position.y = 0.03;
       const hBar1 = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 3.8), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
       hBar1.rotation.x = -Math.PI / 2; hBar1.position.set(-1.15, 0.03, 0);
       const hBar2 = hBar1.clone(); hBar2.position.set(1.15, 0.03, 0);
       const hCross = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.75), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
       hCross.rotation.x = -Math.PI / 2; hCross.position.set(0, 0.03, 0);
-
       const heliLight = new THREE.PointLight(0x38bdf8, 4.0, 42);
       heliLight.position.set(0, 7, 0);
       this.mapGroup.add(padOuter, hBar1, hBar2, hCross, heliLight);
@@ -834,26 +918,15 @@ const Game3D = {
       const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85 });
       const glassMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
 
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.4), hullMat);
-      body.position.y = 1.25;
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.15, 1.4), glassMat);
-      nose.position.set(0, 1.15, -2.35);
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.55, 3.4), hullMat);
-      tail.position.set(0, 1.45, 3.5);
-      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.2, 0.75), darkMat);
-      tailFin.position.set(0, 1.9, 4.9);
-
-      const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.0), darkMat);
-      skidL.position.set(-1.1, 0.08, -0.2);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.4), hullMat); body.position.y = 1.25;
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.15, 1.4), glassMat); nose.position.set(0, 1.15, -2.35);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.55, 3.4), hullMat); tail.position.set(0, 1.45, 3.5);
+      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.2, 0.75), darkMat); tailFin.position.set(0, 1.9, 4.9);
+      const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.0), darkMat); skidL.position.set(-1.1, 0.08, -0.2);
       const skidR = skidL.clone(); skidR.position.x = 1.1;
-
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.45, 10), darkMat);
-      mast.position.set(0, 2.15, 0);
-      const rotor = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.08, 0.36), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-      rotor.position.set(0, 2.38, 0);
-
-      const searchLight = new THREE.PointLight(0xfacc15, 5.5, 28);
-      searchLight.position.set(0, 0.5, 0);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.45, 10), darkMat); mast.position.set(0, 2.15, 0);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.08, 0.36), new THREE.MeshBasicMaterial({ color: 0x38bdf8 })); rotor.position.set(0, 2.38, 0);
+      const searchLight = new THREE.PointLight(0xfacc15, 5.5, 28); searchLight.position.set(0, 0.5, 0);
 
       heli.add(body, nose, tail, tailFin, skidL, skidR, mast, rotor, searchLight);
       heli.position.set(0, 22, 0);
@@ -870,11 +943,7 @@ const Game3D = {
       const isBat = ps.kind === 'BATTERY';
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshStandardMaterial({
-          color: isBat ? 0x22c55e : 0xc084fc,
-          emissive: isBat ? 0x16a34a : 0x9333ea,
-          emissiveIntensity: 1.2
-        })
+        new THREE.MeshStandardMaterial({ color: isBat ? 0x22c55e : 0xc084fc, emissive: isBat ? 0x16a34a : 0x9333ea, emissiveIntensity: 1.2 })
       );
       mesh.position.set(ps.x, 0.65, ps.z);
       this.mapGroup.add(mesh);
@@ -884,7 +953,7 @@ const Game3D = {
     [
       { x: -24, z: 24 }, { x: 24, z: 24 }, { x: -24, z: -24 }, { x: 24, z: -24 }
     ].forEach(lc => {
-      const pLight = new THREE.PointLight(lvl === 2 ? 0xfb923c : 0x64748b, lvl === 3 ? 0.55 : 0.14, 18);
+      const pLight = new THREE.PointLight(lvl === 3 ? 0xfb923c : 0x64748b, lvl === 5 ? 0.55 : 0.14, 18);
       pLight.position.set(lc.x, 3.6, lc.z);
       this.mapGroup.add(pLight);
     });
@@ -1455,6 +1524,23 @@ const Game3D = {
         this.keycardsCollected = this.keycards.filter(x => x.taken).length;
         this.showRadioToast('SQUAD SYNC', `🔑 ${data.by} found Golden Keycard #${data.idx + 1} (${this.keycardsCollected}/2)!`);
       }
+    } else if (data.task === 'SAMPLE') {
+      const s = this.bioSamples && this.bioSamples[data.idx];
+      if (s && !s.taken) {
+        s.taken = true; s.mesh.visible = false; s.light.visible = false;
+        this.samplesCollected = this.bioSamples.filter(x => x.taken).length;
+        if (this.samplesCollected >= 4) this.openExitDoor();
+        this.showRadioToast('SQUAD SYNC', `☣️ ${data.by} secured Bio-Sample (${this.samplesCollected}/4)!`);
+      }
+    } else if (data.task === 'SWITCH') {
+      const sw = this.blastSwitches && this.blastSwitches[data.idx];
+      if (sw && !sw.active) {
+        sw.active = true;
+        sw.mesh.material.color.setHex(0x16a34a); sw.mesh.material.emissive.setHex(0x22c55e);
+        this.switchesActivated = this.blastSwitches.filter(x => x.active).length;
+        if (this.switchesActivated >= 4) this.openExitDoor();
+        this.showRadioToast('SQUAD SYNC', `🌊 ${data.by} overrode Blast Switch (${this.switchesActivated}/4)!`);
+      }
     } else if (data.task === 'REACTOR_SWITCH') {
       if (!this.reactorUnlocked) {
         this.keycardsCollected = 2;
@@ -1521,6 +1607,39 @@ const Game3D = {
       document.getElementById('note-body').textContent = act.note.text;
       document.getElementById('note-code-reveal').textContent = this.codes[act.note.idx];
       document.getElementById('note-modal').classList.remove('hidden');
+    } else if (act.type === 'INTEL') {
+      act.box.taken = true;
+      act.box.mesh.visible = false;
+      this.awardXP(150, 'Secret Intel Found');
+      SFX.pickup();
+    } else if (act.type === 'SAMPLE') {
+      act.sample.taken = true;
+      act.sample.mesh.visible = false;
+      act.sample.light.visible = false;
+      this.samplesCollected = this.bioSamples.filter(s => s.taken).length;
+      SFX.pickup();
+      this.emitTaskSync({ task: 'SAMPLE', idx: act.sample.idx });
+      if (this.samplesCollected >= 4) {
+        this.openExitDoor();
+        document.getElementById('objective-banner').textContent = '🚪 MEDICAL EXIT UNLOCKED! Sprint to the North Green Beacon!';
+        this.showRadioToast('MEDICAL WING', '✅ All 4 Bio-Samples secured! North Quarantine Exit is OPEN!');
+      } else {
+        this.showRadioToast('BIO-SAMPLE', `☣️ Collected Bio-Sample (${this.samplesCollected}/4)!`);
+      }
+    } else if (act.type === 'SWITCH') {
+      act.sw.active = true;
+      act.sw.mesh.material.color.setHex(0x16a34a);
+      act.sw.mesh.material.emissive.setHex(0x22c55e);
+      this.switchesActivated = this.blastSwitches.filter(s => s.active).length;
+      SFX.pickup();
+      this.emitTaskSync({ task: 'SWITCH', idx: act.sw.idx });
+      if (this.switchesActivated >= 4) {
+        this.openExitDoor();
+        document.getElementById('objective-banner').textContent = '🚁 ROOF ELEVATOR UNLOCKED! Run to North-West Green Beacon!';
+        this.showRadioToast('TUNNEL', '✅ All 4 Blast Switches overridden! Elevator to Rooftop is OPEN!');
+      } else {
+        this.showRadioToast('BLAST SWITCH', `🌊 Switch #${act.sw.idx + 1} overridden (${this.switchesActivated}/4)!`);
+      }
     } else if (act.type === 'DRIVE') {
       act.drive.taken = true;
       act.drive.mesh.visible = false;
@@ -1671,7 +1790,7 @@ const Game3D = {
     document.getElementById('timer-badge').classList.add('hidden');
     document.getElementById('locks-status').textContent = '☢️ VALVES 0/6';
     document.getElementById('objective-banner').textContent = '☢️ LEVEL 2: Find 2 Golden Keycards, unlock South Switch & seal 6 Coolant Valves!';
-    this.buildLevelMap(2);
+    this.buildLevelMap(5);
     this.stunCharges = 2;
     document.getElementById('stun-status').textContent = '🔫 2/2';
     this.levelStartGrace = performance.now() + 5000;
@@ -2055,6 +2174,33 @@ const Game3D = {
           this.nearAction = { type: 'GEN' };
           hint.textContent = '⚡ [USE] Activate Generator';
         }
+        if (!this.nearAction && this.intelBoxes) {
+          for (const b of this.intelBoxes) {
+            if (!b.taken && Math.hypot(b.x - me.x, b.z - me.z) < 2.3) {
+              this.nearAction = { type: 'INTEL', box: b };
+              hint.textContent = '💼 [USE] Grab Secret Intel (+150 XP)';
+              break;
+            }
+          }
+        }
+        if (!this.nearAction && this.level === 2 && this.bioSamples) {
+          for (const s of this.bioSamples) {
+            if (!s.taken && Math.hypot(s.x - me.x, s.z - me.z) < 2.4) {
+              this.nearAction = { type: 'SAMPLE', sample: s };
+              hint.textContent = `☣️ [USE] Collect Bio-Sample #${s.idx + 1}`;
+              break;
+            }
+          }
+        }
+        if (!this.nearAction && this.level === 4 && this.blastSwitches) {
+          for (const sw of this.blastSwitches) {
+            if (!sw.active && Math.hypot(sw.x - me.x, sw.z - me.z) < 2.5) {
+              this.nearAction = { type: 'SWITCH', sw };
+              hint.textContent = `🌊 [USE] Override Blast Switch #${sw.idx + 1}`;
+              break;
+            }
+          }
+        }
         if (!this.nearAction && this.level === 1) {
           for (const d of this.dataDrives) {
             if (!d.taken && Math.hypot(d.x - me.x, d.z - me.z) < 2.4) {
@@ -2141,7 +2287,7 @@ const Game3D = {
             this.startLevel2();
             if (Net.isHost) Net.broadcast({ type: 'LEVEL_2' });
             else Net.sendToHost({ type: 'LEVEL_2' });
-          } else if (this.level === 2) {
+          } else if (this.level === 3) {
             this.startLevel3();
             if (Net.isHost) Net.broadcast({ type: 'LEVEL_3' });
             else Net.sendToHost({ type: 'LEVEL_3' });
@@ -2156,7 +2302,7 @@ const Game3D = {
           this.escapeTimeLeft = Math.max(0, this.escapeTimeLeft - 1);
           document.getElementById('timer-badge').textContent = (this.level === 3 ? '🚁 ' : '☢️ ') + `${this.escapeTimeLeft}s`;
           if (this.escapeTimeLeft <= 0 && Net.isHost) {
-            if (this.level === 3) {
+            if (this.level === 5) {
               const anyBoarded = Object.values(Net.players).some(p => p.boarded);
               if (anyBoarded) {
                 Net.broadcast({ type: 'HELI_TAKEOFF' });
@@ -2195,6 +2341,9 @@ const Game3D = {
       }
 
       if (Net.isHost && !isStunned && (!this.levelStartGrace || performance.now() > this.levelStartGrace)) {
+          if (this.decoyPos && performance.now() < this.decoyUntil) {
+            this.moveHunterToward(this.decoyPos.x, this.decoyPos.z, 0.084);
+          }
         const nowAI = performance.now();
         let target = null, minDist = 999;
 
@@ -2213,7 +2362,7 @@ const Game3D = {
           this.hunter.goalX = target.x;
           this.hunter.goalZ = target.z;
           this.hunter.investigateUntil = nowAI + 4200;
-          const mSpeed = this.level === 3 ? 0.086 : 0.072;
+          const mSpeed = this.level === 5 ? 0.088 : (this.level === 4 ? 0.080 : 0.072);
           this.moveHunterToward(target.x, target.z, mSpeed);
 
           if (minDist < 1.35) {
