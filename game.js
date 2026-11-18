@@ -1396,6 +1396,80 @@ const Game3D = {
     }
   },
 
+  emitTaskSync(payload) {
+    const pkt = { type: 'TASK_SYNC', by: Net.players[Net.myId]?.name || 'Teammate', ...payload };
+    if (Net.isHost) {
+      Net.broadcast(pkt);
+    } else {
+      Net.sendToHost(pkt);
+    }
+  },
+
+  applyRemoteTask(data) {
+    if (!data || !data.task) return;
+    if (data.task === 'FUSE') {
+      if (!this.hasFuse) {
+        this.hasFuse = true;
+        if (this.fuseMesh) this.fuseMesh.visible = false;
+        this.showRadioToast('SQUAD SYNC', `🔋 ${data.by} picked up the Blue Power Fuse!`);
+      }
+    } else if (data.task === 'GEN') {
+      if (!this.powerRestored) {
+        this.powerRestored = true;
+      this.emitTaskSync({ task: 'GEN' });
+        if (this.hemiLight) this.hemiLight.intensity = 0.22;
+        if (this.genMesh) {
+          this.genMesh.material.color.setHex(0x16a34a);
+          this.genMesh.material.emissive.setHex(0x22c55e);
+        }
+        document.getElementById('objective-banner').textContent = 'CHAPTER 2: Collect 3 Purple Data Drives & upload at North Server!';
+        this.showRadioToast('SQUAD SYNC', `⚡ ${data.by} restored Main Generator Power!`);
+      }
+    } else if (data.task === 'DRIVE') {
+      const d = this.dataDrives && this.dataDrives[data.idx];
+      if (d && !d.taken) {
+        d.taken = true;
+        if (d.mesh) d.mesh.visible = false;
+        if (d.light) d.light.visible = false;
+        this.drivesCollected = this.dataDrives.filter(x => x.taken).length;
+        this.showRadioToast('SQUAD SYNC', `💾 ${data.by} grabbed Data Drive #${data.idx + 1} (${this.drivesCollected}/3)!`);
+      }
+    } else if (data.task === 'SERVER') {
+      if (!this.drivesUploaded) {
+        this.drivesCollected = 3;
+        this.drivesUploaded = true;
+      this.emitTaskSync({ task: 'SERVER' });
+        if (this.serverMesh) {
+          this.serverMesh.material.color.setHex(0x16a34a);
+          this.serverMesh.material.emissive.setHex(0x22c55e);
+        }
+        document.getElementById('objective-banner').textContent = 'CHAPTER 3: Read Dr. Verma logs & unlock all 3 Terminals!';
+        this.showRadioToast('SQUAD SYNC', `🖥️ ${data.by} uploaded all Data Drives! Terminals unlocked!`);
+      }
+    } else if (data.task === 'KEYCARD') {
+      const k = this.keycards && this.keycards[data.idx];
+      if (k && !k.taken) {
+        k.taken = true;
+        if (k.mesh) k.mesh.visible = false;
+        if (k.light) k.light.visible = false;
+        this.keycardsCollected = this.keycards.filter(x => x.taken).length;
+        this.showRadioToast('SQUAD SYNC', `🔑 ${data.by} found Golden Keycard #${data.idx + 1} (${this.keycardsCollected}/2)!`);
+      }
+    } else if (data.task === 'REACTOR_SWITCH') {
+      if (!this.reactorUnlocked) {
+        this.keycardsCollected = 2;
+        this.reactorUnlocked = true;
+      this.emitTaskSync({ task: 'REACTOR_SWITCH' });
+        if (this.reactorSwitchMesh) {
+          this.reactorSwitchMesh.material.color.setHex(0x16a34a);
+          this.reactorSwitchMesh.material.emissive.setHex(0x22c55e);
+        }
+        document.getElementById('objective-banner').textContent = '☢️ LEVEL 2: Now seal all 6 Coolant Valves!';
+        this.showRadioToast('SQUAD SYNC', `🎛️ ${data.by} unlocked the Valve Pressure System!`);
+      }
+    }
+  },
+
   interact() {
     const me = Net.players[Net.myId];
     if (!me || me.downed || !this.nearAction) return;
@@ -1433,6 +1507,7 @@ const Game3D = {
     } else if (act.type === 'FUSE') {
       this.hasFuse = true;
       this.fuseMesh.visible = false;
+      this.emitTaskSync({ task: 'FUSE' });
       document.getElementById('objective-banner').textContent = 'CHAPTER 2: Activate the main GENERATOR (red glowing box)';
       this.saveCheckpoint();
       this.showRadioToast('ITEM', '🔋 Picked up Blue Power Fuse!');
@@ -1450,8 +1525,9 @@ const Game3D = {
       act.drive.taken = true;
       act.drive.mesh.visible = false;
       act.drive.light.visible = false;
-      this.drivesCollected++;
+      this.drivesCollected = this.dataDrives.filter(x => x.taken).length;
       this.stats.objectives++;
+      this.emitTaskSync({ task: 'DRIVE', idx: act.drive.idx });
       SFX.tone(680, 'sine', 0.2, 0.25, 920);
       this.showRadioToast('DATA DRIVE', `💾 Collected Encrypted Drive (${this.drivesCollected}/3)!`);
     } else if (act.type === 'SERVER') {
@@ -1466,8 +1542,9 @@ const Game3D = {
       act.card.taken = true;
       act.card.mesh.visible = false;
       act.card.light.visible = false;
-      this.keycardsCollected++;
+      this.keycardsCollected = this.keycards.filter(x => x.taken).length;
       this.stats.objectives++;
+      this.emitTaskSync({ task: 'KEYCARD', idx: act.card.idx });
       SFX.tone(740, 'triangle', 0.22, 0.25, 1020);
       this.showRadioToast('KEYCARD', `🔑 Picked up Golden Override Keycard (${this.keycardsCollected}/2)!`);
     } else if (act.type === 'REACTOR_SWITCH') {
