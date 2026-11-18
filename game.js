@@ -1,696 +1,220 @@
 const SFX = {
   ctx: null,
-  noiseBuffer: null,
-  lastStep: 0,
-  lastMonsterStep: 0,
-  lastBeat: 0,
-  lastAmbient: 0,
-  tracks: {},
+  masterGain: null,
+  muted: false,
   ambienceStarted: false,
-
-  loadMp3(name, path, loop = false, baseVol = 0.7) {
-    const audio = new Audio(path);
-    audio.loop = loop;
-    audio.preload = 'auto';
-    audio.volume = baseVol;
-    audio._ready = false;
-    audio.addEventListener('canplaythrough', () => { audio._ready = true; }, { once: true });
-    audio.addEventListener('error', () => { audio._ready = false; }, { once: true });
-    this.tracks[name] = audio;
-  },
+  lastStep: 0,
 
   init() {
     if (!this.ctx) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) {
-        this.ctx = new AC();
-        const len = this.ctx.sampleRate * 1.5;
-        this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-        const data = this.noiseBuffer.getChannelData(0);
-        let b0 = 0, b1 = 0, b2 = 0;
-        for (let i = 0; i < len; i++) {
-          const w = Math.random() * 2 - 1;
-          b0 = 0.99765 * b0 + w * 0.0990460;
-          b1 = 0.96300 * b1 + w * 0.2965164;
-          b2 = 0.57000 * b2 + w * 1.0526913;
-          data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.25;
-        }
-      }
-      this.loadMp3('step', 'sounds/step.mp3', false, 0.55);
-      this.loadMp3('monster_step', 'sounds/monster_step.mp3', false, 0.85);
-      this.loadMp3('ambience', 'sounds/ambience.mp3', true, 0.35);
-      this.loadMp3('scream', 'sounds/scream.mp3', false, 0.95);
-      this.loadMp3('stun', 'sounds/stun.mp3', false, 0.85);
-      this.loadMp3('heartbeat', 'sounds/heartbeat.mp3', false, 1.0);
-      this.loadMp3('helicopter', 'sounds/helicopter.mp3', true, 0.85);
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = this.muted ? 0 : 0.85;
+      this.masterGain.connect(this.ctx.destination);
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-    if (!this.ambienceStarted && this.tracks.ambience && this.tracks.ambience._ready) {
-      this.tracks.ambience.play().then(() => { this.ambienceStarted = true; }).catch(() => {});
+    if (!this.ambienceStarted && this.ctx) {
+      this.startDarkAmbience();
     }
   },
 
-  playMp3(name, volume = null, rate = 1.0) {
-    const tr = this.tracks[name];
-    if (tr && tr._ready) {
-      try {
-        const clone = tr.cloneNode();
-        clone.volume = Math.max(0, Math.min(1, volume !== null ? volume : tr.volume));
-        clone.playbackRate = rate;
-        clone.play().catch(() => {});
-        return true;
-      } catch (e) {}
+  toggleMute() {
+    this.init();
+    this.muted = !this.muted;
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.85, this.ctx.currentTime, 0.05);
     }
-    return false;
+    const btn = document.getElementById('sfx-toggle-btn');
+    if (btn) btn.textContent = this.muted ? '🔇 MUTE' : '🔊 SFX';
   },
 
-  noise(dur, filterFreq, filterType = 'lowpass', vol = 0.35, q = 1.0) {
-    if (!this.ctx || !this.noiseBuffer) return;
+  startDarkAmbience() {
+    if (!this.ctx || this.ambienceStarted) return;
+    this.ambienceStarted = true;
     const now = this.ctx.currentTime;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.noiseBuffer;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = filterType;
-    filter.frequency.setValueAtTime(filterFreq, now);
-    filter.Q.setValueAtTime(q, now);
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(vol, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.ctx.destination);
-    src.start(now);
-    src.stop(now + dur);
+
+    // 1. Deep Cinematic Sub-Bass Bunker Drone (52Hz + 78Hz Fifth Harmonic)
+    const subOsc1 = this.ctx.createOscillator();
+    const subOsc2 = this.ctx.createOscillator();
+    const lfo = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    const droneFilter = this.ctx.createBiquadFilter();
+    const droneGain = this.ctx.createGain();
+
+    subOsc1.type = 'sine';
+    subOsc1.frequency.setValueAtTime(52, now);
+    subOsc2.type = 'triangle';
+    subOsc2.frequency.setValueAtTime(78, now);
+
+    // Slow breathing modulation so the drone feels alive and eerie
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(0.14, now);
+    lfoGain.gain.setValueAtTime(18, now);
+    lfo.connect(lfoGain);
+    lfoGain.connect(droneFilter.frequency);
+
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.setValueAtTime(115, now);
+    droneGain.gain.setValueAtTime(0.11, now);
+
+    subOsc1.connect(droneFilter);
+    subOsc2.connect(droneFilter);
+    droneFilter.connect(droneGain);
+    droneGain.connect(this.masterGain);
+
+    subOsc1.start(now);
+    subOsc2.start(now);
+    lfo.start(now);
+
+    // 2. Filtered Cold Air / Ventilation Whisper (Brown/Pink-style smooth noise)
+    const bufferSize = this.ctx.sampleRate * 3;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 2.8;
+    }
+
+    const noiseSrc = this.ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuffer;
+    noiseSrc.loop = true;
+
+    const airFilter = this.ctx.createBiquadFilter();
+    airFilter.type = 'bandpass';
+    airFilter.frequency.setValueAtTime(220, now);
+    airFilter.Q.setValueAtTime(1.8, now);
+
+    const airGain = this.ctx.createGain();
+    airGain.gain.setValueAtTime(0.045, now);
+
+    noiseSrc.connect(airFilter);
+    airFilter.connect(airGain);
+    airGain.connect(this.masterGain);
+    noiseSrc.start(now);
+
+    // 3. Occasional Distant Bunker Metal Creak / Eerie Echo
+    setInterval(() => {
+      if (this.muted || !this.ctx || document.hidden) return;
+      if (Math.random() < 0.45) {
+        this.playDistantEcho();
+      }
+    }, 9500);
   },
 
-  tone(freq, type, dur, vol = 0.25, endFreq = null, delay = 0) {
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime + delay;
+  playDistantEcho() {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    const baseFreq = 95 + Math.random() * 65;
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.62, now + 1.8);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(260, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.032, now + 0.45);
+    gain.gain.exponentialRampToValueAtTime(0.0008, now + 1.9);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 1.95);
+  },
+
+  tone(freq, type = 'sine', dur = 0.16, vol = 0.16, endFreq = null) {
+    this.init();
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    // Soften harsh square/sawtooth waves through a warm lowpass filter
+    osc.type = type === 'square' ? 'triangle' : type;
+    osc.frequency.setValueAtTime(freq, now);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), now + dur);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1400, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(vol * 0.75, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0008, now + dur);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + dur + 0.02);
+  },
+
+  step(running = false) {
+    const nowMs = performance.now();
+    const interval = running ? 295 : 470;
+    if (nowMs - this.lastStep < interval) return;
+    this.lastStep = nowMs;
+
+    this.init();
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+
+    // Realistic Heavy Tactical Boot Thud (Low-frequency membrane punch)
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(vol, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.type = 'sine';
+    const startF = running ? 115 : 92;
+    osc.frequency.setValueAtTime(startF + Math.random() * 12, now);
+    osc.frequency.exponentialRampToValueAtTime(34, now + 0.09);
+
+    gain.gain.setValueAtTime(running ? 0.11 : 0.065, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain);
     osc.start(now);
-    osc.stop(now + dur);
+    osc.stop(now + 0.1);
   },
 
-  ambientDrip() {
-    if (!this.ambienceStarted && this.tracks.ambience && this.tracks.ambience._ready) {
-      this.tracks.ambience.play().then(() => { this.ambienceStarted = true; }).catch(() => {});
-    }
-    if (this.ambienceStarted) return;
-    const now = performance.now();
-    if (now - this.lastAmbient < 9000) return;
-    this.lastAmbient = now;
-    this.tone(1150, 'sine', 0.08, 0.05, 1650);
+  torchClick() {
+    // Crisp mechanical double-click switch sound
+    this.tone(1150, 'triangle', 0.035, 0.14, 620);
+    setTimeout(() => this.tone(1480, 'sine', 0.03, 0.11, 900), 32);
   },
 
-  jumpscareScream() {
-    this.init();
-    if (this.playMp3('scream', 0.95)) return;
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    const osc1 = this.ctx.createOscillator();
-    osc1.type = 'sawtooth';
-    osc1.frequency.setValueAtTime(460, now);
-    osc1.frequency.exponentialRampToValueAtTime(840, now + 0.14);
-    osc1.frequency.exponentialRampToValueAtTime(320, now + 0.85);
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.65, now + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
-    osc1.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc1.start(now); osc1.stop(now + 0.85);
+  stunBlast() {
+    // High-voltage electric arc discharge
+    this.tone(420, 'sawtooth', 0.28, 0.22, 95);
+    this.tone(880, 'triangle', 0.18, 0.15, 210);
   },
 
-  stunZap() {
-    this.init();
-    if (this.playMp3('stun', 0.85)) return;
-    this.noise(0.2, 2200, 'bandpass', 0.35, 2.0);
-    this.tone(620, 'sawtooth', 0.22, 0.24, 160);
+  growl() {
+    // Deep terrifying Subject-0 sub-bass roar
+    this.tone(92, 'sawtooth', 0.75, 0.26, 38);
+    setTimeout(() => this.tone(68, 'triangle', 0.65, 0.22, 32), 110);
   },
 
   siren() {
-    this.tone(560, 'sawtooth', 0.35, 0.2, 380);
-    this.tone(420, 'sawtooth', 0.35, 0.2, 300, 0.36);
+    // Warm cinematic facility warning klaxon (not piercing!)
+    this.tone(440, 'triangle', 0.35, 0.18, 580);
+    setTimeout(() => this.tone(580, 'triangle', 0.38, 0.18, 410), 360);
   },
 
-  step(sprinting) {
-    const now = performance.now();
-    if (now - this.lastStep < (sprinting ? 270 : 450)) return;
-    this.lastStep = now;
-    if (this.playMp3('step', sprinting ? 0.65 : 0.4, sprinting ? 1.25 : 0.95)) return;
-    const p = 0.92 + Math.random() * 0.16;
-    this.noise(0.1, (sprinting ? 460 : 350) * p, 'lowpass', sprinting ? 0.45 : 0.3, 0.8);
-    this.tone(88 * p, 'sine', 0.08, sprinting ? 0.32 : 0.2, 38);
-  },
-
-  monsterStep(dist) {
-    if (dist > 18) return;
-    const now = performance.now();
-    const interval = Math.max(360, dist * 45);
-    if (now - this.lastMonsterStep < interval) return;
-    this.lastMonsterStep = now;
-    const vol = Math.max(0.08, Math.min(0.95, (18 - dist) / 18));
-    if (this.playMp3('monster_step', vol, 0.92)) return;
-    this.tone(62, 'sine', 0.14, vol * 0.7, 28);
-    this.noise(0.12, 220, 'lowpass', vol * 0.45);
-  },
-
-  updateHelicopter(active, dist = 0, isTakeoff = false) {
-    const tr = this.tracks.helicopter;
-    if (!tr || !tr._ready) return;
-    if (!active) {
-      if (!tr.paused) { tr.pause(); tr.currentTime = 0; }
-      return;
-    }
-    const prox = Math.max(0.25, Math.min(1.0, (28 - dist) / 22));
-    tr.volume = isTakeoff ? 1.0 : prox * 0.9;
-    tr.playbackRate = isTakeoff ? 1.32 : 1.0;
-    if (tr.paused) tr.play().catch(() => {});
-  },
-
-  heartbeat(dist) {
-    const now = performance.now();
-    const interval = Math.max(680, dist * 85);
-    if (now - this.lastBeat < interval) return;
-    this.lastBeat = now;
-    const vol = Math.max(0.45, Math.min(1.0, (15 - dist) / 11));
-    if (this.playMp3('heartbeat', vol)) return;
-    this.tone(82, 'sine', 0.16, 0.85 * vol, 38, 0);
-    this.tone(68, 'sine', 0.19, 0.72 * vol, 32, 0.17);
-  }
-};
-
-window.addEventListener('touchstart', () => SFX.init(), { passive: true });
-window.addEventListener('pointerdown', () => SFX.init(), { passive: true });
-window.addEventListener('DOMContentLoaded', () => {
-  const raw = localStorage.getItem('sb_checkpoint_v1');
-  const btn = document.getElementById('resume-mission-btn');
-  if (raw && btn) {
-    try {
-      const cp = JSON.parse(raw);
-      btn.textContent = `▶️ RESUME CHECKPOINT (LEVEL ${cp.level})`;
-      btn.classList.remove('hidden');
-      btn.onclick = () => Game3D.loadCheckpoint(cp);
-    } catch (e) {}
-  }
-});
-
-function makeTexture(type, theme = 1) {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 512;
-  const ctx = c.getContext('2d');
-  if (type === 'wall') {
-    ctx.fillStyle = theme === 2 ? '#2b1215' : theme === 3 ? '#1e293b' : '#243042';
-    ctx.fillRect(0, 0, 512, 512);
-    ctx.strokeStyle = '#090d14';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(4, 4, 248, 380);
-    ctx.strokeRect(260, 4, 248, 380);
-    ctx.fillStyle = theme === 2 ? '#f97316' : theme === 3 ? '#38bdf8' : '#eab308';
-    ctx.fillRect(0, 392, 512, 42);
-    ctx.fillStyle = '#09090b';
-    for (let i = -64; i < 560; i += 48) {
-      ctx.beginPath();
-      ctx.moveTo(i, 392); ctx.lineTo(i + 24, 392);
-      ctx.lineTo(i + 4, 434); ctx.lineTo(i - 20, 434);
-      ctx.closePath(); ctx.fill();
-    }
-  } else if (type === 'floor') {
-    ctx.fillStyle = theme === 2 ? '#1f1012' : theme === 3 ? '#161e2b' : '#18212f';
-    ctx.fillRect(0, 0, 512, 512);
-    ctx.strokeStyle = '#090d14';
-    ctx.lineWidth = 5;
-    for (let i = 0; i <= 512; i += 128) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
-    }
-  } else {
-    ctx.fillStyle = '#0f1622';
-    ctx.fillRect(0, 0, 512, 512);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-function buildTacticalCharacter(player, isLobby = false) {
-  const grp = new THREE.Group();
-  const roleColors = {
-    SCOUT: { suit: 0x0369a1, accent: 0x38bdf8 },
-    ENGINEER: { suit: 0xb45309, accent: 0xfacc15 },
-    MEDIC: { suit: 0x15803d, accent: 0x4ade80 }
-  };
-  const pal = roleColors[player?.role] || roleColors.SCOUT;
-
-  const suitMat = new THREE.MeshStandardMaterial({ color: pal.suit, roughness: 0.45, metalness: 0.25 });
-  const armorMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.65 });
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.55 });
-  const visorMat = new THREE.MeshBasicMaterial({ color: pal.accent });
-  const bootMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.78, 0.32), suitMat);
-  torso.position.y = 1.18;
-  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.56, 0.36), armorMat);
-  vest.position.y = 1.24;
-  const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.38), visorMat);
-  chestCore.position.y = 1.26;
-
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.54, 0.22), armorMat);
-  pack.position.set(0, 1.24, 0.24);
-  const packCell = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10), visorMat);
-  packCell.position.set(0.1, 1.24, 0.35);
-
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.36), skinMat);
-  head.position.y = 1.82;
-  const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.24, 0.41), armorMat);
-  helmet.position.set(0, 1.92, 0.01);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.11, 0.06), visorMat);
-  visor.position.set(0, 1.83, -0.18);
-
-  const leftArmPivot = new THREE.Group();
-  leftArmPivot.position.set(-0.37, 1.5, 0);
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
-  armL.position.y = -0.25;
-  const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.15), armorMat);
-  gloveL.position.y = -0.56;
-  const torchProp = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.045, 0.24, 10),
-    new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.6 })
-  );
-  torchProp.rotation.x = Math.PI / 2;
-  torchProp.position.set(0, -0.56, -0.12);
-  leftArmPivot.add(armL, gloveL, torchProp);
-
-  const rightArmPivot = new THREE.Group();
-  rightArmPivot.position.set(0.37, 1.5, 0);
-  const armR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
-  armR.position.y = -0.25;
-  const gloveR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.15), armorMat);
-  gloveR.position.y = -0.56;
-  const stunProp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.11, 0.28), visorMat);
-  stunProp.position.set(0, -0.54, -0.14);
-  rightArmPivot.add(armR, gloveR, stunProp);
-
-  const leftLegPivot = new THREE.Group();
-  leftLegPivot.position.set(-0.16, 0.78, 0);
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), suitMat);
-  legL.position.y = -0.31;
-  const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.28), bootMat);
-  bootL.position.set(0, -0.68, -0.03);
-  leftLegPivot.add(legL, bootL);
-
-  const rightLegPivot = new THREE.Group();
-  rightLegPivot.position.set(0.16, 0.78, 0);
-  const legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), suitMat);
-  legR.position.y = -0.31;
-  const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.28), bootMat);
-  bootR.position.set(0, -0.68, -0.03);
-  rightLegPivot.add(legR, bootR);
-
-  const cvs = document.createElement('canvas');
-  cvs.width = 256; cvs.height = 68;
-  const ctx = cvs.getContext('2d');
-  ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
-  ctx.fillRect(18, 8, 220, 52);
-  ctx.strokeStyle = isLobby ? (player?.ready ? '#4ade80' : '#facc15') : '#38bdf8';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(18, 8, 220, 52);
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 22px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(player?.name || 'Agent', 128, 33);
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillText(isLobby ? `[${player?.role || 'SCOUT'}] ${player?.ready ? 'READY' : 'WAIT'}` : (player?.role || 'SCOUT'), 128, 53);
-
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cvs), transparent: true }));
-  sprite.position.set(0, 2.38, 0);
-  sprite.scale.set(1.55, 0.42, 1);
-
-  grp.add(torso, vest, chestCore, pack, packCell, head, helmet, visor, leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot, sprite);
-  return {
-    grp,
-    limbs: { leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot },
-    lastX: player?.x || 0,
-    lastZ: player?.z || 0,
-    stride: 0
-  };
-}
-
-const Lobby3D = {
-  scene: null,
-  camera: null,
-  renderer: null,
-  avatars: {},
-  rotor: null,
-  running: false,
-  joy: { active: false, dx: 0, dy: 0 },
-  keys: {},
-  localPos: { x: 0, z: 3.5, yaw: 0 },
-  lastSync: 0,
-
-  init() {
-    if (this.running) return;
-    const container = document.getElementById('lobby-3d-bg');
-    if (!container || typeof THREE === 'undefined') return;
-    this.running = true;
-
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0b172a);
-    this.scene.fog = new THREE.FogExp2(0x0b172a, 0.022);
-
-    this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 120);
-    this.camera.rotation.order = 'YXZ';
-
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    container.innerHTML = '';
-    container.appendChild(this.renderer.domElement);
-
-    // Twilight Sky & Island Lighting
-    this.scene.add(new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 1.25));
-    const dirLight = new THREE.DirectionalLight(0xfef08a, 1.4);
-    dirLight.position.set(15, 25, 12);
-    this.scene.add(dirLight);
-
-    // Ocean Water Surrounding Spawn Island
-    const ocean = new THREE.Mesh(
-      new THREE.PlaneGeometry(240, 240),
-      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.25, metalness: 0.6 })
-    );
-    ocean.rotation.x = -Math.PI / 2;
-    ocean.position.y = -0.6;
-    this.scene.add(ocean);
-
-    // Spawn Island Concrete Helipad & Ground
-    const island = new THREE.Mesh(
-      new THREE.CylinderGeometry(18, 20, 0.8, 32),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
-    );
-    island.position.y = -0.4;
-    this.scene.add(island);
-
-    // Glowing Helipad Circle + 'H' Marking
-    const padRing = new THREE.Mesh(
-      new THREE.RingGeometry(4.4, 4.9, 36),
-      new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
-    );
-    padRing.rotation.x = -Math.PI / 2;
-    padRing.position.set(0, 0.02, -4);
-    const hL = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 3.2), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
-    hL.rotation.x = -Math.PI / 2; hL.position.set(-1.0, 0.02, -4);
-    const hR = hL.clone(); hR.position.x = 1.0;
-    const hC = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.6), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
-    hC.rotation.x = -Math.PI / 2; hC.position.set(0, 0.02, -4);
-    this.scene.add(padRing, hL, hR, hC);
-
-    // Detailed 3D Military Rescue Helicopter on Helipad
-    const heli = new THREE.Group();
-    const hullMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.35 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 });
-    const glassMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.35, 3.8), hullMat);
-    body.position.y = 1.25;
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.05, 1.4), glassMat);
-    nose.position.set(0, 1.15, -2.1);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.48, 3.2), hullMat);
-    tail.position.set(0, 1.45, 3.2);
-    const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 0.7), darkMat);
-    tailFin.position.set(0, 1.85, 4.5);
-
-    // Landing Skids
-    const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 3.6), darkMat);
-    skidL.position.set(-0.95, 0.12, -0.2);
-    const skidR = skidL.clone(); skidR.position.x = 0.95;
-
-    // Main Rotor + Mast
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.4, 10), darkMat);
-    mast.position.set(0, 2.05, 0);
-    this.rotor = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.06, 0.32), darkMat);
-    this.rotor.position.set(0, 2.25, 0);
-
-    const heliSpot = new THREE.PointLight(0x38bdf8, 3.5, 18);
-    heliSpot.position.set(0, 4.5, 1);
-
-    heli.add(body, nose, tail, tailFin, skidL, skidR, mast, this.rotor, heliSpot);
-    heli.position.set(0, 0, -5.5);
-    heli.rotation.y = 0.55;
-    this.scene.add(heli);
-
-    // Bright Island Floodlights so characters & gear shine clearly
-    const islandFill = new THREE.PointLight(0xffffff, 2.2, 26);
-    islandFill.position.set(0, 5.5, 5.5);
-    this.scene.add(islandFill);
-
-        // Touch Joystick & Swipe Look for Spawn Island (Multi-touch safe)
-    const lookZone = document.getElementById('lobby-look-zone');
-    let lookId = null, lastX = 0;
-    if (lookZone) {
-      lookZone.addEventListener('touchstart', (e) => {
-        const t = e.changedTouches[0];
-        lookId = t.identifier; lastX = t.clientX;
-      }, { passive: true });
-      lookZone.addEventListener('touchmove', (e) => {
-        for (const t of e.changedTouches) {
-          if (t.identifier === lookId) {
-            this.localPos.yaw -= (t.clientX - lastX) * 0.008;
-            lastX = t.clientX;
-          }
-        }
-      }, { passive: true });
-      lookZone.addEventListener('touchend', (e) => {
-        for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null;
-      }, { passive: true });
-    }
-
-    const joyZone = document.getElementById('lobby-joy-zone');
-    const stick = document.getElementById('lobby-joy-stick');
-    let joyId = null;
-    if (joyZone && stick) {
-      const updateJoy = (t) => {
-        const r = joyZone.getBoundingClientRect();
-        let dx = t.clientX - (r.left + r.width / 2);
-        let dy = t.clientY - (r.top + r.height / 2);
-        const d = Math.hypot(dx, dy);
-        if (d > 34) { dx = (dx / d) * 34; dy = (dy / d) * 34; }
-        stick.style.transform = `translate(${dx}px, ${dy}px)`;
-        this.joy.dx = dx / 34;
-        this.joy.dy = dy / 34;
-      };
-      joyZone.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const t = e.changedTouches[0];
-        joyId = t.identifier;
-        this.joy.active = true;
-        updateJoy(t);
-      }, { passive: false });
-      joyZone.addEventListener('touchmove', (e) => {
-        if (!this.joy.active) return;
-        e.preventDefault();
-        e.stopPropagation();
-        for (const t of e.changedTouches) {
-          if (t.identifier === joyId) updateJoy(t);
-        }
-      }, { passive: false });
-      const endJoy = (e) => {
-        for (const t of e.changedTouches) {
-          if (t.identifier === joyId) {
-            joyId = null;
-            this.joy.active = false;
-            this.joy.dx = 0;
-            this.joy.dy = 0;
-            stick.style.transform = 'translate(0,0)';
-          }
-        }
-      };
-      joyZone.addEventListener('touchend', endJoy);
-      joyZone.addEventListener('touchcancel', endJoy);
-    }
-
-        window.addEventListener('keydown', (e) => {
-      if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
-      this.keys[e.code] = true;
-      if (e.code === 'KeyR') document.getElementById('ready-toggle-btn')?.click();
-      if (e.code === 'Enter') document.getElementById('start-game-btn')?.click();
-    });
-    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-
-    // PC Mouse Look on Spawn Island (Pointer Lock + Click-Drag fallback)
-    if (lookZone) {
-      let mouseDown = false;
-      lookZone.addEventListener('mousedown', (e) => {
-        mouseDown = true;
-        if (document.pointerLockElement !== lookZone && lookZone.requestPointerLock) {
-          lookZone.requestPointerLock().catch?.(() => {});
-        }
-      });
-      window.addEventListener('mouseup', () => { mouseDown = false; });
-      window.addEventListener('mousemove', (e) => {
-        if (!this.running || document.getElementById('lobby-screen').classList.contains('hidden')) return;
-        if (document.pointerLockElement === lookZone || mouseDown) {
-          this.localPos.yaw -= e.movementX * 0.0032;
-        }
-      });
-    }
-
-    // Bind Role Selector & Ready Toggle
-    const roleSel = document.getElementById('role-select');
-    const readyBtn = document.getElementById('ready-toggle-btn');
-    if (roleSel) {
-      roleSel.onchange = () => {
-        const me = Net.players[Net.myId];
-        if (!me) return;
-        me.role = roleSel.value;
-        Net.updateSquadUI();
-        const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
-        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
-      };
-    }
-    if (readyBtn) {
-      readyBtn.onclick = () => {
-        const me = Net.players[Net.myId];
-        if (!me) return;
-        me.ready = !me.ready;
-        readyBtn.textContent = me.ready ? '✅ READY' : '⏳ WAIT';
-        readyBtn.style.background = me.ready ? '#16a34a' : '#b45309';
-        Net.updateSquadUI();
-        const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
-        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
-      };
-    }
-
-    this.syncSquad(Net.players);
-    this.animate();
-  },
-
-  syncSquad(players) {
-    if (!this.scene) return;
-    const active = new Set();
-    const list = Object.values(players || {});
-    list.forEach((p, idx) => {
-      active.add(p.id);
-      const old = this.avatars[p.id];
-      if (!old || old.role !== p.role || old.ready !== p.ready) {
-        if (old) this.scene.remove(old.grp);
-        const built = buildTacticalCharacter(p, true);
-        const startX = p.lx ?? (-2.4 + idx * 1.6);
-        const startZ = p.lz ?? 4.5;
-        built.grp.position.set(startX, 0, startZ);
-        this.scene.add(built.grp);
-        this.avatars[p.id] = { ...built, role: p.role, ready: p.ready, prevX: startX, prevZ: startZ };
-      }
-    });
-    for (const id of Object.keys(this.avatars)) {
-      if (!active.has(id)) {
-        this.scene.remove(this.avatars[id].grp);
-        delete this.avatars[id];
-      }
-    }
-  },
-
-  updateCameraAspect() {
-    if (!this.camera || !this.renderer) return;
-    const w = window.innerWidth, h = window.innerHeight;
-    if (Math.abs(this.camera.aspect - w / h) > 0.01) {
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(w, h);
-    }
-  },
-
-  animate() {
-    this.updateCameraAspect();
-    if (!this.running) return;
-    requestAnimationFrame(() => this.animate());
-    if (document.getElementById('lobby-screen').classList.contains('hidden')) {
-      this.running = false;
-      return;
-    }
-
-    if (this.rotor) this.rotor.rotation.y += 0.25;
-
-    const me = Net.players[Net.myId];
-    if (me) {
-      if (!this.avatars[Net.myId]) this.syncSquad(Net.players);
-      let fwd = 0, str = 0;
-      if (this.keys['KeyW'] || this.keys['ArrowUp']) fwd += 1;
-      if (this.keys['KeyS'] || this.keys['ArrowDown']) fwd -= 1;
-      if (this.keys['KeyA'] || this.keys['ArrowLeft']) str -= 1;
-      if (this.keys['KeyD'] || this.keys['ArrowRight']) str += 1;
-      if (this.joy.active) { fwd -= this.joy.dy; str += this.joy.dx; }
-
-      const sin = Math.sin(this.localPos.yaw), cos = Math.cos(this.localPos.yaw);
-      const mx = (-fwd * sin + str * cos);
-      const mz = (-fwd * cos - str * sin);
-      const len = Math.hypot(mx, mz);
-      if (len > 0.05) {
-        const nx = this.localPos.x + (mx / len) * 0.12;
-        const nz = this.localPos.z + (mz / len) * 0.12;
-        if (Math.hypot(nx, nz) < 15.5) {
-          this.localPos.x = nx;
-          this.localPos.z = nz;
-        }
-        me.lyaw = Math.atan2(-mx, -mz);
-      } else {
-        me.lyaw = me.lyaw ?? this.localPos.yaw;
-      }
-      me.lx = this.localPos.x;
-      me.lz = this.localPos.z;
-
-      // Frame Character in center of screen with Helicopter & Island in background
-      const camDist = window.innerHeight > window.innerWidth ? 5.2 : 3.8;
-      this.camera.position.set(
-        this.localPos.x + Math.sin(this.localPos.yaw) * camDist,
-        2.15,
-        this.localPos.z + Math.cos(this.localPos.yaw) * camDist
-      );
-      this.camera.lookAt(this.localPos.x, 1.15, this.localPos.z);
-
-      const now = performance.now();
-      if (now - this.lastSync > 65) {
-        this.lastSync = now;
-        const pkt = { type: 'LOBBY_MOVE', id: Net.myId, lx: me.lx, lz: me.lz, lyaw: me.lyaw };
-        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
-      }
-    } else {
-      // Orbit camera before room creation
-      const t = performance.now() * 0.0004;
-      this.camera.position.set(Math.sin(t) * 11, 4.2, Math.cos(t) * 11);
-      this.camera.lookAt(0, 1.2, -2);
-    }
-
-    // Update & Animate all squadmates walking around Spawn Island
-    for (const p of Object.values(Net.players || {})) {
-      const av = this.avatars[p.id];
-      if (!av) continue;
-      const tx = p.lx ?? av.grp.position.x;
-      const tz = p.lz ?? av.grp.position.z;
-      const moved = Math.hypot(tx - av.prevX, tz - av.prevZ) > 0.01;
-      av.prevX = tx; av.prevZ = tz;
-      av.grp.position.x = THREE.MathUtils.lerp(av.grp.position.x, tx, 0.3);
-      av.grp.position.z = THREE.MathUtils.lerp(av.grp.position.z, tz, 0.3);
-      av.grp.rotation.y = p.lyaw ?? 0;
-      if (typeof Game3D !== 'undefined' && Game3D.animateCharacterLimbs) {
-        Game3D.animateCharacterLimbs(av, moved);
-      }
-    }
-
-    this.renderer.render(this.scene, this.camera);
+  pickup() {
+    this.tone(520, 'sine', 0.14, 0.16, 780);
+    setTimeout(() => this.tone(780, 'sine', 0.18, 0.16, 1040), 90);
   }
 };
 
