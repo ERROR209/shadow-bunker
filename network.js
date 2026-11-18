@@ -10,6 +10,16 @@ const Net = {
   micEnabled: false,
   voiceLoud: false,
   isConnecting: false,
+  squadColors: ['#38bdf8', '#4ade80', '#facc15', '#f472b6'],
+  getPlayerColor(id) {
+    const ids = Object.keys(this.players).sort();
+    const idx = Math.max(0, ids.indexOf(id));
+    return this.squadColors[idx % this.squadColors.length];
+  },
+  getPlayerNumber(id) {
+    const ids = Object.keys(this.players).sort();
+    return Math.max(1, ids.indexOf(id) + 1);
+  },
   deployTimer: null,
   reconnectLoop: null,
   getDeviceUid() {
