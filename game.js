@@ -697,7 +697,7 @@ const Game3D = {
   hunter: { x: 18, z: -18, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, aiState: 'PATROL', goalX: -16, goalZ: 16, scanUntil: 0, investigateUntil: 0 },
   level: 1,
   battery: 100,
-  stunCharges: 3,
+  stunCharges: 2,
   hasFuse: false,
   powerRestored: false,
   fuseMesh: null,
@@ -710,6 +710,8 @@ const Game3D = {
   terminals: [],
   valves: [],
   pickups: [],
+  lasers: [],
+  lastLaserAlert: 0,
   chopperGroup: null,
   chopperRotor: null,
   heliLanded: false,
@@ -826,8 +828,8 @@ const Game3D = {
     const myRole = me ? me.role : 'SCOUT';
     document.getElementById('role-badge').textContent = myRole;
     if (myRole === 'ENGINEER') {
-      this.stunCharges = 4;
-      document.getElementById('stun-status').textContent = '🔫 4/4';
+      this.stunCharges = 2;
+      document.getElementById('stun-status').textContent = '🔫 2/2';
     }
 
     this.scene = new THREE.Scene();
@@ -915,6 +917,7 @@ const Game3D = {
     this.terminals = [];
     this.valves = [];
     this.pickups = [];
+    this.lasers = [];
     this.exitBeacon = null;
     this.chopperGroup = null;
   },
@@ -979,6 +982,18 @@ const Game3D = {
     beaconGrp.visible = false;
     this.mapGroup.add(beaconGrp);
     this.exitBeacon = beaconGrp;
+  },
+
+  addLaserGrid(x, z, w, d) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, 0.08, d),
+      new THREE.MeshBasicMaterial({ color: 0xff0033, transparent: true, opacity: 0.78 })
+    );
+    mesh.position.set(x, 1.05, z);
+    const glow = new THREE.PointLight(0xff0033, 1.4, 5);
+    glow.position.set(x, 1.2, z);
+    this.mapGroup.add(mesh, glow);
+    this.lasers.push({ minX: x - w / 2 - 0.25, maxX: x + w / 2 + 0.25, minZ: z - d / 2 - 0.25, maxZ: z + d / 2 + 0.25 });
   },
 
   buildLevelMap(lvl, noteSpots = this.savedNoteSpots || [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }], fuseSpot = this.savedFuseSpot || { x: -16, z: -4 }) {
@@ -1053,6 +1068,9 @@ const Game3D = {
         this.terminals.push({ x: spot.x, z: spot.z, idx, mesh: box });
       });
 
+      this.addLaserGrid(-1, 10, 4.2, 0.12);
+      this.addLaserGrid(14, -12, 0.12, 6.5);
+      this.addLaserGrid(-10, 4, 0.12, 5.5);
       this.createExitDoorWithBeacon(20, -23.3);
 
     } else if (lvl === 2) {
@@ -1081,8 +1099,12 @@ const Game3D = {
 
       this.addSafeLockers([{ x: -21, z: 0 }, { x: 21, z: 0 }, { x: 0, z: -21 }, { x: 0, z: 21 }]);
 
+      this.addLaserGrid(-10, 0, 5.5, 0.12);
+      this.addLaserGrid(10, 0, 5.5, 0.12);
+      this.addLaserGrid(0, -10, 0.12, 5.5);
       const valveSpots = [
-        { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 }
+        { x: -19, z: -19 }, { x: 19, z: -19 }, { x: -19, z: 19 },
+        { x: 19, z: 19 }, { x: -19, z: 0 }, { x: 19, z: 0 }
       ];
       valveSpots.forEach((vs, idx) => {
         const stand = new THREE.Mesh(
@@ -1630,9 +1652,9 @@ const Game3D = {
     }
 
     if (hit) {
-      this.hunter.stunnedUntil = performance.now() + 5500;
+      this.hunter.stunnedUntil = performance.now() + 3200;
       this.stats.stuns++;
-      this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 5.5s!');
+      this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 3.2s—RUN!');
     } else {
       this.showRadioToast('STUN', '⚡ Electric Arc fired—target too far!');
     }
@@ -1753,11 +1775,11 @@ const Game3D = {
     SFX.tone(520, 'triangle', 0.25, 0.22, 780);
 
     const fixedCount = this.valves.filter(x => x.fixed).length;
-    document.getElementById('locks-status').textContent = `☢️ VALVES ${fixedCount}/4`;
-    if (fixedCount === 4) {
-      this.openExitDoor('🚨 ALL 4 COOLANT VALVES SEALED! Follow the GREEN LIGHT BEAM to the Exit!');
+    document.getElementById('locks-status').textContent = `☢️ VALVES ${fixedCount}/6`;
+    if (fixedCount === 6) {
+      this.openExitDoor('🚨 ALL 6 COOLANT VALVES SEALED! 38s TO REACH THE GREEN EXIT BEAM!');
     } else {
-      document.getElementById('objective-banner').textContent = `☢️ LEVEL 2: Turn remaining Coolant Valves (${fixedCount}/4)`;
+      document.getElementById('objective-banner').textContent = `☢️ HARDCORE LEVEL 2: Seal all 6 Coolant Valves (${fixedCount}/6)`;
     }
   },
 
@@ -1782,7 +1804,7 @@ const Game3D = {
 
   openExitDoor(bannerMsg) {
     this.selfDestructActive = true;
-    this.escapeTimeLeft = 65;
+    this.escapeTimeLeft = this.level === 2 ? 38 : 42;
     this.lastTick = performance.now();
     if (this.exitMesh) {
       this.exitMesh.material.color.setHex(0x22c55e);
@@ -1797,11 +1819,11 @@ const Game3D = {
   startLevel2() {
     this.selfDestructActive = false;
     document.getElementById('timer-badge').classList.add('hidden');
-    document.getElementById('locks-status').textContent = '☢️ VALVES 0/4';
-    document.getElementById('objective-banner').textContent = '☢️ LEVEL 2 (BIO-REACTOR): Turn all 4 red Coolant Valves to stop meltdown!';
+    document.getElementById('locks-status').textContent = '☢️ VALVES 0/6';
+    document.getElementById('objective-banner').textContent = '☢️ LEVEL 2 (BIO-REACTOR): Seal all 6 Coolant Valves while dodging Laser Tripwires!';
     this.buildLevelMap(2);
-    this.stunCharges = 3;
-    document.getElementById('stun-status').textContent = '🔫 3/3';
+    this.stunCharges = 2;
+    document.getElementById('stun-status').textContent = '🔫 2/2';
     const safeSpots = [{ x: -20, z: -6 }, { x: -20, z: 6 }, { x: -18, z: -6 }, { x: -18, z: 6 }];
     Object.values(Net.players).forEach((p, idx) => {
       const sp = safeSpots[idx % 4];
@@ -1817,20 +1839,20 @@ const Game3D = {
   startLevel3() {
     this.buildLevelMap(3);
     this.selfDestructActive = true;
-    this.escapeTimeLeft = 45;
+    this.escapeTimeLeft = 65;
     this.lastTick = performance.now();
-    this.stunCharges = 3;
-    document.getElementById('stun-status').textContent = '🔫 3/3';
+    this.stunCharges = 2;
+    document.getElementById('stun-status').textContent = '🔫 2/2';
     document.getElementById('timer-badge').classList.remove('hidden');
     document.getElementById('locks-status').textContent = '🚁 HELIPAD';
-    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (ROOFTOP HELIPAD): Survive 45s until helicopter extraction!';
+    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (ROOFTOP HELIPAD): HARDCORE EXTRACTION: Survive 65s until chopper lands!';
     Object.values(Net.players).forEach((p, idx) => {
       p.x = -2 + idx * 1.4; p.z = 2; p.downed = false; p.hiding = false; p.boarded = false;
     });
     this.hunter.x = 18; this.hunter.z = -18;
     SFX.siren();
     this.saveCheckpoint();
-    this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 45 seconds!');
+    this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 65 seconds on the rooftop!');
   },
 
   triggerJumpscare() {
@@ -1894,7 +1916,7 @@ const Game3D = {
     document.getElementById('timer-badge').classList.add('hidden');
     this.gameOver = false;
     this.battery = 100;
-    this.stunCharges = 3;
+    this.stunCharges = 2;
     this.hasFuse = false;
     this.powerRestored = false;
     this.selfDestructActive = false;
@@ -1912,7 +1934,7 @@ const Game3D = {
 
     document.getElementById('battery-badge').textContent = '🔋 100%';
     document.getElementById('locks-status').textContent = '⚡ OFF';
-    document.getElementById('stun-status').textContent = '🔫 3/3';
+    document.getElementById('stun-status').textContent = '🔫 2/2';
     document.getElementById('objective-banner').textContent = 'CHAPTER 1: Find the blue POWER FUSE in the dark storage room';
     this.showRadioToast('MISSION', '🔄 New round started! Good luck, Squad!');
   },
@@ -2021,7 +2043,7 @@ const Game3D = {
       this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
 
       if (this.level === 3 && this.chopperGroup) {
-        const heliActive = this.heliTakeoff || this.escapeTimeLeft <= 12;
+        const heliActive = this.heliTakeoff || this.escapeTimeLeft <= 15;
         const heliDist = Math.hypot(me.x, me.z) + Math.max(0, this.chopperGroup.position.y * 0.6);
         SFX.updateHelicopter(heliActive, heliDist, this.heliTakeoff);
         this.chopperRotor.rotation.y += this.heliTakeoff ? 0.65 : 0.38;
@@ -2030,7 +2052,7 @@ const Game3D = {
           this.chopperGroup.position.z -= 0.05;
           this.chopperGroup.rotation.x = THREE.MathUtils.lerp(this.chopperGroup.rotation.x, -0.18, 0.04);
         } else {
-          const targetY = this.escapeTimeLeft <= 12 ? 0.05 : 22;
+          const targetY = this.escapeTimeLeft <= 15 ? 0.05 : 22;
           this.chopperGroup.position.y = THREE.MathUtils.lerp(this.chopperGroup.position.y, targetY, 0.035);
           if (!this.heliLanded && this.chopperGroup.position.y < 0.35) {
             this.heliLanded = true;
@@ -2091,6 +2113,25 @@ const Game3D = {
           if (isRunning || Net.voiceLoud) me.makingNoise = true;
         }
 
+        if (!me.downed && !me.hiding && this.lasers.length > 0) {
+          for (const lz of this.lasers) {
+            if (me.x > lz.minX && me.x < lz.maxX && me.z > lz.minZ && me.z < lz.maxZ) {
+              me.makingNoise = true;
+              if (performance.now() - this.lastLaserAlert > 3500) {
+                this.lastLaserAlert = performance.now();
+                SFX.siren();
+                this.showRadioToast('SECURITY ALARM', '🚨 LASER TRIPWIRE TRIGGERED! Subject-0 heard your location!');
+                if (Net.isHost) {
+                  this.hunter.goalX = me.x;
+                  this.hunter.goalZ = me.z;
+                  this.hunter.investigateUntil = performance.now() + 6500;
+                }
+              }
+              break;
+            }
+          }
+        }
+
         const bob = me.downed ? 0 : Math.sin(this.walkBob) * 0.04;
         if (this.playerHandGroup) {
           this.playerHandGroup.position.y = Math.sin(this.walkBob * 2) * 0.015;
@@ -2115,7 +2156,7 @@ const Game3D = {
       }
 
       if (me.torch && this.battery > 0 && !me.downed) {
-        this.battery = Math.max(0, this.battery - 0.012);
+        this.battery = Math.max(0, this.battery - 0.026);
         if (this.battery === 0) { me.torch = false; this.flashlight.visible = false; }
         document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
       }
@@ -2261,7 +2302,7 @@ const Game3D = {
           const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
           const inFront = angleDiff < 1.25;
-          const detectRange = this.level === 3 ? 34 : (p.makingNoise ? 26 : (inFront ? (p.torch ? 18 : 11) : 6.5));
+          const detectRange = this.level === 3 ? 42 : (p.makingNoise ? 32 : (inFront ? (p.torch ? 24 : 15) : 9.5));
           if (d < detectRange && d < minDist) { minDist = d; target = p; }
         }
 
@@ -2270,7 +2311,7 @@ const Game3D = {
           this.hunter.goalX = target.x;
           this.hunter.goalZ = target.z;
           this.hunter.investigateUntil = nowAI + 4200;
-          const mSpeed = this.level === 3 ? 0.098 : 0.078;
+          const mSpeed = this.level === 3 ? 0.118 : 0.098;
           this.moveHunterToward(target.x, target.z, mSpeed);
 
           if (minDist < 1.35) {
@@ -2282,7 +2323,7 @@ const Game3D = {
         } else if (nowAI < this.hunter.investigateUntil) {
           this.hunter.aiState = 'INVESTIGATE';
           const distToLast = Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z);
-          if (distToLast > 1.4) this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.068);
+          if (distToLast > 1.4) this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.085);
           else this.hunter.yaw += Math.sin(nowAI * 0.006) * 0.045;
         } else if (nowAI < this.hunter.scanUntil) {
           this.hunter.aiState = 'SCAN';
@@ -2294,7 +2335,7 @@ const Game3D = {
             this.hunter.scanUntil = nowAI + 1800;
             this.pickNextPatrolWaypoint();
           } else {
-            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.055);
+            this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.072);
           }
         }
 
