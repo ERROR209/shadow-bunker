@@ -55,53 +55,54 @@
     </div>
   </section>
 
-  <!-- BGMI-STYLE 3D SQUAD LOBBY SCREEN -->
+  <!-- BGMI-STYLE INTERACTIVE 3D SPAWN ISLAND LOBBY -->
   <section id="lobby-screen" class="screen hidden">
     <div id="lobby-3d-bg" class="lobby-3d-bg"></div>
 
-    <div class="lobby-card bgmi-lobby-panel">
-      <div class="badge-top">SPAWN BAY // SECTOR-09</div>
+    <!-- Initial Room Setup Card (Hidden once you enter Spawn Island) -->
+    <div id="lobby-setup-card" class="lobby-card bgmi-lobby-panel">
+      <div class="badge-top">SPAWN ISLAND // HELIPAD BASE</div>
       <h1>SHADOW <span>BUNKER 3D</span></h1>
-
       <div id="lobby-setup-form">
         <input type="text" id="player-name" placeholder="Enter your Agent Name..." maxlength="12" />
         <div id="lobby-actions" class="action-grid">
           <button id="rejoin-squad-btn" class="btn hidden" style="background:linear-gradient(135deg,#0284c7,#1d4ed8);">🔄 REJOIN LIVE SQUAD</button>
           <button id="resume-mission-btn" class="btn hidden" style="background:linear-gradient(135deg,#059669,#047857);">▶️ RESUME SAVED CHECKPOINT</button>
-          <button id="create-room-btn" class="btn primary">➕ CREATE SQUAD ROOM</button>
+          <button id="create-room-btn" class="btn primary">➕ ENTER SPAWN ISLAND (CREATE)</button>
           <div class="join-row">
             <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
             <button id="join-room-btn" class="btn secondary">JOIN</button>
           </div>
         </div>
       </div>
+    </div>
 
-      <div id="waiting-room" class="waiting-box hidden">
-        <div class="code-banner">
-          <span>SQUAD CODE:</span>
-          <strong id="display-code">----</strong>
-          <button id="copy-code-btn" class="mini-btn">COPY</button>
-        </div>
-
-        <!-- Class Role Selector -->
-        <div class="role-selector-row">
-          <label for="role-select">🎖️ YOUR CLASS:</label>
-          <select id="role-select" class="role-select">
-            <option value="SCOUT">🔭 SCOUT (2x Radar Range)</option>
-            <option value="ENGINEER">🔧 ENGINEER (4 Stun Charges)</option>
-            <option value="MEDIC">💉 MEDIC (Speed + Battery Revive)</option>
-          </select>
-        </div>
-
-        <div class="squad-header">
-          <span>SQUAD IN LOBBY (<span id="player-count">1</span>/4)</span>
-          <button id="ready-toggle-btn" class="mini-btn" style="background:#16a34a">✅ READY</button>
-        </div>
-        <ul id="squad-list" class="squad-list"></ul>
-
-        <button id="start-game-btn" class="btn start-btn">🚀 DEPLOY SQUAD TO SECTOR-09</button>
-        <p id="wait-msg" class="wait-msg hidden">Waiting for Squad Leader to launch...</p>
+    <!-- Sleek Top HUD Bar inside Live 3D Spawn Island -->
+    <div id="waiting-room" class="spawn-island-hud hidden">
+      <div class="spawn-top-bar">
+        <div class="spawn-pill">🏝️ CODE: <strong id="display-code" style="color:#38bdf8">----</strong> <button id="copy-code-btn" class="mini-btn">COPY</button></div>
+        <select id="role-select" class="role-select">
+          <option value="SCOUT">🔭 SCOUT</option>
+          <option value="ENGINEER">🔧 ENGINEER</option>
+          <option value="MEDIC">💉 MEDIC</option>
+        </select>
+        <button id="ready-toggle-btn" class="mini-btn" style="background:#16a34a">✅ READY</button>
+        <button id="start-game-btn" class="mini-btn" style="background:#dc2626; padding:6px 12px;">🚀 DEPLOY</button>
       </div>
+      <div class="spawn-squad-strip">
+        <span>SQUAD (<span id="player-count">1</span>/4):</span>
+        <ul id="squad-list" class="spawn-player-pills"></ul>
+        <span id="wait-msg" class="wait-msg hidden" style="margin:0; font-size:0.72rem; color:#facc15;">Waiting for Leader to Deploy...</span>
+      </div>
+
+      <!-- Touch Look + Joystick for walking around Spawn Island -->
+      <div id="lobby-look-zone" class="look-zone" style="z-index:3;"></div>
+      <div id="lobby-joy-zone" class="joystick-zone" style="z-index:6;">
+        <div class="joystick-base">
+          <div id="lobby-joy-stick" class="joystick-stick"></div>
+        </div>
+      </div>
+      <div class="spawn-tip">🕹️ Drag left stick to walk around Spawn Island • Swipe right to look</div>
     </div>
   </section>
 

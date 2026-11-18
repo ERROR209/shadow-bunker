@@ -340,7 +340,13 @@ const Lobby3D = {
   camera: null,
   renderer: null,
   avatars: {},
+  rotor: null,
   running: false,
+  joy: { active: false, dx: 0, dy: 0 },
+  keys: {},
+  localPos: { x: 0, z: 3.5, yaw: 0 },
+  lastSync: 0,
+
   init() {
     if (this.running) return;
     const container = document.getElementById('lobby-3d-bg');
@@ -348,12 +354,11 @@ const Lobby3D = {
     this.running = true;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x060a14);
-    this.scene.fog = new THREE.FogExp2(0x060a14, 0.04);
+    this.scene.background = new THREE.Color(0x0b172a);
+    this.scene.fog = new THREE.FogExp2(0x0b172a, 0.022);
 
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 60);
-    this.camera.position.set(0, 2.3, 6.2);
-    this.camera.lookAt(0, 1.1, 0);
+    this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 120);
+    this.camera.rotation.order = 'YXZ';
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -361,23 +366,112 @@ const Lobby3D = {
     container.innerHTML = '';
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.HemisphereLight(0x93c5fd, 0x0f172a, 1.2));
-    const spot = new THREE.SpotLight(0x38bdf8, 4.5, 25, Math.PI / 4, 0.4);
-    spot.position.set(0, 7, 4);
-    this.scene.add(spot);
+    // Twilight Sky & Island Lighting
+    this.scene.add(new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 1.25));
+    const dirLight = new THREE.DirectionalLight(0xfef08a, 1.4);
+    dirLight.position.set(15, 25, 12);
+    this.scene.add(dirLight);
 
-    const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.8, 4.2, 0.25, 32),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 })
+    // Ocean Water Surrounding Spawn Island
+    const ocean = new THREE.Mesh(
+      new THREE.PlaneGeometry(240, 240),
+      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.25, metalness: 0.6 })
     );
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(3.5, 3.75, 32),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.14;
-    this.scene.add(platform, ring);
+    ocean.rotation.x = -Math.PI / 2;
+    ocean.position.y = -0.6;
+    this.scene.add(ocean);
 
+    // Spawn Island Concrete Helipad & Ground
+    const island = new THREE.Mesh(
+      new THREE.CylinderGeometry(18, 20, 0.8, 32),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 })
+    );
+    island.position.y = -0.4;
+    this.scene.add(island);
+
+    // Glowing Helipad Circle + 'H' Marking
+    const padRing = new THREE.Mesh(
+      new THREE.RingGeometry(4.4, 4.9, 36),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+    );
+    padRing.rotation.x = -Math.PI / 2;
+    padRing.position.set(0, 0.02, -4);
+    const hL = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 3.2), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+    hL.rotation.x = -Math.PI / 2; hL.position.set(-1.0, 0.02, -4);
+    const hR = hL.clone(); hR.position.x = 1.0;
+    const hC = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.6), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+    hC.rotation.x = -Math.PI / 2; hC.position.set(0, 0.02, -4);
+    this.scene.add(padRing, hL, hR, hC);
+
+    // Parked Extraction Helicopter on Helipad (Like BGMI Spawn Airplane/Chopper!)
+    const heli = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 4.5), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7 }));
+    body.position.y = 1.1;
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.9, 1.6), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    cabin.position.set(0, 1.25, -1.6);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 3.0), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+    tail.position.set(0, 1.3, 3.4);
+    this.rotor = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.08, 0.32), new THREE.MeshBasicMaterial({ color: 0x94a3b8 }));
+    this.rotor.position.set(0, 1.95, 0);
+    heli.add(body, cabin, tail, this.rotor);
+    heli.position.set(0, 0, -4);
+    heli.rotation.y = 0.45;
+    this.scene.add(heli);
+
+    // Tactical Supply Crates & Perimeter Beacons around Island
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+    [
+      { x: -8, z: 4 }, { x: 8, z: 4 }, { x: -10, z: -6 }, { x: 10, z: -6 }, { x: 0, z: 11 }
+    ].forEach(c => {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 1.8), crateMat);
+      box.position.set(c.x, 0.7, c.z);
+      this.scene.add(box);
+    });
+
+    // Touch Joystick & Swipe Look for Spawn Island
+    const lookZone = document.getElementById('lobby-look-zone');
+    let lookId = null, lastX = 0;
+    if (lookZone) {
+      lookZone.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        lookId = t.identifier; lastX = t.clientX;
+      }, { passive: true });
+      lookZone.addEventListener('touchmove', (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === lookId) {
+            this.localPos.yaw -= (t.clientX - lastX) * 0.007;
+            lastX = t.clientX;
+          }
+        }
+      }, { passive: true });
+    }
+
+    const joyZone = document.getElementById('lobby-joy-zone');
+    const stick = document.getElementById('lobby-joy-stick');
+    if (joyZone && stick) {
+      joyZone.addEventListener('touchstart', (e) => { e.preventDefault(); this.joy.active = true; }, { passive: false });
+      joyZone.addEventListener('touchmove', (e) => {
+        if (!this.joy.active) return;
+        e.preventDefault();
+        const r = joyZone.getBoundingClientRect();
+        const t = e.touches[0];
+        let dx = t.clientX - (r.left + r.width / 2);
+        let dy = t.clientY - (r.top + r.height / 2);
+        const d = Math.hypot(dx, dy);
+        if (d > 34) { dx = (dx / d) * 34; dy = (dy / d) * 34; }
+        stick.style.transform = `translate(${dx}px, ${dy}px)`;
+        this.joy.dx = dx / 34;
+        this.joy.dy = dy / 34;
+      }, { passive: false });
+      const endJoy = () => { this.joy.active = false; this.joy.dx = 0; this.joy.dy = 0; stick.style.transform = 'translate(0,0)'; };
+      joyZone.addEventListener('touchend', endJoy);
+      joyZone.addEventListener('touchcancel', endJoy);
+    }
+
+    window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
+    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+
+    // Bind Role Selector & Ready Toggle
     const roleSel = document.getElementById('role-select');
     const readyBtn = document.getElementById('ready-toggle-btn');
     if (roleSel) {
@@ -395,7 +489,7 @@ const Lobby3D = {
         const me = Net.players[Net.myId];
         if (!me) return;
         me.ready = !me.ready;
-        readyBtn.textContent = me.ready ? '✅ READY' : '⏳ NOT READY';
+        readyBtn.textContent = me.ready ? '✅ READY' : '⏳ WAIT';
         readyBtn.style.background = me.ready ? '#16a34a' : '#b45309';
         Net.updateSquadUI();
         const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
@@ -406,25 +500,32 @@ const Lobby3D = {
     this.syncSquad(Net.players);
     this.animate();
   },
+
   syncSquad(players) {
     if (!this.scene) return;
-    Object.values(this.avatars).forEach(av => this.scene.remove(av.grp));
-    this.avatars = {};
-
+    const active = new Set();
     const list = Object.values(players || {});
-    const slots = [
-      { x: -0.9, z: 0.4 }, { x: 0.9, z: 0.4 },
-      { x: -2.2, z: -0.4 }, { x: 2.2, z: -0.4 }
-    ];
     list.forEach((p, idx) => {
-      const built = buildTacticalCharacter(p, true);
-      const pos = slots[idx % 4];
-      built.grp.position.set(pos.x, 0.12, pos.z);
-      built.grp.rotation.y = Math.PI + (idx % 2 === 0 ? -0.18 : 0.18);
-      this.scene.add(built.grp);
-      this.avatars[p.id] = built;
+      active.add(p.id);
+      const old = this.avatars[p.id];
+      if (!old || old.role !== p.role || old.ready !== p.ready) {
+        if (old) this.scene.remove(old.grp);
+        const built = buildTacticalCharacter(p, true);
+        const startX = p.lx ?? (-2.4 + idx * 1.6);
+        const startZ = p.lz ?? 4.5;
+        built.grp.position.set(startX, 0, startZ);
+        this.scene.add(built.grp);
+        this.avatars[p.id] = { ...built, role: p.role, ready: p.ready, prevX: startX, prevZ: startZ };
+      }
     });
+    for (const id of Object.keys(this.avatars)) {
+      if (!active.has(id)) {
+        this.scene.remove(this.avatars[id].grp);
+        delete this.avatars[id];
+      }
+    }
   },
+
   animate() {
     if (!this.running) return;
     requestAnimationFrame(() => this.animate());
@@ -432,12 +533,73 @@ const Lobby3D = {
       this.running = false;
       return;
     }
-    const t = performance.now() * 0.0015;
-    Object.values(this.avatars).forEach((av, i) => {
-      av.grp.position.y = 0.12 + Math.sin(t * 2 + i) * 0.02;
-      av.limbs.leftArmPivot.rotation.x = Math.sin(t * 1.8 + i) * 0.08;
-      av.limbs.rightArmPivot.rotation.x = -Math.sin(t * 1.8 + i) * 0.08 - 0.15;
-    });
+
+    if (this.rotor) this.rotor.rotation.y += 0.25;
+
+    const me = Net.players[Net.myId];
+    if (me) {
+      let fwd = 0, str = 0;
+      if (this.keys['KeyW'] || this.keys['ArrowUp']) fwd += 1;
+      if (this.keys['KeyS'] || this.keys['ArrowDown']) fwd -= 1;
+      if (this.keys['KeyA'] || this.keys['ArrowLeft']) str -= 1;
+      if (this.keys['KeyD'] || this.keys['ArrowRight']) str += 1;
+      if (this.joy.active) { fwd -= this.joy.dy; str += this.joy.dx; }
+
+      const sin = Math.sin(this.localPos.yaw), cos = Math.cos(this.localPos.yaw);
+      const mx = (-fwd * sin + str * cos);
+      const mz = (-fwd * cos - str * sin);
+      const len = Math.hypot(mx, mz);
+      if (len > 0.05) {
+        const nx = this.localPos.x + (mx / len) * 0.11;
+        const nz = this.localPos.z + (mz / len) * 0.11;
+        if (Math.hypot(nx, nz) < 15.5) {
+          this.localPos.x = nx;
+          this.localPos.z = nz;
+        }
+      }
+      me.lx = this.localPos.x;
+      me.lz = this.localPos.z;
+      me.lyaw = this.localPos.yaw;
+
+      // 3rd-Person Camera behind your character on Spawn Island!
+      const camDist = 3.6;
+      this.camera.position.set(
+        this.localPos.x + Math.sin(this.localPos.yaw) * camDist,
+        2.45,
+        this.localPos.z + Math.cos(this.localPos.yaw) * camDist
+      );
+      this.camera.rotation.y = this.localPos.yaw;
+      this.camera.rotation.x = -0.15;
+
+      const now = performance.now();
+      if (now - this.lastSync > 65) {
+        this.lastSync = now;
+        const pkt = { type: 'LOBBY_MOVE', id: Net.myId, lx: me.lx, lz: me.lz, lyaw: me.lyaw };
+        if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
+      }
+    } else {
+      // Orbit camera before room creation
+      const t = performance.now() * 0.0004;
+      this.camera.position.set(Math.sin(t) * 11, 4.2, Math.cos(t) * 11);
+      this.camera.lookAt(0, 1.2, -2);
+    }
+
+    // Update & Animate all squadmates walking around Spawn Island
+    for (const p of Object.values(Net.players || {})) {
+      const av = this.avatars[p.id];
+      if (!av) continue;
+      const tx = p.lx ?? av.grp.position.x;
+      const tz = p.lz ?? av.grp.position.z;
+      const moved = Math.hypot(tx - av.prevX, tz - av.prevZ) > 0.01;
+      av.prevX = tx; av.prevZ = tz;
+      av.grp.position.x = THREE.MathUtils.lerp(av.grp.position.x, tx, 0.3);
+      av.grp.position.z = THREE.MathUtils.lerp(av.grp.position.z, tz, 0.3);
+      av.grp.rotation.y = p.lyaw ?? 0;
+      if (typeof Game3D !== 'undefined' && Game3D.animateCharacterLimbs) {
+        Game3D.animateCharacterLimbs(av, moved);
+      }
+    }
+
     this.renderer.render(this.scene, this.camera);
   }
 };

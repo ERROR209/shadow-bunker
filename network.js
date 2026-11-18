@@ -191,6 +191,13 @@ const Net = {
       this.broadcast({ type: 'LOBBY_UPDATE', players: this.players });
     } else if (data.type === 'MOVE' && this.players[data.id]) {
       Object.assign(this.players[data.id], data.state);
+    } else if (data.type === 'LOBBY_MOVE') {
+      if (this.players[data.id]) {
+        this.players[data.id].lx = data.lx;
+        this.players[data.id].lz = data.lz;
+        this.players[data.id].lyaw = data.lyaw;
+        if (this.isHost) this.broadcast(data);
+      }
     } else if (data.type === 'ROLE_UPDATE') {
       if (this.players[data.id]) {
         this.players[data.id].role = data.role;
@@ -263,7 +270,8 @@ const Net = {
   },
 
   showWaitingRoom(code) {
-    document.getElementById('lobby-setup-form')?.classList.add('hidden');
+    document.getElementById('lobby-setup-card')?.classList.add('hidden');
+      document.getElementById('lobby-setup-form')?.classList.add('hidden');
       document.getElementById('lobby-actions').classList.add('hidden');
     document.getElementById('waiting-room').classList.remove('hidden');
     document.getElementById('display-code').textContent = code;

@@ -358,3 +358,72 @@ input[type="text"] {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
 }
+
+/* INTERACTIVE 3D SPAWN ISLAND HUD */
+.spawn-island-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.spawn-top-bar {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(6, 11, 25, 0.82);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.4);
+}
+.spawn-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+.spawn-squad-strip {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(15, 23, 42, 0.72);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  overflow-x: auto;
+}
+.spawn-player-pills {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+.spawn-player-pills li {
+  background: rgba(2, 132, 199, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: #f8fafc;
+  white-space: nowrap;
+}
+.spawn-tip {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(2, 6, 23, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #bae6fd;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
