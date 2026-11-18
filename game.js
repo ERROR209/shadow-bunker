@@ -42,6 +42,7 @@ const SFX = {
       this.loadMp3('scream', 'sounds/scream.mp3', false, 0.95);
       this.loadMp3('stun', 'sounds/stun.mp3', false, 0.85);
       this.loadMp3('heartbeat', 'sounds/heartbeat.mp3', false, 1.0);
+      this.loadMp3('helicopter', 'sounds/helicopter.mp3', true, 0.85);
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
@@ -164,6 +165,19 @@ const SFX = {
     if (this.playMp3('monster_step', vol, 0.92)) return;
     this.tone(62, 'sine', 0.14, vol * 0.7, 28);
     this.noise(0.12, 220, 'lowpass', vol * 0.45);
+  },
+
+  updateHelicopter(active, dist = 0, isTakeoff = false) {
+    const tr = this.tracks.helicopter;
+    if (!tr || !tr._ready) return;
+    if (!active) {
+      if (!tr.paused) { tr.pause(); tr.currentTime = 0; }
+      return;
+    }
+    const prox = Math.max(0.25, Math.min(1.0, (28 - dist) / 22));
+    tr.volume = isTakeoff ? 1.0 : prox * 0.9;
+    tr.playbackRate = isTakeoff ? 1.32 : 1.0;
+    if (tr.paused) tr.play().catch(() => {});
   },
 
   heartbeat(dist) {
@@ -1788,6 +1802,7 @@ const Game3D = {
 
   triggerEnd(win, reason) {
     if (this.gameOver) return;
+    SFX.updateHelicopter(false);
     this.gameOver = true;
     document.getElementById('spectate-bar').classList.add('hidden');
     document.getElementById('locker-overlay')?.classList.add('hidden');
@@ -1808,6 +1823,7 @@ const Game3D = {
   },
 
   resetAndRestart(codes, noteSpots, fuseSpot) {
+    SFX.updateHelicopter(false);
     document.getElementById('end-modal').classList.add('hidden');
     document.getElementById('spectate-bar').classList.add('hidden');
     document.getElementById('locker-overlay')?.classList.add('hidden');
@@ -1942,6 +1958,9 @@ const Game3D = {
       this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
 
       if (this.level === 3 && this.chopperGroup) {
+        const heliActive = this.heliTakeoff || this.escapeTimeLeft <= 12;
+        const heliDist = Math.hypot(me.x, me.z) + Math.max(0, this.chopperGroup.position.y * 0.6);
+        SFX.updateHelicopter(heliActive, heliDist, this.heliTakeoff);
         this.chopperRotor.rotation.y += this.heliTakeoff ? 0.65 : 0.38;
         if (this.heliTakeoff) {
           this.chopperGroup.position.y += 0.14;
