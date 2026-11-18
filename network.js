@@ -337,3 +337,29 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   } catch (e) {}
 });
+window.addEventListener('DOMContentLoaded', () => {
+  const roleSel = document.getElementById('role-select');
+  const readyBtn = document.getElementById('ready-toggle-btn');
+  if (roleSel) {
+    roleSel.addEventListener('change', () => {
+      const me = Net.players[Net.myId];
+      if (!me) return;
+      me.role = roleSel.value;
+      Net.updateSquadUI();
+      const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
+      if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
+    });
+  }
+  if (readyBtn) {
+    readyBtn.addEventListener('click', () => {
+      const me = Net.players[Net.myId];
+      if (!me) return;
+      me.ready = !me.ready;
+      readyBtn.textContent = me.ready ? '✅ READY' : '⏳ WAIT';
+      readyBtn.style.background = me.ready ? '#16a34a' : '#b45309';
+      Net.updateSquadUI();
+      const pkt = { type: 'ROLE_UPDATE', id: Net.myId, role: me.role, ready: me.ready };
+      if (Net.isHost) Net.broadcast(pkt); else Net.sendToHost(pkt);
+    });
+  }
+});
