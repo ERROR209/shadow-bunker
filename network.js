@@ -10,6 +10,8 @@ const Net = {
   micEnabled: false,
   voiceLoud: false,
   isConnecting: false,
+  deployTimer: null,
+  reconnectLoop: null,
   getDeviceUid() {
     let uid = sessionStorage.getItem('sb_device_uid');
     if (!uid) { uid = Math.random().toString(36).slice(2, 8).toUpperCase(); sessionStorage.setItem('sb_device_uid', uid); }
@@ -79,16 +81,41 @@ const Net = {
 
     if (startBtn) {
       startBtn.onclick = () => {
-        if (!this.isHost) return;
-        const codes = [
-          String(Math.floor(100 + Math.random() * 899)),
-          String(Math.floor(100 + Math.random() * 899)),
-          String(Math.floor(100 + Math.random() * 899))
-        ];
-        const fuseSpot = { x: -16, z: -4 };
-        const noteSpots = [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }];
-        this.broadcast({ type: 'START', players: this.players, codes, noteSpots, fuseSpot });
-        Game3D.start(codes, noteSpots, fuseSpot);
+        if (!this.isHost || this.deployTimer) return;
+        startBtn.disabled = true;
+        let sec = 10;
+        this.broadcast({ type: 'DEPLOY_COUNTDOWN', sec });
+        this.showDeployCountdown(sec);
+        this.deployTimer = setInterval(() => {
+          sec--;
+          if (sec > 0) {
+            this.broadcast({ type: 'DEPLOY_COUNTDOWN', sec });
+            this.showDeployCountdown(sec);
+          } else {
+            clearInterval(this.deployTimer);
+            this.deployTimer = null;
+            document.getElementById('deploy-countdown-banner')?.classList.add('hidden');
+            const codes = [
+              String(Math.floor(100 + Math.random() * 899)),
+              String(Math.floor(100 + Math.random() * 899)),
+              String(Math.floor(100 + Math.random() * 899))
+            ];
+            const fuseSpot = { x: -28, z: -6 };
+            const noteSpots = [{ x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 }];
+            this.broadcast({ type: 'START', players: this.players, codes, noteSpots, fuseSpot });
+            Game3D.start(codes, noteSpots, fuseSpot);
+          }
+        }, 1000);
+      };
+    }
+
+    const manRecBtn = document.getElementById('manual-reconnect-btn');
+    if (manRecBtn) {
+      manRecBtn.onclick = () => {
+        if (this.isHost || !this.roomCode) return;
+        manRecBtn.textContent = '⏳ SYNCING...';
+        this.reconnectToHost();
+        setTimeout(() => { manRecBtn.textContent = '🔄 RECONNECT'; }, 2000);
       };
     }
 
@@ -116,6 +143,35 @@ const Net = {
         if (this.isHost) this.broadcast(pkt); else this.sendToHost(pkt);
       });
     }
+  },
+
+  showDeployCountdown(sec) {
+    const banner = document.getElementById('deploy-countdown-banner');
+    const secEl = document.getElementById('deploy-sec');
+    if (banner && secEl) {
+      secEl.textContent = sec;
+      banner.classList.remove('hidden');
+    }
+    if (typeof SFX !== 'undefined' && SFX.tone) {
+      SFX.tone(sec <= 3 ? 880 : 560, 'sine', 0.14, 0.22);
+    }
+  },
+
+  reconnectToHost() {
+    if (this.isHost || !this.roomCode || !this.peer || this.peer.destroyed) return;
+    const hostId = 'sb09_host_' + this.roomCode;
+    if (this.hostConn && this.hostConn.open) {
+      this.sendToHost({ type: 'JOIN', player: this.players[this.myId] });
+      return;
+    }
+    try {
+      const conn = this.peer.connect(hostId, { reliable: true });
+      this.hostConn = conn;
+      conn.on('open', () => {
+        this.sendToHost({ type: 'JOIN', player: this.players[this.myId] });
+      });
+      conn.on('data', (data) => this.handleClientData(data));
+    } catch (e) {}
   },
 
   createRoom(name) {
@@ -189,6 +245,16 @@ const Net = {
     this.hideSetupCard();
     document.getElementById('start-game-btn')?.classList.add('hidden');
     document.getElementById('wait-msg')?.classList.remove('hidden');
+    document.getElementById('manual-reconnect-btn')?.classList.remove('hidden');
+    if (this.reconnectLoop) clearInterval(this.reconnectLoop);
+    this.reconnectLoop = setInterval(() => {
+      if (this.isHost || !this.roomCode) return;
+      const inLobby = !document.getElementById('lobby-screen')?.classList.contains('hidden');
+      const disconnected = !this.hostConn || !this.hostConn.open;
+      if (inLobby || disconnected) {
+        this.reconnectToHost();
+      }
+    }, 3000);
     this.saveRoomSession(code, false, name);
     this.updateSquadUI();
 
@@ -310,6 +376,10 @@ const Net = {
       location.reload();
       return;
     }
+    if (data.type === 'DEPLOY_COUNTDOWN') {
+      this.showDeployCountdown(data.sec);
+      return;
+    }
     if (data.type === 'SQUAD') {
       const myBackup = this.players[this.myId];
       this.players = { ...data.players };
@@ -352,6 +422,7 @@ const Net = {
       const myBackup = this.players[this.myId];
       this.players = { ...data.players };
       if (myBackup && !this.players[this.myId]) this.players[this.myId] = myBackup;
+      document.getElementById('deploy-countdown-banner')?.classList.add('hidden');
       Game3D.start(data.codes, data.noteSpots, data.fuseSpot);
     } else if (data.type === 'RESTART') {
       this.players = data.players;
