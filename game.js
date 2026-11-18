@@ -403,32 +403,46 @@ const Lobby3D = {
     hC.rotation.x = -Math.PI / 2; hC.position.set(0, 0.02, -4);
     this.scene.add(padRing, hL, hR, hC);
 
-    // Parked Extraction Helicopter on Helipad (Like BGMI Spawn Airplane/Chopper!)
+    // Detailed 3D Military Rescue Helicopter on Helipad
     const heli = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 4.5), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7 }));
-    body.position.y = 1.1;
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.9, 1.6), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-    cabin.position.set(0, 1.25, -1.6);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.55, 3.0), new THREE.MeshStandardMaterial({ color: 0x334155 }));
-    tail.position.set(0, 1.3, 3.4);
-    this.rotor = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.08, 0.32), new THREE.MeshBasicMaterial({ color: 0x94a3b8 }));
-    this.rotor.position.set(0, 1.95, 0);
-    heli.add(body, cabin, tail, this.rotor);
-    heli.position.set(0, 0, -4);
-    heli.rotation.y = 0.45;
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.35 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 });
+    const glassMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.35, 3.8), hullMat);
+    body.position.y = 1.25;
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.05, 1.4), glassMat);
+    nose.position.set(0, 1.15, -2.1);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.48, 3.2), hullMat);
+    tail.position.set(0, 1.45, 3.2);
+    const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 0.7), darkMat);
+    tailFin.position.set(0, 1.85, 4.5);
+
+    // Landing Skids
+    const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 3.6), darkMat);
+    skidL.position.set(-0.95, 0.12, -0.2);
+    const skidR = skidL.clone(); skidR.position.x = 0.95;
+
+    // Main Rotor + Mast
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.4, 10), darkMat);
+    mast.position.set(0, 2.05, 0);
+    this.rotor = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.06, 0.32), darkMat);
+    this.rotor.position.set(0, 2.25, 0);
+
+    const heliSpot = new THREE.PointLight(0x38bdf8, 3.5, 18);
+    heliSpot.position.set(0, 4.5, 1);
+
+    heli.add(body, nose, tail, tailFin, skidL, skidR, mast, this.rotor, heliSpot);
+    heli.position.set(0, 0, -5.5);
+    heli.rotation.y = 0.55;
     this.scene.add(heli);
 
-    // Tactical Supply Crates & Perimeter Beacons around Island
-    const crateMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
-    [
-      { x: -8, z: 4 }, { x: 8, z: 4 }, { x: -10, z: -6 }, { x: 10, z: -6 }, { x: 0, z: 11 }
-    ].forEach(c => {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 1.8), crateMat);
-      box.position.set(c.x, 0.7, c.z);
-      this.scene.add(box);
-    });
+    // Bright Island Floodlights so characters & gear shine clearly
+    const islandFill = new THREE.PointLight(0xffffff, 2.2, 26);
+    islandFill.position.set(0, 5.5, 5.5);
+    this.scene.add(islandFill);
 
-    // Touch Joystick & Swipe Look for Spawn Island
+        // Touch Joystick & Swipe Look for Spawn Island
     const lookZone = document.getElementById('lobby-look-zone');
     let lookId = null, lastX = 0;
     if (lookZone) {
@@ -538,6 +552,7 @@ const Lobby3D = {
 
     const me = Net.players[Net.myId];
     if (me) {
+      if (!this.avatars[Net.myId]) this.syncSquad(Net.players);
       let fwd = 0, str = 0;
       if (this.keys['KeyW'] || this.keys['ArrowUp']) fwd += 1;
       if (this.keys['KeyS'] || this.keys['ArrowDown']) fwd -= 1;
@@ -561,15 +576,14 @@ const Lobby3D = {
       me.lz = this.localPos.z;
       me.lyaw = this.localPos.yaw;
 
-      // 3rd-Person Camera behind your character on Spawn Island!
-      const camDist = 3.6;
+      // Frame Character in center of screen with Helicopter & Island in background
+      const camDist = window.innerHeight > window.innerWidth ? 5.2 : 3.8;
       this.camera.position.set(
         this.localPos.x + Math.sin(this.localPos.yaw) * camDist,
-        2.45,
+        2.15,
         this.localPos.z + Math.cos(this.localPos.yaw) * camDist
       );
-      this.camera.rotation.y = this.localPos.yaw;
-      this.camera.rotation.x = -0.15;
+      this.camera.lookAt(this.localPos.x, 1.15, this.localPos.z);
 
       const now = performance.now();
       if (now - this.lastSync > 65) {
