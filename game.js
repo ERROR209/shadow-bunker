@@ -245,6 +245,7 @@ const Game3D = {
   switchesActivated: 0,
   intelBoxes: [],
   agentXP: parseInt(localStorage.getItem('sb_agent_xp') || '0', 10),
+  matchStartTime: 0,
   lastHeartbeat: 0,
   stunCharges: 2,
   hasFuse: false,
@@ -527,7 +528,9 @@ const Game3D = {
 
     if (!this.animStarted) {
       this.animStarted = true;
-      this.updateRankUI();
+      this.matchStartTime = performance.now();
+    if (window.AgentProfile) AgentProfile.recordMatchStart();
+    this.updateRankUI();
     this.animate();
       this.playCutscene(1, () => {
         if (window.innerWidth > 900) {

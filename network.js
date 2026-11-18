@@ -1,3 +1,115 @@
+const AgentProfile = {
+  KEY: 'sb09_agent_profile_v1',
+  data: null,
+
+  load() {
+    if (this.data) return this.data;
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (raw) this.data = JSON.parse(raw);
+    } catch (e) {}
+    if (!this.data) {
+      const legacyXP = parseInt(localStorage.getItem('sb_agent_xp') || '0', 10);
+      this.data = {
+        uid: Math.random().toString(36).slice(2, 8).toUpperCase(),
+        name: '',
+        role: 'SCOUT',
+        xp: legacyXP,
+        wins: 0,
+        matches: 0,
+        bestTimeSec: null
+      };
+      this.save();
+    }
+    return this.data;
+  },
+
+  save() {
+    if (!this.data) return;
+    localStorage.setItem(this.KEY, JSON.stringify(this.data));
+    localStorage.setItem('sb_agent_xp', String(this.data.xp || 0));
+    this.renderCard();
+  },
+
+  getRankInfo(xp = this.load().xp) {
+    if (xp >= 2500) return { title: 'SECTOR-09 COMMANDER', pct: 100 };
+    if (xp >= 1200) return { title: 'SHADOW HUNTER', pct: Math.round(((xp - 1200) / 1300) * 100) };
+    if (xp >= 450) return { title: 'FIELD AGENT', pct: Math.round(((xp - 450) / 750) * 100) };
+    return { title: 'ROOKIE', pct: Math.max(6, Math.round((xp / 450) * 100)) };
+  },
+
+  formatTime(sec) {
+    if (!sec || sec <= 0) return '--:--';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  },
+
+  recordMatchStart() {
+    const d = this.load();
+    d.matches = (d.matches || 0) + 1;
+    this.save();
+  },
+
+  recordVictory(elapsedSec) {
+    const d = this.load();
+    d.wins = (d.wins || 0) + 1;
+    let isRecord = false;
+    if (elapsedSec > 10 && (!d.bestTimeSec || elapsedSec < d.bestTimeSec)) {
+      d.bestTimeSec = Math.round(elapsedSec);
+      isRecord = true;
+    }
+    this.save();
+    return isRecord;
+  },
+
+  addXP(pts) {
+    const d = this.load();
+    d.xp = (d.xp || 0) + pts;
+    this.save();
+    return d.xp;
+  },
+
+  renderCard() {
+    const d = this.load();
+    const r = this.getRankInfo(d.xp);
+    const badge = document.getElementById('prof-rank-badge');
+    const idEl = document.getElementById('prof-agent-id');
+    const bar = document.getElementById('prof-xp-bar');
+    const xpEl = document.getElementById('stat-xp');
+    const winEl = document.getElementById('stat-wins');
+    const timeEl = document.getElementById('stat-best-time');
+    const matchEl = document.getElementById('stat-matches');
+
+    if (badge) badge.textContent = '🎖️ ' + r.title;
+    if (idEl) idEl.textContent = 'ID: #' + d.uid;
+    if (bar) bar.style.width = r.pct + '%';
+    if (xpEl) xpEl.textContent = d.xp;
+    if (winEl) winEl.textContent = d.wins || 0;
+    if (timeEl) timeEl.textContent = this.formatTime(d.bestTimeSec);
+    if (matchEl) matchEl.textContent = d.matches || 0;
+  },
+
+  exportCode() {
+    return btoa(JSON.stringify(this.load()));
+  },
+
+  importCode(code) {
+    try {
+      const parsed = JSON.parse(atob(code.trim()));
+      if (parsed && typeof parsed.xp === 'number') {
+        this.data = { ...this.load(), ...parsed };
+        this.save();
+        const nameInp = document.getElementById('player-name');
+        if (nameInp && this.data.name) nameInp.value = this.data.name;
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+};
+window.AgentProfile = AgentProfile;
+
 const Net = {
   peer: null,
   myId: null,
@@ -23,9 +135,7 @@ const Net = {
   deployTimer: null,
   reconnectLoop: null,
   getDeviceUid() {
-    let uid = sessionStorage.getItem('sb_device_uid');
-    if (!uid) { uid = Math.random().toString(36).slice(2, 8).toUpperCase(); sessionStorage.setItem('sb_device_uid', uid); }
-    return uid;
+    return AgentProfile.load().uid;
   },
 
   saveRoomSession(code, isHost, name) {
@@ -57,13 +167,41 @@ const Net = {
     const copyBtn = document.getElementById('copy-code-btn');
     const startBtn = document.getElementById('start-game-btn');
 
+    const prof = AgentProfile.load();
+    AgentProfile.renderCard();
+    const nameInput = document.getElementById('player-name');
+    if (nameInput) {
+      if (prof.name) nameInput.value = prof.name;
+      nameInput.addEventListener('input', () => {
+        prof.name = nameInput.value.trim();
+        AgentProfile.save();
+      });
+    }
+    const backupBtn = document.getElementById('backup-profile-btn');
+    if (backupBtn) {
+      backupBtn.onclick = () => {
+        const code = AgentProfile.exportCode();
+        const pasted = prompt(
+          '📋 YOUR AGENT SAVE CODE (Copy & keep safe to restore on any phone):\n\n' + code + '\n\n👇 Or paste a Save Code below & press OK to restore progress:',
+          code
+        );
+        if (pasted && pasted !== code) {
+          if (AgentProfile.importCode(pasted)) {
+            alert('✅ Agent Profile, Rank, XP & Records Restored!');
+          } else {
+            alert('❌ Invalid Save Code!');
+          }
+        }
+      };
+    }
     if (createBtn) {
       createBtn.onclick = () => {
         if (this.isConnecting || this.roomCode) return;
         this.isConnecting = true;
         createBtn.disabled = true;
         if (joinBtn) joinBtn.disabled = true;
-        const name = document.getElementById('player-name')?.value.trim() || ('Agent-' + Math.floor(10 + Math.random() * 89));
+        const name = document.getElementById('player-name')?.value.trim() || AgentProfile.load().name || ('Agent-' + Math.floor(10 + Math.random() * 89));
+        AgentProfile.load().name = name; AgentProfile.save();
         this.createRoom(name);
       };
     }
@@ -71,7 +209,8 @@ const Net = {
     if (joinBtn) {
       joinBtn.onclick = () => {
         if (this.isConnecting || this.roomCode) return;
-        const name = document.getElementById('player-name')?.value.trim() || ('Agent-' + Math.floor(10 + Math.random() * 89));
+        const name = document.getElementById('player-name')?.value.trim() || AgentProfile.load().name || ('Agent-' + Math.floor(10 + Math.random() * 89));
+        AgentProfile.load().name = name; AgentProfile.save();
         const code = document.getElementById('room-code-input')?.value.trim().toUpperCase();
         if (!code || code.length < 4) return alert('Enter valid 4-letter Squad Code!');
         this.isConnecting = true;
