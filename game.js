@@ -1189,8 +1189,8 @@ const Game3D = {
     }
 
     const pickupSpots = [
-      { x: -16, z: 12, kind: 'BATTERY' }, { x: 16, z: -10, kind: 'BATTERY' },
-      { x: -12, z: -18, kind: 'STUN' }, { x: 14, z: 18, kind: 'STUN' }
+      { x: -16, z: 12, kind: 'BATTERY' }, { x: 16, z: -10, kind: 'BATTERY' }, { x: 0, z: 0, kind: 'BATTERY' },
+      { x: -12, z: -18, kind: 'STUN' }, { x: 14, z: 18, kind: 'STUN' }, { x: -6, z: 12, kind: 'STUN' }
     ];
     pickupSpots.forEach(ps => {
       const isBat = ps.kind === 'BATTERY';
@@ -1652,9 +1652,9 @@ const Game3D = {
     }
 
     if (hit) {
-      this.hunter.stunnedUntil = performance.now() + 3200;
+      this.hunter.stunnedUntil = performance.now() + 4000;
       this.stats.stuns++;
-      this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 3.2s—RUN!');
+      this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 4.0s—MOVE!');
     } else {
       this.showRadioToast('STUN', '⚡ Electric Arc fired—target too far!');
     }
@@ -1777,7 +1777,7 @@ const Game3D = {
     const fixedCount = this.valves.filter(x => x.fixed).length;
     document.getElementById('locks-status').textContent = `☢️ VALVES ${fixedCount}/6`;
     if (fixedCount === 6) {
-      this.openExitDoor('🚨 ALL 6 COOLANT VALVES SEALED! 38s TO REACH THE GREEN EXIT BEAM!');
+      this.openExitDoor('🚨 ALL 6 COOLANT VALVES SEALED! 48s TO REACH THE GREEN EXIT BEAM!');
     } else {
       document.getElementById('objective-banner').textContent = `☢️ HARDCORE LEVEL 2: Seal all 6 Coolant Valves (${fixedCount}/6)`;
     }
@@ -1804,7 +1804,7 @@ const Game3D = {
 
   openExitDoor(bannerMsg) {
     this.selfDestructActive = true;
-    this.escapeTimeLeft = this.level === 2 ? 38 : 42;
+    this.escapeTimeLeft = this.level === 2 ? 48 : 52;
     this.lastTick = performance.now();
     if (this.exitMesh) {
       this.exitMesh.material.color.setHex(0x22c55e);
@@ -1839,20 +1839,20 @@ const Game3D = {
   startLevel3() {
     this.buildLevelMap(3);
     this.selfDestructActive = true;
-    this.escapeTimeLeft = 65;
+    this.escapeTimeLeft = 52;
     this.lastTick = performance.now();
     this.stunCharges = 2;
     document.getElementById('stun-status').textContent = '🔫 2/2';
     document.getElementById('timer-badge').classList.remove('hidden');
     document.getElementById('locks-status').textContent = '🚁 HELIPAD';
-    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (ROOFTOP HELIPAD): HARDCORE EXTRACTION: Survive 65s until chopper lands!';
+    document.getElementById('objective-banner').textContent = '🚁 LEVEL 3 (ROOFTOP HELIPAD): HARDCORE EXTRACTION: EXTRACTION: Survive 52s until chopper lands!';
     Object.values(Net.players).forEach((p, idx) => {
       p.x = -2 + idx * 1.4; p.z = 2; p.downed = false; p.hiding = false; p.boarded = false;
     });
     this.hunter.x = 18; this.hunter.z = -18;
     SFX.siren();
     this.saveCheckpoint();
-    this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 65 seconds on the rooftop!');
+    this.showRadioToast('LEVEL 3', '🚁 ROOFTOP HELIPAD! Hold out for 52 seconds on the rooftop!');
   },
 
   triggerJumpscare() {
@@ -2156,7 +2156,7 @@ const Game3D = {
       }
 
       if (me.torch && this.battery > 0 && !me.downed) {
-        this.battery = Math.max(0, this.battery - 0.026);
+        this.battery = Math.max(0, this.battery - 0.017);
         if (this.battery === 0) { me.torch = false; this.flashlight.visible = false; }
         document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
       }
@@ -2302,7 +2302,7 @@ const Game3D = {
           const angleToPlayer = Math.atan2(p.x - this.hunter.x, p.z - this.hunter.z);
           const angleDiff = Math.abs(Math.atan2(Math.sin(angleToPlayer - this.hunter.yaw), Math.cos(angleToPlayer - this.hunter.yaw)));
           const inFront = angleDiff < 1.25;
-          const detectRange = this.level === 3 ? 42 : (p.makingNoise ? 32 : (inFront ? (p.torch ? 24 : 15) : 9.5));
+          const detectRange = this.level === 3 ? 34 : (p.makingNoise ? 27 : (inFront ? (p.torch ? 20 : 13) : 8.0));
           if (d < detectRange && d < minDist) { minDist = d; target = p; }
         }
 
@@ -2311,7 +2311,7 @@ const Game3D = {
           this.hunter.goalX = target.x;
           this.hunter.goalZ = target.z;
           this.hunter.investigateUntil = nowAI + 4200;
-          const mSpeed = this.level === 3 ? 0.118 : 0.098;
+          const mSpeed = this.level === 3 ? 0.102 : 0.088;
           this.moveHunterToward(target.x, target.z, mSpeed);
 
           if (minDist < 1.35) {
