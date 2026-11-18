@@ -273,7 +273,9 @@ const Net = {
     document.getElementById('lobby-setup-card')?.classList.add('hidden');
       document.getElementById('lobby-setup-form')?.classList.add('hidden');
       document.getElementById('lobby-actions').classList.add('hidden');
-    document.getElementById('waiting-room').classList.remove('hidden');
+    const setupCard = document.getElementById('lobby-setup-card');
+      if (setupCard) { setupCard.classList.add('hidden'); setupCard.style.display = 'none'; }
+      document.getElementById('waiting-room').classList.remove('hidden');
     document.getElementById('display-code').textContent = code;
       this.saveRoomSession(code, true, name);
     this.renderSquad();

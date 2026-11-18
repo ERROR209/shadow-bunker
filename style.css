@@ -427,3 +427,9 @@ input[type="text"] {
   font-weight: 700;
   white-space: nowrap;
 }
+
+.hidden, #lobby-setup-card.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
