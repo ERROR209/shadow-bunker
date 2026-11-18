@@ -708,6 +708,8 @@ const Game3D = {
   hunter: { x: 32, z: -32, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, aiState: 'PATROL', goalX: 28, goalZ: 24, scanUntil: 0, investigateUntil: 0 },
   level: 1,
   battery: 100,
+  stamina: 100,
+  lastHeartbeat: 0,
   stunCharges: 2,
   hasFuse: false,
   powerRestored: false,
@@ -2164,6 +2166,7 @@ const Game3D = {
     document.getElementById('timer-badge').classList.add('hidden');
     this.gameOver = false;
     this.battery = 100;
+    this.stamina = 100;
     this.stunCharges = 2;
     this.hasFuse = false;
     this.powerRestored = false;
