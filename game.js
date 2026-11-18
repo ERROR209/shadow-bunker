@@ -843,9 +843,10 @@ const Game3D = {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.HemisphereLight(0x94a3b8, 0x1e293b, 0.95));
+    this.hemiLight = new THREE.HemisphereLight(0x334155, 0x05080f, 0.08);
+    this.scene.add(this.hemiLight);
 
-    this.flashlight = new THREE.SpotLight(0xfffbeb, 6.0, 34, Math.PI / 4.2, 0.35, 1.0);
+    this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 36, Math.PI / 4.0, 0.32, 0.95);
     this.flashlight.position.set(0, 0, 0);
     this.flashlight.target.position.set(0, 0, -1);
     this.camera.add(this.flashlight);
@@ -1014,8 +1015,8 @@ const Game3D = {
     this.addWall(24, 0, 1, 48, wallTex, wallHeight);
 
     if (lvl === 1) {
-      this.scene.background = new THREE.Color(0x090e17);
-      this.scene.fog = new THREE.FogExp2(0x090e17, 0.025);
+      this.scene.background = new THREE.Color(0x020408);
+      this.scene.fog = new THREE.FogExp2(0x020408, 0.068);
 
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0;
@@ -1074,8 +1075,8 @@ const Game3D = {
       this.createExitDoorWithBeacon(20, -23.3);
 
     } else if (lvl === 2) {
-      this.scene.background = new THREE.Color(0x1a0709);
-      this.scene.fog = new THREE.FogExp2(0x1a0709, 0.024);
+      this.scene.background = new THREE.Color(0x090203);
+      this.scene.fog = new THREE.FogExp2(0x090203, 0.058);
 
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(48, 48), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0;
@@ -1210,7 +1211,7 @@ const Game3D = {
     [
       { x: -14, z: 14 }, { x: 14, z: 14 }, { x: -14, z: -14 }, { x: 14, z: -14 }
     ].forEach(lc => {
-      const pLight = new THREE.PointLight(lvl === 2 ? 0xfb923c : 0x93c5fd, 1.35, 20);
+      const pLight = new THREE.PointLight(lvl === 2 ? 0xfb923c : 0x64748b, lvl === 3 ? 0.45 : 0.12, 14);
       pLight.position.set(lc.x, 3.5, lc.z);
       this.mapGroup.add(pLight);
     });
@@ -1738,6 +1739,7 @@ const Game3D = {
   restorePower() {
     if (this.powerRestored) return;
     this.powerRestored = true;
+    if (this.hemiLight) this.hemiLight.intensity = 0.22;
     this.genMesh.material.color.setHex(0x16a34a);
     this.genMesh.material.emissive.setHex(0x22c55e);
     document.getElementById('locks-status').textContent = '⚡ ON (0/3)';
