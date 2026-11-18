@@ -603,7 +603,18 @@ const Lobby3D = {
     }
   },
 
+  updateCameraAspect() {
+    if (!this.camera || !this.renderer) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    if (Math.abs(this.camera.aspect - w / h) > 0.01) {
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(w, h);
+    }
+  },
+
   animate() {
+    this.updateCameraAspect();
     if (!this.running) return;
     requestAnimationFrame(() => this.animate());
     if (document.getElementById('lobby-screen').classList.contains('hidden')) {
@@ -2379,6 +2390,24 @@ const Game3D = {
         if (this.playerHandGroup) {
           this.playerHandGroup.position.y = Math.sin(this.walkBob * 2) * 0.015;
           this.playerHandGroup.position.x = Math.cos(this.walkBob) * 0.015;
+        }
+                // Hide all First-Person meshes attached to camera in 3RD Person, and auto-fit X position to screen aspect in 1ST Person
+        const aspectScale = Math.min(1.0, Math.max(0.46, this.camera.aspect / 1.35));
+        this.camera.children.forEach(child => {
+          if (!child.isLight && child.type !== 'Object3D') {
+            child.visible = !this.thirdPerson;
+            if (!this.thirdPerson) {
+              if (child.userData.baseX === undefined) child.userData.baseX = child.position.x;
+              child.position.x = child.userData.baseX * aspectScale;
+            }
+          }
+        });
+        if (this.handGroup) {
+          this.handGroup.visible = !this.thirdPerson;
+          if (!this.thirdPerson) {
+            if (this.handGroup.userData.baseX === undefined) this.handGroup.userData.baseX = this.handGroup.position.x;
+            this.handGroup.position.x = this.handGroup.userData.baseX * aspectScale;
+          }
         }
         if (this.thirdPerson) {
           if (this.selfAvatar) {
