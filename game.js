@@ -772,7 +772,7 @@ const Game3D = {
         powerRestored: this.powerRestored,
         locks: this.locks,
         codes: this.codes,
-        playerPos: me ? { x: me.x, z: me.z } : { x: -18, z: 18 },
+        playerPos: me ? { x: me.x, z: me.z } : { x: -32, z: 32 },
         savedAt: Date.now()
       };
       localStorage.setItem('sb_checkpoint_v1', JSON.stringify(state));
@@ -2178,7 +2178,7 @@ const Game3D = {
     this.buildLevelMap(1, noteSpots, fuseSpot);
     this.hunter.x = 32; this.hunter.z = -32; this.hunter.stunnedUntil = 0; this.levelStartGrace = performance.now() + 5000;
 
-    const spawns = [{ x: -18, z: 18 }, { x: -16, z: 18 }, { x: -18, z: 16 }, { x: -16, z: 16 }];
+    const spawns = [{ x: -32, z: 32 }, { x: -16, z: 18 }, { x: -18, z: 16 }, { x: -16, z: 16 }];
     Object.values(Net.players).forEach((p, idx) => {
       const sp = spawns[idx % 4];
       p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false; p.boarded = false; p.torch = true;

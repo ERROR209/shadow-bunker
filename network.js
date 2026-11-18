@@ -188,7 +188,7 @@ const Net = {
         name,
         role: document.getElementById('role-select')?.value || 'SCOUT',
         ready: true,
-        x: -18, z: 18, yaw: 0,
+        x: -32, z: 32, yaw: 0,
         lx: -1.2, lz: 3.8, lyaw: 0,
         torch: true, downed: false, hiding: false, boarded: false
       }
