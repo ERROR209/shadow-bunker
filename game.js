@@ -522,8 +522,31 @@ const Lobby3D = {
       joyZone.addEventListener('touchcancel', endJoy);
     }
 
-        window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
+        window.addEventListener('keydown', (e) => {
+      if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
+      this.keys[e.code] = true;
+      if (e.code === 'KeyR') document.getElementById('ready-toggle-btn')?.click();
+      if (e.code === 'Enter') document.getElementById('start-game-btn')?.click();
+    });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+
+    // PC Mouse Look on Spawn Island (Pointer Lock + Click-Drag fallback)
+    if (lookZone) {
+      let mouseDown = false;
+      lookZone.addEventListener('mousedown', (e) => {
+        mouseDown = true;
+        if (document.pointerLockElement !== lookZone && lookZone.requestPointerLock) {
+          lookZone.requestPointerLock().catch?.(() => {});
+        }
+      });
+      window.addEventListener('mouseup', () => { mouseDown = false; });
+      window.addEventListener('mousemove', (e) => {
+        if (!this.running || document.getElementById('lobby-screen').classList.contains('hidden')) return;
+        if (document.pointerLockElement === lookZone || mouseDown) {
+          this.localPos.yaw -= e.movementX * 0.0032;
+        }
+      });
+    }
 
     // Bind Role Selector & Ready Toggle
     const roleSel = document.getElementById('role-select');
@@ -876,6 +899,9 @@ const Game3D = {
     if (!this.animStarted) {
       this.animStarted = true;
       this.animate();
+      if (window.innerWidth > 900) {
+        this.showRadioToast('PC CONTROLS', '🖱️ Click screen for Mouse Look • WASD Move • Shift Run • E Use • F Torch • Q/Right-Click Stun • V Cam • M Mic • 1-4 Radio');
+      }
     }
   },
 
@@ -1319,14 +1345,25 @@ const Game3D = {
 
   setupControls() {
     window.addEventListener('keydown', (e) => {
+      if (document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
       this.keys[e.code] = true;
       if (e.code === 'KeyF') this.toggleTorch();
-      if (e.code === 'KeyE') this.interact();
+      if (e.code === 'KeyE' || e.code === 'Enter') this.interact();
       if (e.code === 'KeyQ') this.fireStun();
+      if (e.code === 'KeyV') document.getElementById('cam-toggle-btn')?.click();
+      if (e.code === 'KeyM') Net.toggleMic();
+      if (e.code === 'KeyC' || e.code === 'Escape') {
+        document.getElementById('note-modal')?.classList.add('hidden');
+        document.getElementById('puzzle-modal')?.classList.add('hidden');
+      }
+      if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)) {
+        const idx = Number(e.code.replace('Digit', '')) - 1;
+        document.querySelectorAll('.radio-btn')[idx]?.click();
+      }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
-    const lookZone = document.getElementById('look-zone');
+        const lookZone = document.getElementById('look-zone');
     let lookId = null, lastX = 0, lastY = 0;
     lookZone.addEventListener('touchstart', (e) => {
       const t = e.changedTouches[0];
@@ -1343,6 +1380,32 @@ const Game3D = {
         }
       }
     }, { passive: true });
+
+    // PC Mouse Look (Pointer Lock + Drag fallback) & Right-Click Stun
+    let pcMouseDown = false;
+    lookZone.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        this.fireStun();
+        return;
+      }
+      pcMouseDown = true;
+      const modalOpen = !document.getElementById('note-modal').classList.contains('hidden') ||
+                        !document.getElementById('puzzle-modal').classList.contains('hidden') ||
+                        !document.getElementById('end-modal').classList.contains('hidden');
+      if (!modalOpen && document.pointerLockElement !== lookZone && lookZone.requestPointerLock) {
+        lookZone.requestPointerLock().catch?.(() => {});
+      }
+    });
+    lookZone.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('mouseup', () => { pcMouseDown = false; });
+    window.addEventListener('mousemove', (e) => {
+      const me = Net.players[Net.myId];
+      if (!me || this.gameOver) return;
+      if (document.pointerLockElement === lookZone || pcMouseDown) {
+        me.yaw -= e.movementX * 0.0026;
+        this.camera.rotation.x = Math.max(-0.95, Math.min(0.95, this.camera.rotation.x - e.movementY * 0.0022));
+      }
+    });
 
     const joyZone = document.getElementById('joystick-zone');
     const stick = document.getElementById('joystick-stick');
