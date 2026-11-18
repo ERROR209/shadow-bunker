@@ -9,6 +9,12 @@ const Net = {
   localStream: null,
   micEnabled: false,
   voiceLoud: false,
+  isConnecting: false,
+  getDeviceUid() {
+    let uid = sessionStorage.getItem('sb_device_uid');
+    if (!uid) { uid = Math.random().toString(36).slice(2, 8).toUpperCase(); sessionStorage.setItem('sb_device_uid', uid); }
+    return uid;
+  },
 
   saveRoomSession(code, isHost, name) {
     try {
@@ -41,6 +47,10 @@ const Net = {
 
     if (createBtn) {
       createBtn.onclick = () => {
+        if (this.isConnecting || this.roomCode) return;
+        this.isConnecting = true;
+        createBtn.disabled = true;
+        if (joinBtn) joinBtn.disabled = true;
         const name = document.getElementById('player-name')?.value.trim() || ('Agent-' + Math.floor(10 + Math.random() * 89));
         this.createRoom(name);
       };
@@ -48,9 +58,13 @@ const Net = {
 
     if (joinBtn) {
       joinBtn.onclick = () => {
+        if (this.isConnecting || this.roomCode) return;
         const name = document.getElementById('player-name')?.value.trim() || ('Agent-' + Math.floor(10 + Math.random() * 89));
         const code = document.getElementById('room-code-input')?.value.trim().toUpperCase();
         if (!code || code.length < 4) return alert('Enter valid 4-letter Squad Code!');
+        this.isConnecting = true;
+        joinBtn.disabled = true;
+        if (createBtn) createBtn.disabled = true;
         this.joinRoom(code, name);
       };
     }
@@ -156,7 +170,7 @@ const Net = {
     const code = rawCode.trim().toUpperCase();
     this.isHost = false;
     this.roomCode = code;
-    this.myId = 'sb09_agent_' + Math.floor(1000 + Math.random() * 9000);
+    this.myId = 'sb09_agent_' + this.getDeviceUid();
 
     // Immediately register joining player so Spawn Island renders avatar & movement at 0ms!
     this.players = {
@@ -217,7 +231,12 @@ const Net = {
   handleHostData(conn, data) {
     if (!data || !data.type) return;
     if (data.type === 'JOIN' && data.player) {
-      this.players[data.player.id] = data.player;
+      const pid = data.player.id;
+      if (!this.players[pid] && Object.keys(this.players).length >= 4) {
+        if (conn && conn.open) conn.send({ type: 'ROOM_FULL' });
+        return;
+      }
+      this.players[pid] = data.player;
       this.updateSquadUI();
       this.broadcast({ type: 'SQUAD', players: this.players });
       if (conn && conn.open) conn.send({ type: 'SQUAD', players: this.players });
@@ -284,6 +303,13 @@ const Net = {
 
   handleClientData(data) {
     if (!data || !data.type) return;
+    if (data.type === 'ROOM_FULL') {
+      alert('⚠️ Squad is full (4/4 players)!');
+      this.isConnecting = false;
+      this.roomCode = '';
+      location.reload();
+      return;
+    }
     if (data.type === 'SQUAD') {
       const myBackup = this.players[this.myId];
       this.players = { ...data.players };
