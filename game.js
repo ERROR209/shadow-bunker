@@ -36,7 +36,6 @@ const SFX = {
           data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.25;
         }
       }
-      // Preload Real Horror MP3 Files from /sounds/ folder
       this.loadMp3('step', 'sounds/step.mp3', false, 0.55);
       this.loadMp3('monster_step', 'sounds/monster_step.mp3', false, 0.85);
       this.loadMp3('ambience', 'sounds/ambience.mp3', true, 0.35);
@@ -47,7 +46,6 @@ const SFX = {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-    // Start looping Dark Horror Ambience Drone once user touches screen
     if (!this.ambienceStarted && this.tracks.ambience && this.tracks.ambience._ready) {
       this.tracks.ambience.play().then(() => { this.ambienceStarted = true; }).catch(() => {});
     }
@@ -118,7 +116,6 @@ const SFX = {
   jumpscareScream() {
     this.init();
     if (this.playMp3('scream', 0.95)) return;
-    // Fallback if scream.mp3 not yet added
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     const osc1 = this.ctx.createOscillator();
@@ -176,8 +173,8 @@ const SFX = {
     this.lastBeat = now;
     const vol = Math.max(0.45, Math.min(1.0, (15 - dist) / 11));
     if (this.playMp3('heartbeat', vol)) return;
-    this.tone(72, 'sine', 0.16, 0.55 * vol, 36, 0);
-    this.tone(62, 'sine', 0.19, 0.42 * vol, 32, 0.17);
+    this.tone(82, 'sine', 0.16, 0.85 * vol, 38, 0);
+    this.tone(68, 'sine', 0.19, 0.72 * vol, 32, 0.17);
   }
 };
 
@@ -249,7 +246,6 @@ function buildTacticalCharacter(player, isLobby = false) {
   const visorMat = new THREE.MeshBasicMaterial({ color: pal.accent });
   const bootMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
 
-  // Torso + Tactical Armor Vest
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.78, 0.32), suitMat);
   torso.position.y = 1.18;
   const vest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.56, 0.36), armorMat);
@@ -257,13 +253,11 @@ function buildTacticalCharacter(player, isLobby = false) {
   const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.38), visorMat);
   chestCore.position.y = 1.26;
 
-  // Tactical Backpack + Glowing Oxygen/Battery Tank (Looks awesome in 3rd-person view!)
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.54, 0.22), armorMat);
   pack.position.set(0, 1.24, 0.24);
   const packCell = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10), visorMat);
   packCell.position.set(0.1, 1.24, 0.35);
 
-  // Head + Spec-Ops Helmet + Glowing Visor
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.36), skinMat);
   head.position.y = 1.82;
   const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.24, 0.41), armorMat);
@@ -271,19 +265,20 @@ function buildTacticalCharacter(player, isLobby = false) {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.11, 0.06), visorMat);
   visor.position.set(0, 1.83, -0.18);
 
-  // Articulated Left Arm (Pivots at shoulder) + Flashlight
   const leftArmPivot = new THREE.Group();
   leftArmPivot.position.set(-0.37, 1.5, 0);
   const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
   armL.position.y = -0.25;
   const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.15), armorMat);
   gloveL.position.y = -0.56;
-  const torchProp = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.24, 10), new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.6 }));
+  const torchProp = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.045, 0.24, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.6 })
+  );
   torchProp.rotation.x = Math.PI / 2;
   torchProp.position.set(0, -0.56, -0.12);
   leftArmPivot.add(armL, gloveL, torchProp);
 
-  // Articulated Right Arm (Pivots at shoulder) + Electric Stun Gun
   const rightArmPivot = new THREE.Group();
   rightArmPivot.position.set(0.37, 1.5, 0);
   const armR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.58, 0.15), suitMat);
@@ -294,7 +289,6 @@ function buildTacticalCharacter(player, isLobby = false) {
   stunProp.position.set(0, -0.54, -0.14);
   rightArmPivot.add(armR, gloveR, stunProp);
 
-  // Articulated Left & Right Legs (Pivot at hip) + Tactical Boots
   const leftLegPivot = new THREE.Group();
   leftLegPivot.position.set(-0.16, 0.78, 0);
   const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.22), suitMat);
@@ -311,7 +305,6 @@ function buildTacticalCharacter(player, isLobby = false) {
   bootR.position.set(0, -0.68, -0.03);
   rightLegPivot.add(legR, bootR);
 
-  // Sleek Floating Nameplate
   const cvs = document.createElement('canvas');
   cvs.width = 256; cvs.height = 68;
   const ctx = cvs.getContext('2d');
@@ -373,7 +366,6 @@ const Lobby3D = {
     spot.position.set(0, 7, 4);
     this.scene.add(spot);
 
-    // BGMI-style glowing circular tactical platform
     const platform = new THREE.Mesh(
       new THREE.CylinderGeometry(3.8, 4.2, 0.25, 32),
       new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 })
@@ -386,7 +378,6 @@ const Lobby3D = {
     ring.position.y = 0.14;
     this.scene.add(platform, ring);
 
-    // Bind Role Selector & Ready Button in Lobby
     const roleSel = document.getElementById('role-select');
     const readyBtn = document.getElementById('ready-toggle-btn');
     if (roleSel) {
@@ -417,7 +408,7 @@ const Lobby3D = {
   },
   syncSquad(players) {
     if (!this.scene) return;
-    Object.values(this.avatars).forEach(m => this.scene.remove(m));
+    Object.values(this.avatars).forEach(av => this.scene.remove(av.grp));
     this.avatars = {};
 
     const list = Object.values(players || {});
@@ -429,12 +420,12 @@ const Lobby3D = {
       const built = buildTacticalCharacter(p, true);
       const pos = slots[idx % 4];
       built.grp.position.set(pos.x, 0.12, pos.z);
-      built.grp.rotation.y = (idx % 2 === 0 ? -0.18 : 0.18);
+      built.grp.rotation.y = Math.PI + (idx % 2 === 0 ? -0.18 : 0.18);
       this.scene.add(built.grp);
       this.avatars[p.id] = built;
     });
   },
-    animate() {
+  animate() {
     if (!this.running) return;
     requestAnimationFrame(() => this.animate());
     if (document.getElementById('lobby-screen').classList.contains('hidden')) {
@@ -472,7 +463,7 @@ const Game3D = {
   genMesh: null,
   exitMesh: null,
   exitBeacon: null,
-  exitPos: { x: 20, z: -23.2 },
+  exitPos: { x: 20, z: -21.7 },
   lockers: [],
   notes: [],
   terminals: [],
@@ -491,8 +482,6 @@ const Game3D = {
   lastTick: 0,
   gameOver: false,
   lastNetSync: 0,
-  flickerLights: [],
-  dustSystem: null,
   velX: 0,
   velZ: 0,
   walkBob: 0,
@@ -521,10 +510,6 @@ const Game3D = {
       };
       localStorage.setItem('sb_checkpoint_v1', JSON.stringify(state));
     } catch (e) {}
-  },
-
-  clearCheckpoint() {
-    localStorage.removeItem('sb_checkpoint_v1');
   },
 
   loadCheckpoint(cp) {
@@ -620,7 +605,7 @@ const Game3D = {
     this.camera.add(this.flashlight);
     this.camera.add(this.flashlight.target);
 
-    // 1. Prominent First-Person Tactical Hands, Flashlight & Electric Stun Gun
+    // Prominent First-Person Tactical Hands, Flashlight & Electric Stun Gun
     this.playerHandGroup = new THREE.Group();
     const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 });
     const gloveMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 });
@@ -647,9 +632,10 @@ const Game3D = {
     this.playerHandGroup.add(leftArm, torchTube, rightArm, rightHand, stunGun);
     this.camera.add(this.playerHandGroup);
 
-    // 2. Full 3D Self-Character Body (Visible in 3rd-Person Mode!)
-    this.selfAvatar = this.createTeammateAvatar(me || { name: 'YOU' });
+    // Full 3D Spec-Ops Self-Character Body (for 3rd-Person Mode)
+    this.selfAvatar = this.createTeammateAvatar(me || { name: 'YOU', role: myRole });
     this.selfAvatar.grp.visible = false;
+
     this.scene.add(this.camera);
 
     this.mapGroup = new THREE.Group();
@@ -681,8 +667,9 @@ const Game3D = {
     this.notes = [];
     this.terminals = [];
     this.valves = [];
-    this.flickerLights = [];
+    this.pickups = [];
     this.exitBeacon = null;
+    this.chopperGroup = null;
   },
 
   addWall(x, z, w, d, wallTex, h = 4.0) {
@@ -717,7 +704,6 @@ const Game3D = {
   },
 
   createExitDoorWithBeacon(x, z) {
-    this.exitPos = { x, z };
     this.exitMesh = new THREE.Mesh(
       new THREE.BoxGeometry(2.8, 3.3, 0.45),
       new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x0f172a })
@@ -725,7 +711,6 @@ const Game3D = {
     this.exitMesh.position.set(x, 1.65, z);
     this.mapGroup.add(this.exitMesh);
 
-    // Towering Sky-Beam Beacon (Hidden until unlocked, then glows bright green so player ALWAYS sees where Exit is!)
     const beaconGrp = new THREE.Group();
     const beam = new THREE.Mesh(
       new THREE.CylinderGeometry(0.45, 0.85, 14, 16, 1, true),
@@ -749,7 +734,7 @@ const Game3D = {
     this.exitBeacon = beaconGrp;
   },
 
-  buildLevelMap(lvl, noteSpots = this.savedNoteSpots, fuseSpot = this.savedFuseSpot) {
+  buildLevelMap(lvl, noteSpots = this.savedNoteSpots || [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }], fuseSpot = this.savedFuseSpot || { x: -16, z: -4 }) {
     this.clearMap();
     this.level = lvl;
 
@@ -760,8 +745,6 @@ const Game3D = {
     this.mapGroup.add(floor);
 
     const wallTex = makeTexture('wall', lvl);
-
-    // Outer Perimeter Walls
     const wallHeight = lvl === 3 ? 1.8 : 4.0;
     this.addWall(0, -24, 48, 1, wallTex, wallHeight);
     this.addWall(0, 24, 48, 1, wallTex, wallHeight);
@@ -769,7 +752,6 @@ const Game3D = {
     this.addWall(24, 0, 1, 48, wallTex, wallHeight);
 
     if (lvl === 1) {
-      // LEVEL 1: SECTOR-09 TECH LAB
       this.scene.background = new THREE.Color(0x090e17);
       this.scene.fog = new THREE.FogExp2(0x090e17, 0.025);
 
@@ -786,7 +768,6 @@ const Game3D = {
 
       this.addSafeLockers([{ x: -20, z: 6 }, { x: -2, z: 6 }, { x: 10, z: -12 }, { x: 20, z: 14 }]);
 
-      // Blue Power Fuse
       this.fuseMesh = new THREE.Mesh(
         new THREE.CylinderGeometry(0.24, 0.24, 0.7, 12),
         new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 1.4 })
@@ -796,7 +777,6 @@ const Game3D = {
       fuseLight.position.set(fuseSpot.x, 1.3, fuseSpot.z);
       this.mapGroup.add(this.fuseMesh, fuseLight);
 
-      // Generator
       this.genMesh = new THREE.Mesh(
         new THREE.BoxGeometry(1.6, 1.8, 1.2),
         new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 0.8 })
@@ -804,7 +784,6 @@ const Game3D = {
       this.genMesh.position.set(-20, 0.9, 20);
       this.mapGroup.add(this.genMesh);
 
-      // 3 Logs & 3 Terminals
       const logTexts = [
         'Dr. Verma Log #1: Subject-0 hunts by sound. Use the blue code below on Terminal #1:',
         'Dr. Verma Log #2: Stun Gun freezes Subject-0 with high-voltage arcs. Terminal #2 code:',
@@ -830,7 +809,6 @@ const Game3D = {
       this.createExitDoorWithBeacon(20, -23.3);
 
     } else if (lvl === 2) {
-      // LEVEL 2: RADIOACTIVE BIO-REACTOR CORE (Completely New Circular Pillar Layout + Valve Sabotage!)
       this.scene.background = new THREE.Color(0x1a0709);
       this.scene.fog = new THREE.FogExp2(0x1a0709, 0.024);
 
@@ -838,7 +816,6 @@ const Game3D = {
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.0;
       this.mapGroup.add(ceil);
 
-      // Massive Glowing Reactor Core in Center
       const core = new THREE.Mesh(
         new THREE.CylinderGeometry(2.2, 2.2, 4.0, 24),
         new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 1.2, transparent: true, opacity: 0.85 })
@@ -849,7 +826,6 @@ const Game3D = {
       this.mapGroup.add(core, coreLight);
       this.wallBoxes.push({ minX: -2.4, maxX: 2.4, minZ: -2.4, maxZ: 2.4 });
 
-      // Symmetric Reactor Cooling Pillars (New Open Arena Feel)
       const pillars = [
         { x: -10, z: -10 }, { x: 10, z: -10 }, { x: -10, z: 10 }, { x: 10, z: 10 },
         { x: 0, z: -15 }, { x: 0, z: 15 }, { x: -15, z: 0 }, { x: 15, z: 0 }
@@ -858,7 +834,6 @@ const Game3D = {
 
       this.addSafeLockers([{ x: -21, z: 0 }, { x: 21, z: 0 }, { x: 0, z: -21 }, { x: 0, z: 21 }]);
 
-      // NEW TASK FOR LEVEL 2: Turn 4 Overheated Coolant Valves (No keypad codes—direct valve pressure release!)
       const valveSpots = [
         { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 }
       ];
@@ -882,11 +857,9 @@ const Game3D = {
       this.createExitDoorWithBeacon(0, -23.3);
 
     } else if (lvl === 3) {
-      // LEVEL 3: OPEN ROOFTOP HELIPAD (Night Sky, Searchlight & Extraction Pad!)
       this.scene.background = new THREE.Color(0x060b16);
       this.scene.fog = new THREE.FogExp2(0x060b16, 0.018);
 
-      // Glowing Yellow & Cyan Helipad Landing Circle
       const padOuter = new THREE.Mesh(
         new THREE.RingGeometry(4.2, 4.9, 36),
         new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
@@ -904,7 +877,6 @@ const Game3D = {
       heliLight.position.set(0, 6, 0);
       this.mapGroup.add(padOuter, hBar1, hBar2, hCross, heliLight);
 
-      // Rooftop Cover Crates & Supply Containers
       const crates = [
         { x: -9, z: -9 }, { x: 9, z: -9 }, { x: -9, z: 9 }, { x: 9, z: 9 },
         { x: -16, z: 0 }, { x: 16, z: 0 }
@@ -912,7 +884,6 @@ const Game3D = {
       crates.forEach(c => this.addWall(c.x, c.z, 2.6, 2.6, wallTex, 2.2));
       this.addSafeLockers([{ x: -20, z: -20 }, { x: 20, z: 20 }]);
 
-      // 3D Rescue Helicopter (Descends during final 15 seconds!)
       const heli = new THREE.Group();
       const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 4.8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7 }));
       const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 3.2), new THREE.MeshStandardMaterial({ color: 0x334155 }));
@@ -928,8 +899,6 @@ const Game3D = {
       this.chopperRotor = rotor;
     }
 
-    // Spawn Spare Batteries (+40%) & Stun Cells (+1 Charge) across rooms
-    this.pickups = [];
     const pickupSpots = [
       { x: -16, z: 12, kind: 'BATTERY' }, { x: 16, z: -10, kind: 'BATTERY' },
       { x: -12, z: -18, kind: 'STUN' }, { x: 14, z: 18, kind: 'STUN' }
@@ -949,7 +918,6 @@ const Game3D = {
       this.pickups.push({ ...ps, mesh, taken: false });
     });
 
-    // Corridor / Arena Lights
     [
       { x: -14, z: 14 }, { x: 14, z: 14 }, { x: -14, z: -14 }, { x: 14, z: -14 }
     ].forEach(lc => {
@@ -968,7 +936,7 @@ const Game3D = {
     return { grp: built.grp, limbs: built.limbs, torchLight, lastX: player.x || 0, lastZ: player.z || 0, stride: 0 };
   },
 
-  animateCharacterLimbs(charObj, x, z, isMoving) {
+  animateCharacterLimbs(charObj, isMoving) {
     if (!charObj || !charObj.limbs) return;
     if (isMoving) {
       charObj.stride += 0.22;
@@ -1012,7 +980,7 @@ const Game3D = {
       } else {
         tm.grp.rotation.x = 0;
         tm.grp.position.y = 0;
-        this.animateCharacterLimbs(tm, p.x, p.z, moved);
+        this.animateCharacterLimbs(tm, moved);
       }
       tm.torchLight.visible = !!p.torch && !p.downed;
     }
@@ -1025,17 +993,61 @@ const Game3D = {
     }
   },
 
-    buildMonster() {
+  pickNextPatrolWaypoint() {
+    const waypoints = this.level === 2
+      ? [
+          { x: -18, z: -18 }, { x: 18, z: -18 }, { x: -18, z: 18 }, { x: 18, z: 18 },
+          { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 }
+        ]
+      : [
+          { x: -18, z: 18 }, { x: -18, z: -18 }, { x: 18, z: -18 }, { x: 18, z: 18 },
+          { x: 0, z: 16 }, { x: 0, z: -12 }, { x: -14, z: 2 }, { x: 14, z: 2 }
+        ];
+    const choices = waypoints.filter(w => Math.hypot(w.x - this.hunter.x, w.z - this.hunter.z) > 6);
+    const next = choices[Math.floor(Math.random() * choices.length)] || waypoints[0];
+    this.hunter.goalX = next.x;
+    this.hunter.goalZ = next.z;
+  },
+
+  moveHunterToward(tx, tz, speed) {
+    let ang = Math.atan2(tx - this.hunter.x, tz - this.hunter.z);
+    const lookAhead = 1.35;
+    const frontBlocked = this.checkCollision(this.hunter.x + Math.sin(ang) * lookAhead, this.hunter.z + Math.cos(ang) * lookAhead);
+    if (frontBlocked) {
+      const leftFree = !this.checkCollision(this.hunter.x + Math.sin(ang + 0.75) * lookAhead, this.hunter.z + Math.cos(ang + 0.75) * lookAhead);
+      const rightFree = !this.checkCollision(this.hunter.x + Math.sin(ang - 0.75) * lookAhead, this.hunter.z + Math.cos(ang - 0.75) * lookAhead);
+      if (leftFree) ang += 0.85;
+      else if (rightFree) ang -= 0.85;
+      else ang += Math.PI * 0.65;
+    }
+
+    this.hunter.yaw = ang;
+    const prevX = this.hunter.x, prevZ = this.hunter.z;
+    const nx = this.hunter.x + Math.sin(ang) * speed;
+    const nz = this.hunter.z + Math.cos(ang) * speed;
+    if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
+    if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+
+    if (Math.hypot(this.hunter.x - prevX, this.hunter.z - prevZ) < 0.008) {
+      this.hunter.stuckFrames++;
+      if (this.hunter.stuckFrames > 30) {
+        this.pickNextPatrolWaypoint();
+        this.hunter.stuckFrames = 0;
+      }
+    } else {
+      this.hunter.stuckFrames = 0;
+    }
+  },
+
+  buildMonster() {
     const grp = new THREE.Group();
     const skin = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.3 });
     const clawMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.4 });
 
-    // Hunched Torso
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.84, 1.3, 0.48), skin);
     torso.position.y = 1.48;
     torso.rotation.x = 0.22;
 
-    // Head with Glowing Red Eyes
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.54, 0.54), skin);
     head.position.set(0, 2.34, 0.16);
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -1044,7 +1056,6 @@ const Game3D = {
     const eyeR = eyeL.clone();
     eyeR.position.x = 0.14;
 
-    // Articulated Limbs (Pivot at shoulder/hip so arms & legs swing naturally!)
     const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), clawMat);
     armL.position.set(-0.56, 1.42, 0.12);
     const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), clawMat);
@@ -1120,6 +1131,7 @@ const Game3D = {
     document.getElementById('interact-btn').addEventListener('click', () => this.interact());
     document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
     document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
+
     const camBtn = document.getElementById('cam-toggle-btn');
     if (camBtn) {
       camBtn.onclick = () => {
@@ -1162,12 +1174,8 @@ const Game3D = {
       };
     });
 
-    // Spectate Next Teammate Button
-    document.getElementById('spectate-next-btn').onclick = () => {
-      this.spectateIndex++;
-    };
+    document.getElementById('spectate-next-btn').onclick = () => { this.spectateIndex++; };
 
-    // Instant Restart Button
     document.getElementById('instant-restart-btn').onclick = () => {
       const codes = [
         String(Math.floor(100 + Math.random() * 899)),
@@ -1289,7 +1297,7 @@ const Game3D = {
     if (!me || me.downed || me.hiding) return;
     if (this.stunCharges <= 0) return this.showRadioToast('SYSTEM', '⚠️ Stun Gun out of charges!');
     this.stunCharges--;
-    document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/3`;
+    document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}`;
     SFX.stunZap();
 
     const startPt = new THREE.Vector3(me.x, 1.35, me.z);
@@ -1481,16 +1489,14 @@ const Game3D = {
     this.buildLevelMap(2);
     this.stunCharges = 3;
     document.getElementById('stun-status').textContent = '🔫 3/3';
-    const safeSpots = [
-      { x: -20, z: -6 }, { x: -20, z: 6 }, { x: -18, z: -6 }, { x: -18, z: 6 }
-    ];
+    const safeSpots = [{ x: -20, z: -6 }, { x: -20, z: 6 }, { x: -18, z: -6 }, { x: -18, z: 6 }];
     Object.values(Net.players).forEach((p, idx) => {
       const sp = safeSpots[idx % 4];
       p.x = sp.x; p.z = sp.z; p.downed = false; p.hiding = false;
     });
-    // Spawn Monster in completely open corridor away from all pillars
     this.hunter.x = 20; this.hunter.z = 6;
     this.hunter.stuckFrames = 0;
+    this.pickNextPatrolWaypoint();
     this.saveCheckpoint();
     this.showRadioToast('LEVEL 2', '☢️ BIO-REACTOR CORE! Seal all 4 Coolant Valves!');
   },
@@ -1525,6 +1531,7 @@ const Game3D = {
     if (this.gameOver) return;
     this.gameOver = true;
     document.getElementById('spectate-bar').classList.add('hidden');
+    document.getElementById('locker-overlay')?.classList.add('hidden');
     document.getElementById('jumpscare-overlay').classList.add('hidden');
     document.getElementById('end-title').textContent = win ? '🏆 MISSION ACCOMPLISHED' : '💀 SQUAD WIPED OUT';
     document.getElementById('end-title').style.color = win ? '#4ade80' : '#ef4444';
@@ -1544,6 +1551,7 @@ const Game3D = {
   resetAndRestart(codes, noteSpots, fuseSpot) {
     document.getElementById('end-modal').classList.add('hidden');
     document.getElementById('spectate-bar').classList.add('hidden');
+    document.getElementById('locker-overlay')?.classList.add('hidden');
     document.getElementById('jumpscare-overlay').classList.add('hidden');
     document.getElementById('timer-badge').classList.add('hidden');
     this.gameOver = false;
@@ -1553,6 +1561,7 @@ const Game3D = {
     this.powerRestored = false;
     this.selfDestructActive = false;
     this.locks = [false, false, false];
+    this.stats = { stuns: 0, objectives: 0, revives: 0 };
     this.codes = codes;
     this.buildLevelMap(1, noteSpots, fuseSpot);
     this.hunter.x = 18; this.hunter.z = -18; this.hunter.stunnedUntil = 0;
@@ -1735,7 +1744,7 @@ const Game3D = {
             this.selfAvatar.grp.position.set(me.x, me.downed ? 0.25 : 0, me.z);
             this.selfAvatar.grp.rotation.y = me.yaw;
             this.selfAvatar.grp.rotation.x = me.downed ? -Math.PI / 2 : 0;
-            this.animateCharacterLimbs(this.selfAvatar, me.x, me.z, isMoving && !me.downed);
+            this.animateCharacterLimbs(this.selfAvatar, isMoving && !me.downed);
           }
           const camDist = 2.6;
           this.camera.position.set(me.x + Math.sin(me.yaw) * camDist, 2.25 + bob, me.z + Math.cos(me.yaw) * camDist);
