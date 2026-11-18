@@ -1523,30 +1523,38 @@ const Game3D = {
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
         const lookZone = document.getElementById('look-zone');
-    let lookId = null, lastX = 0, lastY = 0;
+    let lookTouchId = null, lastTouchX = 0, lastTouchY = 0;
     lookZone.addEventListener('touchstart', (e) => {
+      if (lookTouchId !== null) return;
       const t = e.changedTouches[0];
-      lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+      lookTouchId = t.identifier;
+      lastTouchX = t.clientX;
+      lastTouchY = t.clientY;
     }, { passive: true });
     lookZone.addEventListener('touchmove', (e) => {
       const me = Net.players[Net.myId];
-      if (!me) return;
+      if (!me || lookTouchId === null) return;
       for (const t of e.changedTouches) {
-        if (t.identifier === lookId) {
-          me.yaw -= (t.clientX - lastX) * 0.0062;
-          this.camera.rotation.x = Math.max(-0.9, Math.min(0.9, this.camera.rotation.x - (t.clientY - lastY) * 0.0048));
-          lastX = t.clientX; lastY = t.clientY;
+        if (t.identifier === lookTouchId) {
+          me.yaw -= (t.clientX - lastTouchX) * 0.0068;
+          this.camera.rotation.x = Math.max(-0.9, Math.min(0.9, this.camera.rotation.x - (t.clientY - lastTouchY) * 0.0045));
+          lastTouchX = t.clientX;
+          lastTouchY = t.clientY;
         }
       }
     }, { passive: true });
+    const endLookTouch = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === lookTouchId) lookTouchId = null;
+      }
+    };
+    lookZone.addEventListener('touchend', endLookTouch, { passive: true });
+    lookZone.addEventListener('touchcancel', endLookTouch, { passive: true });
 
     // PC Mouse Look (Pointer Lock + Drag fallback) & Right-Click Stun
     let pcMouseDown = false;
     lookZone.addEventListener('mousedown', (e) => {
-      if (e.button === 2) {
-        this.fireStun();
-        return;
-      }
+      if (e.button === 2) { this.fireStun(); return; }
       pcMouseDown = true;
       const modalOpen = !document.getElementById('note-modal').classList.contains('hidden') ||
                         !document.getElementById('puzzle-modal').classList.contains('hidden') ||
@@ -1566,53 +1574,105 @@ const Game3D = {
       }
     });
 
+    // True 4-Finger Multi-Touch Joystick (locked to touch.identifier)
     const joyZone = document.getElementById('joystick-zone');
     const stick = document.getElementById('joystick-stick');
+    let joyTouchId = null;
+    const updateJoyStick = (t) => {
+      const r = joyZone.getBoundingClientRect();
+      let dx = t.clientX - (r.left + r.width / 2);
+      let dy = t.clientY - (r.top + r.height / 2);
+      const dist = Math.hypot(dx, dy);
+      if (dist > 38) { dx = (dx / dist) * 38; dy = (dy / dist) * 38; }
+      stick.style.transform = `translate(${dx}px, ${dy}px)`;
+      this.joy.dx = dx / 38;
+      this.joy.dy = dy / 38;
+    };
     joyZone.addEventListener('touchstart', (e) => {
-      if (document.getElementById('game-screen').classList.contains('hud-editing')) return;
       e.preventDefault();
+      e.stopPropagation();
+      if (joyTouchId !== null) return;
+      const t = e.changedTouches[0];
+      joyTouchId = t.identifier;
       this.joy.active = true;
+      updateJoyStick(t);
     }, { passive: false });
     joyZone.addEventListener('touchmove', (e) => {
-      if (!this.joy.active) return;
+      if (!this.joy.active || joyTouchId === null) return;
       e.preventDefault();
-      const rect = joyZone.getBoundingClientRect();
-      const t = e.touches[0];
-      let dx = t.clientX - (rect.left + rect.width / 2);
-      let dy = t.clientY - (rect.top + rect.height / 2);
-      const dist = Math.hypot(dx, dy);
-      if (dist > 34) { dx = (dx / dist) * 34; dy = (dy / dist) * 34; }
-      stick.style.transform = `translate(${dx}px, ${dy}px)`;
-      this.joy.dx = dx / 34;
-      this.joy.dy = dy / 34;
+      e.stopPropagation();
+      for (const t of e.changedTouches) {
+        if (t.identifier === joyTouchId) updateJoyStick(t);
+      }
     }, { passive: false });
-    const resetJoy = () => { this.joy.active = false; this.joy.dx = 0; this.joy.dy = 0; stick.style.transform = 'translate(0,0)'; };
+    const resetJoy = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === joyTouchId) {
+          joyTouchId = null;
+          this.joy.active = false;
+          this.joy.dx = 0;
+          this.joy.dy = 0;
+          stick.style.transform = 'translate(0,0)';
+        }
+      }
+    };
     joyZone.addEventListener('touchend', resetJoy);
     joyZone.addEventListener('touchcancel', resetJoy);
 
-    document.getElementById('torch-btn').addEventListener('click', () => this.toggleTorch());
-    document.getElementById('interact-btn').addEventListener('click', () => this.interact());
-    document.getElementById('stun-btn').addEventListener('click', () => this.fireStun());
-    document.getElementById('mic-btn').addEventListener('click', () => Net.toggleMic());
-
-    const camBtn = document.getElementById('cam-toggle-btn');
-    if (camBtn) {
-      camBtn.onclick = () => {
-        this.thirdPerson = !this.thirdPerson;
-        camBtn.textContent = this.thirdPerson ? '🎥 3RD' : '🎥 1ST';
-        camBtn.classList.toggle('on', this.thirdPerson);
-        if (this.playerHandGroup) this.playerHandGroup.visible = !this.thirdPerson;
-        if (this.selfAvatar) this.selfAvatar.grp.visible = this.thirdPerson && !Net.players[Net.myId]?.hiding;
+    // 0ms Instant Multi-Touch Action Buttons (works simultaneously while holding Joystick + Sprint!)
+    const bindInstantTouch = (id, fn) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      let lastFire = 0;
+      const trigger = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        const now = performance.now();
+        if (now - lastFire < 180) return;
+        lastFire = now;
+        fn();
       };
-    }
+      el.addEventListener('touchstart', trigger, { passive: false });
+      el.onclick = () => {
+        const now = performance.now();
+        if (now - lastFire < 250) return;
+        lastFire = now;
+        fn();
+      };
+    };
 
-    const sprintBtn = document.getElementById('sprint-btn');
-    sprintBtn.addEventListener('touchstart', (e) => {
-      if (document.getElementById('game-screen').classList.contains('hud-editing')) return;
-      e.preventDefault();
-      this.sprinting = true;
-    }, { passive: false });
-    sprintBtn.addEventListener('touchend', () => { this.sprinting = false; });
+    bindInstantTouch('torch-btn', () => this.toggleTorch());
+    bindInstantTouch('interact-btn', () => this.interact());
+    bindInstantTouch('stun-btn', () => this.fireStun());
+    bindInstantTouch('cam-toggle-btn', () => {
+      this.thirdPerson = !this.thirdPerson;
+      document.getElementById('cam-toggle-btn').textContent = this.thirdPerson ? '🎥 3RD' : '🎥 1ST';
+    });
+    bindInstantTouch('mic-btn', () => Net.toggleMic());
+
+    const runBtn = document.getElementById('run-btn');
+    if (runBtn) {
+      let runTouchId = null;
+      runBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        runTouchId = e.changedTouches[0].identifier;
+        this.sprinting = true;
+        runBtn.style.background = '#dc2626';
+      }, { passive: false });
+      const endRun = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === runTouchId) {
+            runTouchId = null;
+            this.sprinting = false;
+            runBtn.style.background = '';
+          }
+        }
+      };
+      runBtn.addEventListener('touchend', endRun);
+      runBtn.addEventListener('touchcancel', endRun);
+      runBtn.onmousedown = () => { this.sprinting = true; };
+      runBtn.onmouseup = () => { this.sprinting = false; };
+    }
 
     document.querySelectorAll('.radio-btn').forEach(btn => {
       btn.addEventListener('click', () => {
