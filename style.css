@@ -837,3 +837,46 @@ html, body {
   font-size: 0.58rem !important;
   font-weight: 900 !important;
 }
+
+/* Fix SETTINGS & MIC OFF overlap with USE / STUN grid */
+.hud-right {
+  position: fixed !important;
+  top: 6px !important;
+  right: 10px !important;
+  z-index: 28 !important;
+  gap: 4px !important;
+}
+
+.hud-right .top-mini-btns {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 3px !important;
+}
+
+.hud-right .hud-mini {
+  min-width: 72px !important;
+  padding: 3px 6px !important;
+  border-radius: 6px !important;
+  font-size: 0.56rem !important;
+  line-height: 1.15 !important;
+}
+
+.controls-right {
+  position: fixed !important;
+  right: 10px !important;
+  bottom: 8px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 25 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, 58px) !important;
+  gap: 5px !important;
+}
+
+.controls-right .ctrl-btn {
+  width: 58px !important;
+  height: 39px !important;
+  font-size: 0.54rem !important;
+  border-radius: 10px !important;
+}
