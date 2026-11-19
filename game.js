@@ -173,7 +173,7 @@ const Game3D = {
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
-  hunter: { x: 26, z: -26, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, goalX: 16, goalZ: -16 },
+  hunter: { x: 26, z: -26, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, stuckFrames: 0, goalX: 16, goalZ: -16, alertUntil: 0 },
   level: 1,
   battery: 100,
   stamina: 100,
@@ -1216,6 +1216,7 @@ const Game3D = {
     } else if (act.type === 'TERM') {
       if (!this.powerRestored) return this.showRadioToast('LOCKED', '⚠️ Restore Generator power first!');
       if (!this.drivesUploaded) return this.showRadioToast('LOCKED', '⚠️ Upload all 3 Data Drives at North Server first!');
+      if (!this.drivesUploaded) return this.showRadioToast('LOCKED', '⚠️ Upload all 3 Data Drives at North Server first!');
       this.activeTerminalIdx = act.term.idx;
       this.typedCode = '';
       this.updateKeypadUI();
@@ -1267,6 +1268,9 @@ const Game3D = {
     const count = this.locks.filter(Boolean).length;
     const ls = document.getElementById('locks-status');
     if (ls) ls.textContent = `🔓 ${count}/3`;
+    if (t && count < 3) {
+      this.alertMonsterTo(t.x, t.z, `Terminal #${idx + 1}`);
+    }
     if (count === 3) {
       this.selfDestructActive = true;
       this.escapeTimeLeft = 60;
@@ -1317,6 +1321,59 @@ const Game3D = {
     const me = Net.players[Net.myId];
     if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; }
     this.hunter.x = 26; this.hunter.z = -26;
+    if (this.hunter.mesh) this.hunter.mesh.scale.setScalar(1 + (nextLvl - 1) * 0.08);
+    const ob = document.getElementById('objective-banner');
+    if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
+    SFX.pickup();
+    this.showRadioToast('NEXT FLOOR', `🛗 Entered ${lvlNames[nextLvl] || 'Level ' + nextLvl}! (+35% Battery)`);
+  },
+
+  alertMonsterTo(tx, tz, label) {
+    this.hunter.goalX = tx;
+    this.hunter.goalZ = tz;
+    this.hunter.alertUntil = performance.now() + 14000;
+    SFX.tone(320, 'sawtooth', 0.25, 0.22, 160);
+    this.showRadioToast('⚠️ ALERT', `👹 Subject-0 heard ${label} & is rushing there!`);
+  },
+
+  advanceToLevel(nextLvl) {
+
+    if (this.gameOver) return;
+    const lvlNames = {
+      2: 'LEVEL 2: BIO-RESEARCH LAB',
+      3: 'LEVEL 3: DEEP REACTOR CORE',
+      4: 'LEVEL 4: VENTILATION TUNNELS',
+      5: 'LEVEL 5: ROOFTOP HELIPAD ESCAPE'
+    };
+    this.hasFuse = false;
+    this.powerRestored = false;
+    this.drivesCollected = 0;
+    this.drivesUploaded = false;
+    this.locks = [false, false, false];
+    this.selfDestructActive = false;
+    this.escapeTimeLeft = 60;
+    this.battery = Math.min(100, this.battery + 35);
+    this.stunCharges = Math.min(3, this.stunCharges + 1);
+    document.getElementById('timer-badge')?.classList.add('hidden');
+    const ls = document.getElementById('locks-status');
+    if (ls) ls.textContent = '⚡ OFF';
+    const st = document.getElementById('stun-status');
+    if (st) st.textContent = `🔫 ${this.stunCharges}/2`;
+
+    this.codes = [
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899))
+    ];
+    const pool = [
+      { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
+      { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
+    ].sort(() => Math.random() - 0.5);
+
+    this.buildLevelMap(nextLvl, [pool[1], pool[2], pool[3]], pool[0]);
+    const me = Net.players[Net.myId];
+    if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; }
+    this.hunter.x = 26; this.hunter.z = -26; this.hunter.alertUntil = 0;
     if (this.hunter.mesh) this.hunter.mesh.scale.setScalar(1 + (nextLvl - 1) * 0.08);
     const ob = document.getElementById('objective-banner');
     if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
@@ -1668,11 +1725,13 @@ const Game3D = {
             this.triggerEnd(false, '💀 Subject-0 caught you in the dark!');
           }
         } else {
+          const isAlerted = performance.now() < (this.hunter.alertUntil || 0);
           if (Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z) < 2.0) {
+            this.hunter.alertUntil = 0;
             this.hunter.goalX = (Math.random() - 0.5) * 60;
             this.hunter.goalZ = (Math.random() - 0.5) * 60;
           }
-          this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.048);
+          this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, isAlerted ? 0.072 : 0.048);
         }
       }
 

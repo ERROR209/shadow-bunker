@@ -551,6 +551,7 @@ html, body {
 .radio-bar {
   display: flex;
   gap: 5px;
+  margin-top: 2px;
   pointer-events: auto;
 }
 #radar-canvas {
