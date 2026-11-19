@@ -536,11 +536,7 @@ html, body {
   background: rgba(2, 12, 8, 0.9);
 }
 
-.top-mini-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+
 
 .hud-mini {
   background: rgba(15, 23, 42, 0.9);
@@ -786,6 +782,58 @@ html, body {
   background: #16a34a;
 }
 
-.top-mini-btns {
-  margin-right: 116px;
+
+
+/* Clean non-overlapping HUD button layout */
+.hud-right {
+  position: fixed !important;
+  top: 8px !important;
+  right: 10px !important;
+  z-index: 24 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 5px !important;
+}
+
+.hud-right .top-mini-btns {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 4px !important;
+  margin-right: 0 !important;
+}
+
+.hud-right .hud-mini {
+  min-width: 78px !important;
+  text-align: center !important;
+  padding: 5px 8px !important;
+  border-radius: 7px !important;
+  font-size: 0.62rem !important;
+  font-weight: 800 !important;
+}
+
+.controls-right {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 26 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, 62px) !important;
+  gap: 6px !important;
+}
+
+.controls-right .ctrl-btn {
+  position: static !important;
+  width: 62px !important;
+  height: 44px !important;
+  margin: 0 !important;
+  border-radius: 11px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
 }

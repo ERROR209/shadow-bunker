@@ -2475,3 +2475,38 @@ if (document.readyState === 'loading') { window.addEventListener('DOMContentLoad
   }
   setInterval(wireButtons, 1500);
 })();
+
+(function bindDirectHudFullscreen() {
+  function syncFsLabel() {
+    const btn = document.getElementById('hud-fullscreen-btn');
+    if (!btn) return;
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    btn.textContent = isFs ? '⛶ EXIT FS' : '⛶ FULLSCREEN';
+  }
+  function wireFs() {
+    const btn = document.getElementById('hud-fullscreen-btn');
+    if (btn && !btn.dataset.fsBound) {
+      btn.dataset.fsBound = '1';
+      btn.addEventListener('click', () => {
+        const doc = document;
+        const root = doc.documentElement;
+        if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+          const req = root.requestFullscreen || root.webkitRequestFullscreen;
+          if (req) req.call(root).then(syncFsLabel).catch(() => {});
+        } else {
+          const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+          if (exit) exit.call(doc).then(syncFsLabel).catch(() => {});
+        }
+      });
+    }
+  }
+  document.addEventListener('fullscreenchange', syncFsLabel);
+  document.addEventListener('webkitfullscreenchange', syncFsLabel);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { wireFs(); syncFsLabel(); });
+  } else {
+    wireFs();
+    syncFsLabel();
+  }
+  setInterval(wireFs, 1500);
+})();
