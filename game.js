@@ -478,11 +478,15 @@ const Game3D = {
         screen.orientation?.lock?.('landscape').catch(() => {});
       }
     } catch (e) {}
+    if (window.HomeShowcase3D && HomeShowcase3D.renderer) {
+      try { HomeShowcase3D.renderer.dispose(); HomeShowcase3D.renderer.forceContextLoss(); } catch(e) {}
+      HomeShowcase3D.renderer = null;
+    }
     this.init3D(noteSpots, fuseSpot);
 
     this.battery = cp.battery ?? 100;
     this.stunCharges = cp.stunCharges ?? 3;
-    document.getElementById('battery-badge').textContent = `🔋 ${Math.ceil(this.battery)}%`;
+    const bb = document.getElementById('battery-badge'); if (bb) bb.textContent = `🔋 ${Math.ceil(this.battery)}%`;
     document.getElementById('stun-status').textContent = `🔫 ${this.stunCharges}/3`;
 
     if (cp.level === 2) {
@@ -632,7 +636,13 @@ const Game3D = {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.domElement.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:2;";
     container.appendChild(this.renderer.domElement);
+    this.scene.background = new THREE.Color(0x0b1220);
+    this.scene.fog = new THREE.FogExp2(0x0b1220, 0.011);
+    const dirLight = new THREE.DirectionalLight(0xe0f2fe, 0.95);
+    dirLight.position.set(12, 24, 14);
+    this.scene.add(dirLight);
 
     this.hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x334155, 1.35);
     this.scene.add(this.hemiLight);
@@ -2720,7 +2730,7 @@ const HomeShowcase3D = {
     const loop = () => {
       requestAnimationFrame(loop);
       const menu = document.getElementById('menu-screen');
-      if (!menu || menu.classList.contains('hidden')) return;
+      if (!menu || menu.classList.contains('hidden') || !this.renderer) return;
       if (this.camera && this.renderer) {
         const w = window.innerWidth, h = window.innerHeight;
         if (Math.abs(this.camera.aspect - w / h) > 0.01) {
