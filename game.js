@@ -71,7 +71,17 @@ const SFX = {
     this.tone(running ? 115 : 90, 'sine', 0.08, running ? 0.12 : 0.07, 36);
   },
   torchClick() { this.tone(1100, 'triangle', 0.04, 0.14, 650); },
-  stunZap() { this.tone(420, 'sawtooth', 0.28, 0.22, 95); },
+  stunZap() {
+    this.tone(460, 'sawtooth', 0.25, 0.24, 110);
+  },
+  electricShockHit() {
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        this.tone(950 + Math.random() * 900, 'sawtooth', 0.08, 0.24, 140);
+        this.tone(220 + Math.random() * 180, 'triangle', 0.1, 0.2, 65);
+      }, i * 75);
+    }
+  },
   siren() { this.tone(440, 'triangle', 0.35, 0.18, 580); },
   pickup() { this.tone(540, 'sine', 0.14, 0.16, 820); },
   ambientDrip() {
@@ -670,6 +680,20 @@ const Game3D = {
     grp.add(torso, head, eyeL, eyeR, armL, armR, legL, legR, aura);
     grp.position.set(this.hunter.x, 0, this.hunter.z);
     this.scene.add(grp);
+    const shockGrp = new THREE.Group();
+    const arcMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 8, 24), arcMat);
+      ring.rotation.x = Math.PI / 2 + (i - 1) * 0.35;
+      ring.position.y = 0.7 + i * 0.65;
+      shockGrp.add(ring);
+    }
+    const shockLight = new THREE.PointLight(0x38bdf8, 6.0, 14);
+    shockLight.position.set(0, 1.5, 0);
+    shockGrp.add(shockLight);
+    shockGrp.visible = false;
+    grp.add(shockGrp);
+    this.hunter.shockGrp = shockGrp;
     this.hunter.mesh = grp;
     this.hunter.limbs = { armL, armR, legL, legR };
   },
@@ -809,6 +833,19 @@ const Game3D = {
       this.thirdPerson = !this.thirdPerson;
       const cb = document.getElementById('cam-toggle-btn');
       if (cb) cb.textContent = this.thirdPerson ? '3RD PERSON' : '1ST PERSON';
+      if (this.flashlight && this.flashlight.target) {
+        if (this.thirdPerson && this.selfAvatar && this.selfAvatar.grp) {
+          this.flashlight.position.set(-0.35, 1.35, -0.55);
+          this.flashlight.target.position.set(-0.35, 1.15, -6.0);
+          this.selfAvatar.grp.add(this.flashlight);
+          this.selfAvatar.grp.add(this.flashlight.target);
+        } else if (this.camera) {
+          this.flashlight.position.set(0, 0, 0);
+          this.flashlight.target.position.set(0, 0, -1);
+          this.camera.add(this.flashlight);
+          this.camera.add(this.flashlight.target);
+        }
+      }
     });
 
     const runBtn = document.getElementById('run-btn');
@@ -1115,7 +1152,9 @@ const Game3D = {
 
     if (hit) {
       this.hunter.stunnedUntil = performance.now() + 4500;
-      this.showRadioToast('STUN HIT', '⚡ ELECTRIC SHOCK! Subject-0 frozen for 4.5s!');
+      if (this.hunter.shockGrp) this.hunter.shockGrp.visible = true;
+      SFX.electricShockHit();
+      this.showRadioToast('STUN HIT', '⚡ HIGH-VOLTAGE SHOCK! Subject-0 electrocuted for 4.5s!');
     } else {
       this.showRadioToast('STUN', '⚡ Electric Arc fired!');
     }
@@ -1524,9 +1563,18 @@ const Game3D = {
       // Monster AI Movement
       const isStunned = performance.now() < this.hunter.stunnedUntil;
       if (this.hunter.mesh && this.hunter.limbs) {
+        if (this.hunter.shockGrp) this.hunter.shockGrp.visible = isStunned;
         if (isStunned) {
-          this.hunter.mesh.position.y = -0.35;
+          this.hunter.mesh.position.y = -0.22 + Math.sin(performance.now() * 0.09) * 0.06;
+          this.hunter.mesh.rotation.z = Math.sin(performance.now() * 0.12) * 0.16;
+          if (this.hunter.shockGrp) {
+            this.hunter.shockGrp.rotation.y += 0.25;
+            this.hunter.shockGrp.children.forEach((c, idx) => {
+              if (c.isMesh) c.scale.setScalar(0.9 + Math.sin(performance.now() * 0.06 + idx) * 0.22);
+            });
+          }
         } else {
+          this.hunter.mesh.rotation.z = 0;
           this.hunter.walkCycle += 0.16;
           const swing = Math.sin(this.hunter.walkCycle) * 0.55;
           this.hunter.limbs.legL.rotation.x = swing;
@@ -1634,6 +1682,20 @@ const HomeShowcase3D = {
       this.rotY += (e.clientX - this.lastX) * 0.012;
       this.lastX = e.clientX;
     });
+
+    const resizeLobby = () => {
+      if (!this.renderer || !this.camera) return;
+      const w = Math.max(320, window.innerWidth);
+      const h = Math.max(200, window.innerHeight);
+      this.camera.aspect = w / h;
+      this.camera.position.set(0, 1.35, w > h ? 3.55 : 4.3);
+      this.camera.lookAt(0, 1.12, 0);
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(w, h);
+    };
+    resizeLobby();
+    window.addEventListener('resize', resizeLobby);
+    document.addEventListener('fullscreenchange', () => setTimeout(resizeLobby, 120));
 
     const loop = () => {
       if (!this.renderer) return;
