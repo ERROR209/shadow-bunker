@@ -963,3 +963,68 @@ html, body {
   padding: 9px 8px !important;
   font-size: 0.66rem !important;
 }
+
+/* ================= CLEAN TOP-RIGHT UTILITY GRID & NON-OVERLAPPING ACTION PAD ================= */
+.hud-right {
+  position: fixed !important;
+  top: 8px !important;
+  right: 10px !important;
+  z-index: 30 !important;
+  display: flex !important;
+  flex-direction: row-reverse !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  pointer-events: auto !important;
+}
+
+#radar-canvas {
+  width: 88px !important;
+  height: 88px !important;
+  flex-shrink: 0 !important;
+}
+
+.hud-right .top-mini-btns {
+  display: grid !important;
+  grid-template-columns: repeat(2, 74px) !important;
+  gap: 4px !important;
+  align-items: stretch !important;
+  margin-top: 2px !important;
+}
+
+.hud-right .hud-mini {
+  width: 74px !important;
+  min-width: 74px !important;
+  padding: 5px 4px !important;
+  border-radius: 7px !important;
+  font-size: 0.56rem !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  border: 1px solid rgba(56, 189, 248, 0.45) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45) !important;
+}
+
+.hud-right .hud-mini:last-child {
+  border-color: #facc15 !important;
+  color: #fef08a !important;
+}
+
+.controls-right {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 25 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, 62px) !important;
+  gap: 6px !important;
+}
+
+.controls-right .ctrl-btn {
+  width: 62px !important;
+  height: 42px !important;
+  font-size: 0.58rem !important;
+  border-radius: 11px !important;
+}
