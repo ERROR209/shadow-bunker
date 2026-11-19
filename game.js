@@ -218,6 +218,77 @@ const SFX = {
   }
 };
 
+function makeTexture(kind = 'wall', lvl = 1) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  if (kind === 'floor') {
+    ctx.fillStyle = lvl === 3 ? '#1c1917' : (lvl === 2 ? '#06201a' : '#0f172a');
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = 'rgba(148,163,184,0.16)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2, 2, 60, 60); ctx.strokeRect(66, 2, 60, 60);
+    ctx.strokeRect(2, 66, 60, 60); ctx.strokeRect(66, 66, 60, 60);
+  } else if (kind === 'ceil') {
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 58, 128, 12);
+  } else {
+    ctx.fillStyle = lvl === 3 ? '#292524' : (lvl === 2 ? '#0f2922' : '#1e293b');
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = lvl === 3 ? '#ea580c' : (lvl === 2 ? '#22c55e' : '#eab308');
+    ctx.fillRect(0, 96, 128, 8);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.strokeRect(1, 1, 126, 126);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function buildTacticalCharacter(player = {}) {
+  const grp = new THREE.Group();
+  const roleColors = { SCOUT: 0x0284c7, ENGINEER: 0xd97706, MEDIC: 0x16a34a, TECH: 0x9333ea };
+  const suitMat = new THREE.MeshStandardMaterial({ color: roleColors[player.role] || 0x0284c7, roughness: 0.45 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde68a });
+  const visorMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.34), suitMat);
+  torso.position.y = 1.12;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+  head.position.y = 1.76;
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.12, 0.06), visorMat);
+  visor.position.set(0, 1.78, -0.21);
+
+  const leftLegPivot = new THREE.Group(); leftLegPivot.position.set(-0.16, 0.72, 0);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.72, 0.22), darkMat); legL.position.y = -0.36;
+  leftLegPivot.add(legL);
+
+  const rightLegPivot = new THREE.Group(); rightLegPivot.position.set(0.16, 0.72, 0);
+  const legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.72, 0.22), darkMat); legR.position.y = -0.36;
+  rightLegPivot.add(legR);
+
+  const leftArmPivot = new THREE.Group(); leftArmPivot.position.set(-0.42, 1.46, 0);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.66, 0.18), suitMat); armL.position.y = -0.33;
+  leftArmPivot.add(armL);
+
+  const rightArmPivot = new THREE.Group(); rightArmPivot.position.set(0.42, 1.46, 0);
+  const armR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.66, 0.18), suitMat); armR.position.y = -0.33;
+  rightArmPivot.add(armR);
+
+  grp.add(torso, head, visor, leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot);
+  return { grp, limbs: { leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot } };
+}
+
+const Lobby3D = {
+  localPos: { x: 0, z: 3.8 },
+  init() {},
+  syncSquad() {}
+};
+window.Lobby3D = Lobby3D;
+
 const Game3D = {
   scene: null,
   camera: null,
@@ -233,6 +304,14 @@ const Game3D = {
   level: 1,
   battery: 100,
   stamina: 100,
+  sanity: 100,
+  crouching: false,
+  inCCTV: false,
+  cctvIdx: 0,
+  flares: [],
+  activePing: null,
+  sensorRevealUntil: 0,
+  lastHallucination: 0,
   sanity: 100,
   crouching: false,
   inCCTV: false,
@@ -434,8 +513,12 @@ const Game3D = {
     this.codes = codes;
     this.savedNoteSpots = noteSpots;
     this.savedFuseSpot = fuseSpot;
-    document.getElementById('lobby-screen').classList.add('hidden');
-    document.getElementById('story-intro').classList.remove('hidden');
+    document.getElementById('menu-screen')?.classList.add('hidden');
+    document.getElementById('lobby-screen')?.classList.add('hidden');
+    document.getElementById('game-screen')?.classList.remove('hidden');
+    if (typeof SFX !== 'undefined') SFX.init();
+    this.init3D(noteSpots, fuseSpot);
+    return;
 
     const lines = '11:48 PM — Sector-09 has suffered a catastrophic breach. Conquer 3 distinct zones: 1) Sector-09 Tech Lab, 2) Overheating Bio-Reactor Core, and 3) Rooftop Helicopter Extraction!';
     let i = 0;
@@ -567,6 +650,8 @@ const Game3D = {
     this.intelBoxes = [];
     this.flares = [];
     this.cctvConsoles = [];
+    this.flares = [];
+    this.cctvConsoles = [];
     this.pickups = [];
     this.lasers = [];
     this.exitBeacon = null;
@@ -659,6 +744,7 @@ const Game3D = {
     cctvDesk.position.set(-24, 0.55, 34);
     this.mapGroup.add(cctvDesk);
     this.cctvConsoles.push({ x: -24, z: 34, mesh: cctvDesk });
+
 
     const floorTex = makeTexture('floor', lvl);
     floorTex.repeat.set(22, 22);
@@ -1269,6 +1355,7 @@ const Game3D = {
     };
 
     bindInstantTouch('torch-btn', () => this.toggleTorch());
+    bindInstantTouch('use-btn', () => this.interact());
     bindInstantTouch('interact-btn', () => this.interact());
     bindInstantTouch('stun-btn', () => this.fireStun());
     bindInstantTouch('cam-toggle-btn', () => {
@@ -1629,6 +1716,8 @@ const Game3D = {
       document.getElementById('note-body').textContent = act.note.text;
       document.getElementById('note-code-reveal').textContent = this.codes[act.note.idx];
       document.getElementById('note-modal').classList.remove('hidden');
+    } else if (act.type === 'CCTV') {
+      this.openCCTV();
     } else if (act.type === 'CCTV') {
       this.openCCTV();
     } else if (act.type === 'INTEL') {
@@ -2207,6 +2296,15 @@ const Game3D = {
             }
           }
         }
+        if (!this.nearAction && this.cctvConsoles) {
+          for (const c of this.cctvConsoles) {
+            if (Math.hypot(c.x - me.x, c.z - me.z) < 2.4) {
+              this.nearAction = { type: 'CCTV' };
+              hint.textContent = '📹 [USE] Open Live Bunker CCTV Cameras';
+              break;
+            }
+          }
+        }
         if (!this.nearAction && this.intelBoxes) {
           for (const b of this.intelBoxes) {
             if (!b.taken && Math.hypot(b.x - me.x, b.z - me.z) < 2.3) {
@@ -2581,4 +2679,4 @@ const HomeShowcase3D = {
   }
 };
 window.HomeShowcase3D = HomeShowcase3D;
-window.addEventListener('DOMContentLoaded', () => HomeShowcase3D.init());
+if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', () => HomeShowcase3D.init()); } else { HomeShowcase3D.init(); }

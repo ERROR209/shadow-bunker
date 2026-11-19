@@ -3,270 +3,245 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SHADOW BUNKER 3D // Multiplayer Survival Horror Game</title>
+  <title>Shadow Bunker 3D — Sector-09 Co-op Survival Horror</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
-  <!-- PRE-GAME LANDING PAGE -->
-  <section id="landing-screen" class="landing-screen">
-    <div class="landing-container">
-      <div id="ad-slot-top" class="ad-box">
-        <span class="ad-label">ADVERTISEMENT</span>
-        <div class="ad-placeholder">728x90 / 320x50 Top Ad Banner Space</div>
-      </div>
+  <!-- 1. BGMI-STYLE 3D INTERACTIVE MAIN LOBBY -->
+  <div id="menu-screen" class="screen" style="position:fixed;inset:0;background:#050914;overflow:hidden;">
+    <canvas id="home-3d-canvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:1;touch-action:none;"></canvas>
 
-      <div id="launch-game-banner" class="game-hero-banner" role="button" tabindex="0">
-        <div class="banner-overlay">
-          <div class="live-pill">🟢 ONLINE CO-OP // 3D SPAWN LOBBY & VOICE CHAT</div>
-          <h1>SHADOW <span>BUNKER 3D</span></h1>
-          <p>SECTOR-09 SURVIVAL HORROR CO-OP</p>
-          <div class="play-cta-btn">▶ CLICK BANNER TO PLAY</div>
+    <!-- Top-Left: Saved Agent Profile + XP Rank + 4 Squad Slots -->
+    <div style="position:fixed;top:10px;left:10px;z-index:10;width:min(310px,54vw);display:flex;flex-direction:column;gap:6px;">
+      <div id="agent-profile-card" style="background:rgba(9,13,22,0.88);backdrop-filter:blur(8px);border:1px solid #38bdf8;border-radius:12px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,0.65);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:5px;">
+          <input id="player-name" type="text" maxlength="14" placeholder="Agent Name" style="background:rgba(30,41,59,0.95);border:1px solid #475569;color:#fff;font-weight:800;font-size:0.8rem;padding:4px 8px;border-radius:6px;width:62%;" />
+          <button id="backup-profile-btn" type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:0.65rem;font-weight:800;padding:4px 7px;border-radius:6px;cursor:pointer;">💾 SAVE</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span id="prof-rank-badge" style="background:#facc15;color:#0f172a;font-weight:900;font-size:0.64rem;padding:2px 7px;border-radius:4px;">🎖️ ROOKIE</span>
+          <span id="prof-agent-id" style="color:#94a3b8;font-size:0.64rem;">ID: #SB09</span>
+        </div>
+        <div style="background:#020617;height:5px;border-radius:999px;overflow:hidden;margin-bottom:6px;">
+          <div id="prof-xp-bar" style="background:linear-gradient(90deg,#38bdf8,#22c55e);height:100%;width:12%;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;text-align:center;font-size:0.64rem;">
+          <div style="background:rgba(15,23,42,0.9);padding:3px;border-radius:5px;"><div style="color:#64748b;font-size:0.55rem;">XP</div><div id="stat-xp" style="color:#facc15;font-weight:800;">0</div></div>
+          <div style="background:rgba(15,23,42,0.9);padding:3px;border-radius:5px;"><div style="color:#64748b;font-size:0.55rem;">WINS</div><div id="stat-wins" style="color:#4ade80;font-weight:800;">0</div></div>
+          <div style="background:rgba(15,23,42,0.9);padding:3px;border-radius:5px;"><div style="color:#64748b;font-size:0.55rem;">BEST</div><div id="stat-best-time" style="color:#38bdf8;font-weight:800;">--:--</div></div>
+          <div style="background:rgba(15,23,42,0.9);padding:3px;border-radius:5px;"><div style="color:#64748b;font-size:0.55rem;">PLAYED</div><div id="stat-matches" style="color:#e2e8f0;font-weight:800;">0</div></div>
         </div>
       </div>
 
-      <div id="ad-slot-mid" class="ad-box">
-        <span class="ad-label">SPONSORED</span>
-        <div class="ad-placeholder">300x250 / Native Ad Space</div>
-      </div>
-
-      <div class="info-section">
-        <h2>🎮 PRO FEATURES & SQUAD ROLES</h2>
-        <div class="feature-cards">
-          <div class="f-card">
-            <strong>🏝️ 3D Squad Spawn Island</strong>
-            <span>See all your teammates standing together in 3D before deployment!</span>
-          </div>
-          <div class="f-card">
-            <strong>🎖️ Scout, Engineer & Medic</strong>
-            <span>Each class has unique survival powers, radar range, and extra charges.</span>
-          </div>
-          <div class="f-card">
-            <strong>🚁 3D Helicopter Extraction</strong>
-            <span>Board the landing rescue chopper on the rooftop in Level 3 to win!</span>
-          </div>
+      <div id="home-squad-slots" style="background:rgba(9,13,22,0.84);border:1px solid #334155;border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.65rem;color:#94a3b8;font-weight:800;">
+          <span>👥 SQUAD TEAM</span>
+          <span id="home-room-tag" style="color:#38bdf8;">SOLO READY</span>
         </div>
-      </div>
-
-      <footer class="landing-footer">
-        <p>© 2026 Shadow Bunker 3D • Built by ERROR209</p>
-      </footer>
-    </div>
-  </section>
-
-  <!-- BGMI-STYLE INTERACTIVE 3D SPAWN ISLAND LOBBY -->
-  <section id="lobby-screen" class="screen hidden">
-    <div id="lobby-3d-bg" class="lobby-3d-bg"></div>
-
-    <!-- Initial Room Setup Card (Hidden once you enter Spawn Island) -->
-    <div id="lobby-setup-card" class="lobby-card bgmi-lobby-panel">
-      <div class="badge-top">SPAWN ISLAND // HELIPAD BASE</div>
-      <h1>SHADOW <span>BUNKER 3D</span></h1>
-      <div id="lobby-setup-form">
-        <input type="text" id="player-name" placeholder="Enter your Agent Name..." maxlength="12" />
-        <div id="lobby-actions" class="action-grid">
-          <button id="rejoin-squad-btn" class="btn hidden" style="background:linear-gradient(135deg,#0284c7,#1d4ed8);">🔄 REJOIN LIVE SQUAD</button>
-          <button id="resume-mission-btn" class="btn hidden" style="background:linear-gradient(135deg,#059669,#047857);">▶️ RESUME SAVED CHECKPOINT</button>
-          <button id="create-room-btn" class="btn primary">➕ ENTER SPAWN ISLAND (CREATE)</button>
-          <div class="join-row">
-            <input type="text" id="room-code-input" placeholder="CODE" maxlength="4" />
-            <button id="join-room-btn" class="btn secondary">JOIN</button>
-          </div>
-        </div>
+        <div id="home-slot-list" style="display:flex;flex-direction:column;gap:3px;"></div>
       </div>
     </div>
 
-    <!-- Sleek Top HUD Bar inside Live 3D Spawn Island -->
-    <div id="waiting-room" class="spawn-island-hud hidden">
-      <div class="spawn-top-bar">
-        <div class="spawn-pill">🏝️ CODE: <strong id="display-code" style="color:#38bdf8">----</strong> <button id="copy-code-btn" class="mini-btn">COPY</button></div>
-        <select id="role-select" class="role-select">
-          <option value="SCOUT">🔭 SCOUT</option>
+    <!-- Top-Right: Title + Suit Armory -->
+    <div style="position:fixed;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <div style="text-align:right;background:rgba(9,13,22,0.8);padding:5px 10px;border-radius:10px;border-right:3px solid #ef4444;">
+        <div style="font-size:0.98rem;font-weight:900;letter-spacing:1.2px;color:#f8fafc;">SHADOW BUNKER</div>
+        <div style="font-size:0.6rem;color:#facc15;font-weight:700;">SECTOR-09 • 5-LEVEL HORROR</div>
+      </div>
+      <button id="toggle-shop-btn" type="button" style="background:linear-gradient(135deg,#0284c7,#1d4ed8);border:1px solid #38bdf8;color:#fff;font-weight:900;font-size:0.74rem;padding:7px 12px;border-radius:10px;cursor:pointer;">🛒 SUIT ARMORY</button>
+    </div>
+
+    <!-- Suit Armory Drawer -->
+    <div id="armory-drawer" class="hidden" style="position:fixed;top:88px;right:10px;z-index:25;width:min(300px,86vw);background:rgba(9,13,22,0.96);border:1px solid #38bdf8;border-radius:12px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,0.85);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#facc15;font-weight:900;font-size:0.8rem;">🛒 SPEC-OPS SUIT SHOP (XP)</span>
+        <button id="close-shop-btn" type="button" style="background:#334155;border:none;color:#fff;padding:2px 8px;border-radius:6px;cursor:pointer;">✕</button>
+      </div>
+      <div id="suit-shop-list" style="display:flex;flex-direction:column;gap:6px;max-height:45vh;overflow-y:auto;"></div>
+    </div>
+
+    <!-- Bottom-Left: Class Selector -->
+    <div style="position:fixed;bottom:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:4px;max-width:53vw;">
+      <div style="color:#94a3b8;font-size:0.62rem;font-weight:800;">🎭 CLASS (DRAG 3D CHAR TO ROTATE)</div>
+      <div id="home-class-bar" style="display:flex;flex-wrap:wrap;gap:4px;">
+        <button type="button" class="home-role-btn" data-role="SCOUT" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;font-weight:800;font-size:0.68rem;padding:5px 8px;border-radius:7px;cursor:pointer;">🏃 SCOUT</button>
+        <button type="button" class="home-role-btn" data-role="ENGINEER" style="background:rgba(15,23,42,0.9);border:1px solid #475569;color:#cbd5e1;font-weight:800;font-size:0.68rem;padding:5px 8px;border-radius:7px;cursor:pointer;">🔧 ENGINEER</button>
+        <button type="button" class="home-role-btn" data-role="MEDIC" style="background:rgba(15,23,42,0.9);border:1px solid #475569;color:#cbd5e1;font-weight:800;font-size:0.68rem;padding:5px 8px;border-radius:7px;cursor:pointer;">💉 MEDIC</button>
+        <button type="button" class="home-role-btn" data-role="TECH" style="background:rgba(15,23,42,0.9);border:1px solid #475569;color:#cbd5e1;font-weight:800;font-size:0.68rem;padding:5px 8px;border-radius:7px;cursor:pointer;">⚡ TECH</button>
+      </div>
+      <div id="home-role-desc" style="color:#38bdf8;font-size:0.64rem;font-weight:600;background:rgba(9,13,22,0.8);padding:3px 7px;border-radius:6px;">🏃 Shadow Dash: 1.5x Speed + Silent Steps</div>
+    </div>
+
+    <!-- Bottom-Right: Difficulty + Create/Join Team + Start Solo/Squad -->
+    <div style="position:fixed;bottom:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:min(255px,44vw);">
+      <div style="display:flex;gap:3px;width:100%;background:rgba(9,13,22,0.92);padding:3px;border-radius:8px;border:1px solid #334155;">
+        <button type="button" class="diff-btn" data-diff="NORMAL" style="flex:1;background:#16a34a;border:none;color:#fff;font-weight:900;font-size:0.6rem;padding:4px 2px;border-radius:5px;cursor:pointer;">🟢 NORMAL</button>
+        <button type="button" class="diff-btn" data-diff="NIGHTMARE" style="flex:1;background:transparent;border:none;color:#94a3b8;font-weight:800;font-size:0.6rem;padding:4px 2px;border-radius:5px;cursor:pointer;">🟠 NIGHTMARE</button>
+        <button type="button" class="diff-btn" data-diff="INFERNO" style="flex:1;background:transparent;border:none;color:#94a3b8;font-weight:800;font-size:0.6rem;padding:4px 2px;border-radius:5px;cursor:pointer;">🔴 INFERNO 3x</button>
+      </div>
+      <div id="daily-contract-box" style="width:100%;background:rgba(15,23,42,0.88);border:1px dashed #facc15;color:#fef08a;font-size:0.6rem;padding:3px 7px;border-radius:6px;">
+        📜 <b>CONTRACT:</b> Extract with &gt;50% Sanity (+300 XP)
+      </div>
+      <div style="display:flex;gap:4px;width:100%;">
+        <button id="create-room-btn" type="button" style="flex:1;background:rgba(15,23,42,0.92);border:1px solid #38bdf8;color:#38bdf8;font-weight:800;font-size:0.66rem;padding:6px 4px;border-radius:7px;cursor:pointer;">➕ CREATE TEAM</button>
+        <button id="toggle-join-btn" type="button" style="flex:1;background:rgba(15,23,42,0.92);border:1px solid #a855f7;color:#d8b4fe;font-weight:800;font-size:0.66rem;padding:6px 4px;border-radius:7px;cursor:pointer;">🔗 JOIN TEAM</button>
+      </div>
+      <div id="join-code-row" class="hidden" style="display:flex;gap:4px;width:100%;">
+        <input id="room-code-input" type="text" maxlength="6" placeholder="CODE" style="flex:1;min-width:0;background:#0f172a;border:1px solid #a855f7;color:#fff;font-weight:800;text-align:center;padding:5px;border-radius:7px;text-transform:uppercase;" />
+        <button id="join-room-btn" type="button" style="background:#9333ea;border:none;color:#fff;font-weight:900;padding:5px 10px;border-radius:7px;cursor:pointer;">JOIN</button>
+      </div>
+      <button id="solo-or-squad-start-btn" type="button" style="width:100%;background:linear-gradient(135deg,#facc15,#ea580c);border:2px solid #fef08a;color:#090d16;font-weight:900;font-size:0.95rem;letter-spacing:0.8px;padding:10px 12px;border-radius:10px;cursor:pointer;box-shadow:0 0 18px rgba(250,204,21,0.5);">🚀 START SOLO</button>
+    </div>
+  </div>
+
+  <!-- 2. MULTIPLAYER SPAWN ISLAND LOBBY -->
+  <div id="lobby-screen" class="screen hidden">
+    <canvas id="lobby-canvas"></canvas>
+    <div id="lobby-ui">
+      <div class="lobby-top">
+        <div class="room-pill">🏝️ CODE: <span id="display-room-code">----</span> <button id="copy-code-btn" class="mini-btn">COPY</button></div>
+        <select id="role-select" class="role-dropdown">
+          <option value="SCOUT">🏃 SCOUT</option>
           <option value="ENGINEER">🔧 ENGINEER</option>
           <option value="MEDIC">💉 MEDIC</option>
+          <option value="TECH">⚡ TECH</option>
         </select>
-        <button id="ready-toggle-btn" class="mini-btn" style="background:#16a34a">✅ READY</button>
-        <button id="start-game-btn" class="mini-btn" style="background:#dc2626; padding:6px 12px;">🚀 DEPLOY</button>
-        <button id="manual-reconnect-btn" class="mini-btn hidden" style="background:#0284c7; padding:6px 10px;">🔄 RECONNECT</button>
+        <button id="ready-btn" class="btn-ready">✅ READY</button>
+        <button id="start-game-btn" class="btn-start hidden">🚀 DEPLOY</button>
       </div>
-      <div class="spawn-squad-strip">
-        <span>SQUAD (<span id="player-count">1</span>/4):</span>
-        <ul id="squad-list" class="spawn-player-pills"></ul>
-        <span id="wait-msg" class="wait-msg hidden" style="margin:0; font-size:0.72rem; color:#facc15;">Waiting for Leader to Deploy...</span>
-      </div>
-
-      <!-- Touch Look + Joystick for walking around Spawn Island -->
-      <div id="lobby-look-zone" class="look-zone" style="z-index:3;"></div>
-      <div id="lobby-joy-zone" class="joystick-zone" style="z-index:6;">
-        <div class="joystick-base">
-          <div id="lobby-joy-stick" class="joystick-stick"></div>
-        </div>
-      </div>
-      <div id="deploy-countdown-banner" class="hidden" style="position:fixed;top:22%;left:50%;transform:translateX(-50%);background:rgba(153,27,27,0.92);border:2px solid #facc15;color:#fff;padding:12px 24px;border-radius:14px;font-size:1.35rem;font-weight:900;letter-spacing:1.5px;z-index:40;text-align:center;box-shadow:0 0 25px rgba(239,68,68,0.7);">🚀 DEPLOYING IN <span id="deploy-sec">10</span>s...</div>
       <div id="lobby-bgmi-squad" style="position:fixed;top:92px;left:12px;z-index:25;display:flex;flex-direction:column;gap:5px;pointer-events:none;"></div>
+      <div id="lobby-players" class="squad-bar"></div>
+      <div id="countdown-banner" class="countdown-banner hidden">DEPLOYING IN <span id="countdown-num">10</span>s...</div>
       <div class="spawn-tip">🕹️ Drag left stick to walk around Spawn Island • Swipe right to look</div>
+      <div id="lobby-joy-zone"><div id="lobby-joy-stick"></div></div>
+      <div id="lobby-look-zone"></div>
     </div>
-  </section>
+  </div>
 
-  <!-- CINEMATIC STORY INTRO -->
-  <section id="story-intro" class="story-screen hidden">
-    <div class="story-box">
-      <div class="paper-stamp">CLASSIFIED BRIEFING // 11:48 PM</div>
-      <h2>SECTOR-09: THE OUTBREAK</h2>
-      <p id="story-typewriter" class="story-lines"></p>
-      <button id="enter-bunker-btn" class="btn primary" style="width:100%; margin-top:16px;">🔦 ENTER THE LAB</button>
-    </div>
-  </section>
+  <!-- 3. 3D GAMEPLAY SCREEN -->
+  <div id="game-screen" class="screen hidden">
+    <div id="three-container" style="position:fixed;inset:0;z-index:1;"></div>
+    <div id="danger-overlay" style="position:fixed;inset:0;pointer-events:none;z-index:18;box-shadow:inset 0 0 0px rgba(220,38,38,0);transition:box-shadow 0.15s ease;"></div>
 
-  <!-- 3D GAME SCREEN -->
-  <section id="game-screen" class="screen hidden">
-    <div id="three-container"></div>
-    <div id="danger-overlay" class="danger-overlay"></div>
-
-    <!-- SAFE LOCKER PEEKING SLITS OVERLAY -->
-    <div id="locker-overlay" class="locker-overlay hidden">
-      <div class="locker-slit"></div>
-      <div class="locker-slit"></div>
-      <div class="locker-slit"></div>
-      <div class="locker-label">🔒 HIDING IN SAFE LOCKER — STAY QUIET!</div>
-    </div>
-
-    <!-- JUMPSCARE OVERLAY -->
-    <div id="jumpscare-overlay" class="jumpscare-overlay hidden">
-      <div class="scare-face">
-        <svg viewBox="0 0 200 220" width="240" height="260">
-          <path d="M40,40 Q100,10 160,40 L175,130 Q100,210 25,130 Z" fill="#09090b" stroke="#7f1d1d" stroke-width="4"/>
-          <circle cx="68" cy="85" r="14" fill="#ff0000"/><circle cx="68" cy="85" r="4" fill="#ffffff"/>
-          <circle cx="132" cy="85" r="14" fill="#ff0000"/><circle cx="132" cy="85" r="4" fill="#ffffff"/>
-          <path d="M55,140 Q100,115 145,140 Q135,185 100,185 Q65,185 55,140 Z" fill="#18181b" stroke="#dc2626" stroke-width="3"/>
-          <polygon points="65,138 73,158 81,136" fill="#e2e8f0"/><polygon points="88,134 96,160 104,134" fill="#e2e8f0"/>
-          <polygon points="112,136 120,158 128,138" fill="#e2e8f0"/><polygon points="75,178 83,160 91,180" fill="#e2e8f0"/>
-          <polygon points="108,180 116,160 124,178" fill="#e2e8f0"/>
-        </svg>
-        <p>SUBJECT-0 CAUGHT YOU!</p>
+    <!-- Cinematic Cutscene Letterbox Overlay -->
+    <div id="cutscene-overlay" class="hidden" style="position:fixed;inset:0;z-index:90;pointer-events:none;flex-direction:column;justify-content:space-between;">
+      <div style="height:13vh;background:#000;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between;padding:0 18px;pointer-events:auto;">
+        <span id="cutscene-chapter" style="color:#facc15;font-weight:900;letter-spacing:1.5px;font-size:0.88rem;">🎬 SECTOR-09</span>
+        <button id="skip-cutscene-btn" class="mini-btn" style="background:#334155;border:1px solid #64748b;padding:5px 12px;">SKIP ⏭️</button>
+      </div>
+      <div style="height:17vh;background:linear-gradient(to top,#000 75%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 18px;text-align:center;">
+        <div id="cutscene-speaker" style="color:#38bdf8;font-size:0.75rem;font-weight:800;letter-spacing:1.2px;margin-bottom:3px;">📡 HQ COMMAND</div>
+        <div id="cutscene-subtitle" style="color:#f8fafc;font-size:0.95rem;font-weight:600;max-width:740px;"></div>
       </div>
     </div>
 
-    <div id="crosshair" class="crosshair">+</div>
-    <div id="interact-hint" class="interact-hint hidden">✋ [USE / E] Interact</div>
-
-    <header class="game-hud">
-      <div class="hud-left">
-        <span id="role-badge" class="role-badge">SCOUT</span>
-        <span id="battery-badge" class="battery-badge">🔋 100%</span>
-        <span id="locks-status" class="locks-badge">⚡ OFF</span>
-        <span id="stun-status" class="stun-badge">🔫 3/3</span>
-        <button id="mic-btn" class="mic-badge">🎤 OFF</button>
-        <button id="fs-rotate-btn" class="mic-badge">⛶ LANDSCAPE</button>
-        <button id="nvg-toggle-btn" class="mini-btn" style="background:#052e16;border:1px solid #22c55e;color:#4ade80;">🥽 NVG</button>
-        <button id="sfx-toggle-btn" class="mini-btn" style="background:#1e293b;border:1px solid #475569;">🔊 SFX</button>
-        <button id="cam-toggle-btn" class="mic-badge">🎥 1ST</button>
-        <button id="edit-hud-btn" class="mic-badge">⚙️ KEYS</button>
-        <span id="fps-badge" class="fps-badge">FPS: 60</span>
-      </div>
-      <div id="timer-badge" class="timer-badge hidden">☢️ 65s</div>
-    </header>
-
-    <div id="agent-rank-pill" style="display:inline-block;background:rgba(30,41,59,0.88);border:1px solid #facc15;color:#facc15;padding:2px 9px;border-radius:999px;font-size:0.7rem;font-weight:800;margin-right:6px;">🎖️ ROOKIE • 0 XP</div>
-    <div id="waypoint-compass" style="display:inline-flex;align-items:center;gap:8px;background:rgba(15,23,42,0.85);border:1px solid #38bdf8;color:#38bdf8;padding:3px 10px;border-radius:999px;font-size:0.74rem;font-weight:800;margin-bottom:4px;letter-spacing:0.5px;">
-      <span>🧭 TARGET:</span><span id="waypoint-arrow" style="font-size:0.95rem;color:#facc15;">⬆️</span><span id="waypoint-dist" style="color:#f8fafc;">--m</span>
-      <span style="color:#475569;">|</span>
-      <span>🏃 STAMINA:</span><span id="stamina-text" style="color:#4ade80;">100%</span>
-      <span style="color:#475569;">|</span>
-      <span>🧠 SANITY:</span><span id="sanity-text" style="color:#38bdf8;">100%</span>
-    </div>
-    <div id="objective-banner" class="objective-strip">CHAPTER 1: Find the blue POWER FUSE in the dark storage room</div>
-
-    <!-- HUD KEY-MAPPING EDITOR BAR -->
-    <div id="hud-editor-bar" class="hud-editor-bar hidden">
-      <span>🎛️ Drag any button to customize layout</span>
-      <div>
-        <button id="reset-hud-btn" class="mini-btn" style="background:#b45309">RESET</button>
-        <button id="save-hud-btn" class="mini-btn" style="background:#16a34a">SAVE</button>
-      </div>
-    </div>
-
-    <!-- SPECTATE MODE OVERLAY -->
-    <div id="spectate-bar" class="spectate-bar hidden">
-      <span>👁️ SPECTATING: <strong id="spectate-target-name">Teammate</strong></span>
-      <button id="spectate-next-btn" class="mini-btn" style="background:#0284c7">NEXT PLAYER ▶</button>
-    </div>
-
-    <div id="radar-wrap" class="radar-wrap">
-      <div id="ingame-bgmi-squad" style="position:fixed;top:138px;left:10px;z-index:25;display:flex;flex-direction:column;gap:4px;pointer-events:none;"></div>
-      <canvas id="radar-canvas" width="85" height="85"></canvas>
-    </div>
-
-    <div id="radio-bar" class="radio-bar">
-      <button class="radio-btn" data-msg="⚠️ Subject-0 is close! Hide in a Safe Locker!">⚠️ Monster</button>
-      <button class="radio-btn" data-msg="🔋 Found the Power Fuse! Heading to Generator!">🔋 Fuse</button>
-      <button class="radio-btn" data-msg="📄 Decoded a secret terminal pass-code!">📄 Code</button>
-      <button class="radio-btn" data-msg="🆘 I'm downed! Need a revive ASAP!">🆘 Help</button>
-    </div>
-    <div id="radio-toast" class="radio-toast hidden"></div>
-
-    <div id="look-zone" class="look-zone"></div>
-
-    <div id="joystick-zone" class="joystick-zone">
-      <div id="joystick-base" class="joystick-base">
-        <div id="joystick-stick" class="joystick-stick"></div>
-      </div>
-    </div>
-
-    <div id="action-buttons" class="action-buttons">
-      <button id="crouch-btn" class="action-btn" style="background:rgba(100,116,139,0.28);border-color:#94a3b8;color:#f1f5f9;">🧍 CROUCH</button>
-        <button id="ping-btn" class="action-btn" style="background:rgba(250,204,21,0.25);border-color:#facc15;color:#fef08a;">📍 PING</button>
-        <button id="flare-btn" class="action-btn" style="background:rgba(239,68,68,0.28);border-color:#ef4444;color:#fecaca;">🧨 FLARE</button>
-        <button id="skill-btn" class="action-btn" style="background:rgba(14,165,233,0.28);border-color:#38bdf8;color:#e0f2fe;">✨ SKILL</button>
-        <button id="stun-btn" class="ctrl-btn stun">⚡<br><small>STUN</small></button>
-      <button id="sprint-btn" class="ctrl-btn sprint">🏃<br><small>RUN</small></button>
-      <button id="torch-btn" class="ctrl-btn torch-on">🔦<br><small>TORCH</small></button>
-      <button id="interact-btn" class="ctrl-btn interact">✋<br><small>USE</small></button>
-    </div>
-
-    <div id="note-modal" class="modal hidden">
-      <div class="modal-box paper-box">
-        <div class="paper-stamp">DR. VERMA'S RECOVERY LOG</div>
-        <h3 id="note-title">LOG #1</h3>
-        <p id="note-body" class="note-text">...</p>
-        <div id="note-code-reveal" class="code-reveal">---</div>
-        <button id="close-note-btn" class="btn primary" style="width:100%">GOT IT (CLOSE)</button>
-      </div>
-    </div>
-
-    <div id="puzzle-modal" class="modal hidden">
-      <div class="modal-box">
-        <h3 id="puzzle-title">SECURITY TERMINAL #1</h3>
-        <p id="puzzle-hint">Enter the 3-digit access code found in Dr. Verma's log</p>
-        <div id="keypad-display" class="keypad-display">_ _ _</div>
-        <div class="keypad-grid">
-          <button class="key" data-val="1">1</button><button class="key" data-val="2">2</button><button class="key" data-val="3">3</button>
-          <button class="key" data-val="4">4</button><button class="key" data-val="5">5</button><button class="key" data-val="6">6</button>
-          <button class="key" data-val="7">7</button><button class="key" data-val="8">8</button><button class="key" data-val="9">9</button>
-          <button class="key clear">C</button><button class="key" data-val="0">0</button><button class="key close">✕</button>
+    <!-- Live CCTV Monitor Overlay -->
+    <div id="cctv-modal" class="hidden" style="position:fixed;inset:0;z-index:75;pointer-events:none;flex-direction:column;justify-content:space-between;border:5px solid #22c55e;">
+      <div style="background:rgba(2,6,23,0.88);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;pointer-events:auto;">
+        <span id="cctv-cam-label" style="color:#4ade80;font-family:monospace;font-weight:900;font-size:0.82rem;">📹 CAM-01 [LIVE ●]</span>
+        <div style="display:flex;gap:6px;">
+          <button id="cctv-next-btn" class="mini-btn" style="background:#0284c7;border:1px solid #38bdf8;">NEXT CAM ⏭️</button>
+          <button id="cctv-exit-btn" class="mini-btn" style="background:#dc2626;border:1px solid #f87171;">EXIT ✕</button>
         </div>
       </div>
     </div>
 
-    <!-- END OF MATCH MVP SUMMARY CARD -->
-    <div id="end-modal" class="modal hidden">
-      <div class="modal-box" style="max-width:360px;">
-        <h2 id="end-title">MISSION COMPLETE</h2>
-        <p id="end-desc" style="margin: 8px 0 12px; font-size: 0.84rem; color: #cbd5e1;">...</p>
-        <div id="mvp-summary" class="mvp-box"></div>
-        <button id="instant-restart-btn" class="btn primary" style="width:100%; margin-top:12px;">🔄 PLAY AGAIN (INSTANT)</button>
+    <div id="spectate-bar" class="spectate-bar hidden">👁️ SPECTATING: <span id="spectate-target-name">Mate</span> <button id="spectate-next-btn" class="mini-btn">NEXT</button></div>
+    <div id="hud">
+      <div class="hud-top">
+        <div class="hud-stats">
+          <span class="badge" id="role-badge">SCOUT</span>
+          <span class="badge"><span id="battery-badge">🔋 100%</span></span>
+          <span class="badge"><span id="stun-status">🔫 2/2</span> <span class="badge" id="locks-status">⚡ OFF</span> <span class="badge hidden" id="timer-badge">☢️ 52s</span></span>
+          <button id="mic-btn" class="mini-btn">🎤 OFF</button>
+          <button id="fs-btn" class="mini-btn">⛶ LANDSCAPE</button>
+          <button id="nvg-toggle-btn" class="mini-btn" style="background:#052e16;border:1px solid #22c55e;color:#4ade80;">🥽 NVG</button>
+          <button id="sfx-toggle-btn" class="mini-btn" style="background:#1e293b;border:1px solid #475569;">🔊 SFX</button>
+          <button id="cam-toggle-btn" class="mini-btn">🎥 1ST</button>
+          <span class="badge"><span id="fps-badge">FPS: 60</span></span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:3px;">
+          <div id="agent-rank-pill" style="background:rgba(30,41,59,0.9);border:1px solid #facc15;color:#facc15;padding:2px 8px;border-radius:999px;font-size:0.65rem;font-weight:800;">🎖️ ROOKIE • 0 XP</div>
+          <div id="waypoint-compass" style="display:inline-flex;align-items:center;gap:6px;background:rgba(15,23,42,0.88);border:1px solid #38bdf8;color:#38bdf8;padding:2px 8px;border-radius:999px;font-size:0.66rem;font-weight:800;">
+            <span>🧭</span><span id="waypoint-arrow" style="color:#facc15;">⬆️</span><span id="waypoint-dist" style="color:#f8fafc;">--m</span>
+            <span style="color:#475569;">|</span>
+            <span>🏃</span><span id="stamina-text" style="color:#4ade80;">100%</span>
+            <span style="color:#475569;">|</span>
+            <span>🧠</span><span id="sanity-text" style="color:#38bdf8;">100%</span>
+          </div>
+        </div>
+        <div id="objective-banner" class="objective-banner">Find Blue Power Fuse & restore Generator!</div>
+        <div class="radio-bar">
+          <button class="radio-btn" data-msg="⚠️ Monster near me!">⚠️ Monster</button>
+          <button class="radio-btn" data-msg="🔋 Found Fuse / Key!">🔋 Key</button>
+          <button class="radio-btn" data-msg="🔢 Terminal unlocked!">🔢 Code</button>
+          <button class="radio-btn" data-msg="🆘 Need revive!">🆘 Help</button>
+        </div>
+      </div>
+
+      <div id="ingame-bgmi-squad" style="position:fixed;top:138px;left:10px;z-index:25;display:flex;flex-direction:column;gap:3px;pointer-events:none;"></div>
+      <canvas id="radar-canvas" width="110" height="110"></canvas>
+      <div id="radio-toast" class="radio-toast hidden"></div>
+      <div id="interact-hint" class="interact-hint hidden">Press [USE]</div>
+      <div id="crosshair">+</div>
+      <div id="look-zone"></div>
+
+      <div id="joystick-zone"><div id="joystick-stick"></div></div>
+
+      <!-- Compact, Non-Clipping Tactical Utility Strip above Right Action Pad -->
+      <div id="tactical-strip" style="position:fixed;right:14px;bottom:168px;z-index:26;display:flex;gap:6px;">
+        <button id="crouch-btn" type="button" style="background:rgba(15,23,42,0.88);border:1px solid #94a3b8;color:#f1f5f9;font-size:0.66rem;font-weight:800;padding:6px 8px;border-radius:8px;">🧍 CROUCH</button>
+        <button id="ping-btn" type="button" style="background:rgba(15,23,42,0.88);border:1px solid #facc15;color:#fef08a;font-size:0.66rem;font-weight:800;padding:6px 8px;border-radius:8px;">📍 PING</button>
+        <button id="flare-btn" type="button" style="background:rgba(15,23,42,0.88);border:1px solid #ef4444;color:#fecaca;font-size:0.66rem;font-weight:800;padding:6px 8px;border-radius:8px;">🧨 FLARE</button>
+        <button id="skill-btn" type="button" style="background:rgba(2,132,199,0.88);border:1px solid #38bdf8;color:#fff;font-size:0.66rem;font-weight:900;padding:6px 9px;border-radius:8px;">✨ SKILL</button>
+      </div>
+
+      <div class="action-buttons">
+        <button id="stun-btn" class="action-btn stun">⚡<br>STUN</button>
+        <button id="run-btn" class="action-btn run">🏃<br>RUN</button>
+        <button id="torch-btn" class="action-btn torch">🔦<br>TORCH</button>
+        <button id="use-btn" class="action-btn use">🖐️<br>USE</button>
       </div>
     </div>
-  </section>
 
-  <script>
-    document.getElementById('launch-game-banner').addEventListener('click', () => {
-      document.getElementById('landing-screen').classList.add('hidden');
-      document.getElementById('lobby-screen').classList.remove('hidden');
-      if (typeof Lobby3D !== 'undefined') Lobby3D.init();
-    });
-  </script>
+    <!-- Note / Code Modal -->
+    <div id="note-modal" class="modal hidden">
+      <div class="modal-card">
+        <h3>📄 DR. VERMA LOG</h3>
+        <p id="note-text">...</p>
+        <div class="code-box" id="note-code">000</div>
+        <button id="close-note-btn" class="btn-primary">GOT IT</button>
+      </div>
+    </div>
+
+    <!-- Terminal Keypad Modal -->
+    <div id="puzzle-modal" class="modal hidden">
+      <div class="modal-card">
+        <h3 id="puzzle-title">🔐 SECURITY TERMINAL</h3>
+        <input id="code-input" type="number" placeholder="Enter 3-digit code" />
+        <div class="modal-actions">
+          <button id="submit-code-btn" class="btn-primary">UNLOCK</button>
+          <button id="close-puzzle-btn" class="btn-secondary">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- End Match Summary Modal -->
+    <div id="end-modal" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="end-title">MISSION COMPLETE</h2>
+        <p id="end-desc">...</p>
+        <div id="end-stats" style="font-size:0.82rem;color:#cbd5e1;margin:8px 0;"></div>
+        <div class="modal-actions">
+          <button id="replay-btn" class="btn-primary">🔄 PLAY AGAIN</button>
+          <button id="home-btn" class="btn-secondary">🏠 MAIN LOBBY</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="network.js"></script>
   <script src="game.js"></script>
 </body>
