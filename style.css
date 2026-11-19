@@ -880,3 +880,86 @@ html, body {
   font-size: 0.54rem !important;
   border-radius: 10px !important;
 }
+
+/* ================= LOBBY UI POLISH (NO OVERLAP / NO CLIPPING) ================= */
+#menu-screen .top-bar {
+  top: 8px !important;
+  left: 10px !important;
+  right: 10px !important;
+  gap: 8px !important;
+}
+
+#menu-screen .agent-card {
+  width: 176px !important;
+  padding: 7px 9px !important;
+}
+
+#menu-screen .title-block {
+  max-width: 185px !important;
+}
+
+#menu-screen .title-block h1 {
+  font-size: 0.98rem !important;
+}
+
+#menu-screen .title-block p {
+  font-size: 0.56rem !important;
+}
+
+#menu-screen .squad-panel {
+  top: 128px !important;
+  left: 10px !important;
+  bottom: 154px !important;
+  width: 176px !important;
+  overflow-y: auto !important;
+  padding: 7px !important;
+}
+
+#menu-screen .slot-row {
+  padding: 4px 6px !important;
+  font-size: 0.58rem !important;
+}
+
+#menu-screen .bottom-dock {
+  bottom: 8px !important;
+  left: 10px !important;
+  right: 10px !important;
+  gap: 8px !important;
+  align-items: flex-end !important;
+}
+
+#menu-screen .class-box {
+  width: 176px !important;
+  padding: 7px !important;
+  z-index: 22 !important;
+}
+
+#menu-screen .role-btn {
+  padding: 5px 3px !important;
+  font-size: 0.58rem !important;
+}
+
+#menu-screen .role-tip {
+  font-size: 0.54rem !important;
+  margin-top: 4px !important;
+}
+
+#menu-screen .match-box {
+  width: 188px !important;
+  gap: 5px !important;
+}
+
+#menu-screen .diff-btn {
+  font-size: 0.52rem !important;
+  padding: 4px 2px !important;
+}
+
+#menu-screen .action-btn {
+  padding: 7px 5px !important;
+  font-size: 0.58rem !important;
+}
+
+#menu-screen .start-btn {
+  padding: 9px 8px !important;
+  font-size: 0.66rem !important;
+}
