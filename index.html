@@ -186,7 +186,16 @@
       <div class="modal-box" style="max-width:340px;border:1px solid #38bdf8;background:rgba(9,13,22,0.97);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #1e293b;padding-bottom:8px;">
           <h3 style="color:#38bdf8;font-size:1rem;margin:0;">⚙️ GAME SETTINGS</h3>
-          <button id="close-settings-btn" type="button" style="background:#334155;border:none;color:#fff;padding:4px 10px;border-radius:7px;font-weight:900;cursor:pointer;">✕</button>
+          
+      <div class="setting-row">
+        <span>🎨 Graphics Quality</span>
+        <select id="gfx-select" style="background:#0f172a;color:#38bdf8;border:1px solid #38bdf8;border-radius:8px;padding:6px 10px;font-weight:800;font-size:0.78rem;">
+          <option value="LOW">LOW (60 FPS)</option>
+          <option value="NORMAL" selected>NORMAL (Balanced)</option>
+          <option value="HIGH">HIGH (Shadows + HD)</option>
+        </select>
+      </div>
+      <button id="close-settings-btn" type="button" style="background:#334155;border:none;color:#fff;padding:4px 10px;border-radius:7px;font-weight:900;cursor:pointer;">✕</button>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:9px;text-align:left;">

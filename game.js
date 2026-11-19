@@ -275,7 +275,7 @@ const Game3D = {
         this.renderer.shadowMap.enabled = false;
       } else if (q === 'HIGH') {
         this.renderer.setPixelRatio(Math.min(dpr, isMobile ? 1.65 : 2.0));
-        this.renderer.shadowMap.enabled = true;
+        try { this.renderer.shadowMap.enabled = true; } catch(e) { this.renderer.shadowMap.enabled = false; }
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       } else {
         this.renderer.setPixelRatio(isMobile ? 1.0 : Math.min(dpr, 1.35));
@@ -345,8 +345,12 @@ const Game3D = {
     container.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:1;display:block;';
 
     const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-    this.renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: 'high-performance', stencil: false });
-    this.renderer.shadowMap.enabled = (this.gfxQuality === 'HIGH');
+    try {
+      this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
+    } catch (e) {
+      this.renderer = new THREE.WebGLRenderer();
+    }
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setSize(W, H);
     this.renderer.domElement.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:1;';
