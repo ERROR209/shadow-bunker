@@ -526,8 +526,80 @@ const Game3D = {
     });
   },
 
-  createTeammateAvatar(player) {
+  SQUAD_COLORS: [
+    { hex: '#facc15', num: 0xfacc15, label: '1' },
+    { hex: '#38bdf8', num: 0x38bdf8, label: '2' },
+    { hex: '#4ade80', num: 0x4ade80, label: '3' },
+    { hex: '#f472b6', num: 0xf472b6, label: '4' }
+  ],
+
+  getOrderedSquad() {
+    const arr = Object.values(Net.players || {});
+    arr.sort((a, b) => (a.id === Net.isHost ? -1 : 0) - (b.id === Net.isHost ? -1 : 0));
+    return arr.slice(0, 4);
+  },
+
+  makeNameTagSprite(numStr, playerName, colorHex) {
+    const cvs = document.createElement('canvas');
+    cvs.width = 256; cvs.height = 64;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = 'rgba(9, 13, 22, 0.82)';
+    ctx.beginPath();
+    ctx.roundRect(10, 10, 236, 44, 12);
+    ctx.fill();
+    ctx.strokeStyle = colorHex;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = colorHex;
+    ctx.beginPath();
+    ctx.arc(34, 32, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#090d16';
+    ctx.font = '900 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(numStr, 34, 33);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '800 19px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText((playerName || 'AGENT').slice(0, 12), 56, 33);
+
+    const tex = new THREE.CanvasTexture(cvs);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(1.65, 0.42, 1);
+    sp.position.set(0, 2.38, 0);
+    return sp;
+  },
+
+  updateBgmiSquadHUD() {
+    const box = document.getElementById('bgmi-squad-list');
+    if (!box) return;
+    const squad = this.getOrderedSquad();
+    box.innerHTML = squad.map((p, idx) => {
+      const col = this.SQUAD_COLORS[idx] || this.SQUAD_COLORS[0];
+      const isMe = p.id === Net.myId;
+      const statusTxt = p.downed ? '🆘 DOWNED' : (p.hiding ? '🔒 HIDING' : (p.role || 'SCOUT'));
+      const hpWidth = p.downed ? '22%' : '100%';
+      const hpColor = p.downed ? '#ef4444' : col.hex;
+      return `<div style="display:flex;align-items:center;gap:6px;background:rgba(9,13,22,0.82);border-left:3px solid ${col.hex};padding:3px 8px 3px 5px;border-radius:6px;min-width:132px;backdrop-filter:blur(4px);">
+        <span style="width:17px;height:17px;border-radius:50%;background:${col.hex};color:#090d16;font-weight:900;font-size:0.68rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${idx + 1}</span>
+        <div style="flex:1;overflow:hidden;">
+          <div style="font-size:0.66rem;font-weight:900;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name || 'Agent'} ${isMe ? '(YOU)' : ''}</div>
+          <div style="width:100%;height:3px;background:#1e293b;border-radius:2px;margin-top:2px;"><div style="width:${hpWidth};height:100%;background:${hpColor};border-radius:2px;"></div></div>
+          <div style="font-size:0.54rem;color:#94a3b8;font-weight:700;margin-top:1px;">${statusTxt}</div>
+        </div>
+      </div>`;
+    }).join('');
+  },
+
+  createTeammateAvatar(player, slotIdx = 0) {
     const built = buildTacticalCharacter(player);
+    const col = this.SQUAD_COLORS[slotIdx] || this.SQUAD_COLORS[0];
+    const nameTag = this.makeNameTagSprite(String(slotIdx + 1), player.name || 'AGENT', col.hex);
+    built.grp.add(nameTag);
     const torchLight = new THREE.PointLight(0xbae6fd, 1.8, 9);
     torchLight.position.set(-0.35, 1.35, -0.6);
     built.grp.add(torchLight);
@@ -554,18 +626,22 @@ const Game3D = {
 
   syncTeammates() {
     if (!this.scene) return;
-    for (const p of Object.values(Net.players)) {
-      if (p.id === Net.myId) continue;
-      if (!this.teammateMeshes[p.id]) this.teammateMeshes[p.id] = this.createTeammateAvatar(p);
+    this.updateBgmiSquadHUD();
+    const squad = this.getOrderedSquad();
+    squad.forEach((p, idx) => {
+      if (p.id === Net.myId) return;
+      if (!this.teammateMeshes[p.id]) {
+        this.teammateMeshes[p.id] = this.createTeammateAvatar(p, idx);
+      }
       const tm = this.teammateMeshes[p.id];
       tm.grp.visible = !p.hiding;
-      const moved = Math.hypot(p.x - tm.lastX, p.z - tm.lastZ) > 0.008;
-      tm.lastX = p.x; tm.lastZ = p.z;
-      tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x, 0.3);
-      tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z, 0.3);
+      const moved = Math.hypot((p.x || 0) - tm.lastX, (p.z || 0) - tm.lastZ) > 0.006;
+      tm.lastX = p.x || 0; tm.lastZ = p.z || 0;
+      tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x || 0, 0.35);
+      tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z || 0, 0.35);
       tm.grp.rotation.y = p.yaw || 0;
       this.animateCharacterLimbs(tm, moved);
-    }
+    });
   },
 
   buildMonster() {
@@ -1169,31 +1245,77 @@ const Game3D = {
     if (!cvs) return;
     const ctx = cvs.getContext('2d');
     const w = cvs.width, h = cvs.height, cx = w / 2, cy = h / 2;
+    const scale = (w - 10) / 80; // Maps -40..+40 bunker coordinates directly onto fixed North-Up map!
+
     ctx.clearRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.35)';
-    ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, 38, 0, Math.PI * 2); ctx.stroke();
+    // Fixed Bunker Floor Grid
+    ctx.fillStyle = 'rgba(6, 12, 24, 0.92)';
+    ctx.fillRect(0, 0, w, h);
 
-    const ang = performance.now() * 0.003;
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.65)';
-    ctx.beginPath(); ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(ang) * 42, cy + Math.sin(ang) * 42); ctx.stroke();
+    // Draw Bunker Walls on Fixed Map so player always knows exact room layout
+    ctx.fillStyle = 'rgba(100, 116, 139, 0.75)';
+    for (const wb of this.wallBoxes) {
+      const wx = cx + (wb.minX + 0.45) * scale;
+      const wz = cy + (wb.minZ + 0.45) * scale;
+      const ww = Math.max(1.5, (wb.maxX - wb.minX - 0.9) * scale);
+      const wd = Math.max(1.5, (wb.maxZ - wb.minZ - 0.9) * scale);
+      ctx.fillRect(wx, wz, ww, wd);
+    }
 
-    // Player Blue Dot in center
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    // Objective Marker (Cyan Fuse / Green Exit)
+    const objX = this.selfDestructActive ? this.exitPos.x : (!this.hasFuse && this.fuseMesh ? this.fuseMesh.position.x : -35);
+    const objZ = this.selfDestructActive ? this.exitPos.z : (!this.hasFuse && this.fuseMesh ? this.fuseMesh.position.z : 35);
+    ctx.fillStyle = this.selfDestructActive ? '#22c55e' : '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(cx + objX * scale, cy + objZ * scale, 3, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Monster Red Dot
-    const cos = Math.cos(-me.yaw), sin = Math.sin(-me.yaw);
-    const dx = this.hunter.x - me.x;
-    const dz = this.hunter.z - me.z;
-    const rx = (dx * cos - dz * sin) * 1.2;
-    const rz = (dx * sin + dz * cos) * 1.2;
-    const dist = Math.hypot(rx, rz);
-    const clamp = dist > 38 ? 38 / dist : 1;
+    // Draw ALL Squad Players (1, 2, 3, 4) in distinct colors with Head Look-Direction Arrow!
+    const squad = this.getOrderedSquad();
+    squad.forEach((p, idx) => {
+      const col = this.SQUAD_COLORS[idx] || this.SQUAD_COLORS[0];
+      const px = cx + (p.x || 0) * scale;
+      const pz = cy + (p.z || 0) * scale;
+      // Forward look vector in Three.js (-sin(yaw), -cos(yaw))
+      const headAng = Math.atan2(-Math.cos(p.yaw || 0), -Math.sin(p.yaw || 0));
+
+      ctx.save();
+      ctx.translate(px, pz);
+      ctx.rotate(headAng);
+
+      // Vision cone showing where player's head is looking
+      ctx.fillStyle = col.hex + '44';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 12, -0.45, 0.45);
+      ctx.closePath();
+      ctx.fill();
+
+      // Sharp directional head triangle
+      ctx.fillStyle = col.hex;
+      ctx.beginPath();
+      ctx.moveTo(6.5, 0);
+      ctx.lineTo(-4, -4);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-4, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Player Number (1, 2, 3, 4) next to marker
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillText(String(idx + 1), px + 4, pz - 3);
+    });
+
+    // Monster Subject-0 Red Skull/Dot
+    const mx = cx + this.hunter.x * scale;
+    const mz = cy + this.hunter.z * scale;
     ctx.fillStyle = '#ef4444';
-    ctx.beginPath(); ctx.arc(cx + rx * clamp, cy + rz * clamp, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(mx, mz, 4, 0, Math.PI * 2);
+    ctx.fill();
   },
 
   animate() {

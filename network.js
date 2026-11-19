@@ -787,6 +787,13 @@ const Net = {
       this.players = data.players;
       Game3D.resetAndRestart(data.codes, data.noteSpots, data.fuseSpot);
     } else if (data.type === 'STATE') {
+      if (data.players) {
+        for (const [pid, pdata] of Object.entries(data.players)) {
+          if (pid === this.myId) continue;
+          if (!this.players[pid]) this.players[pid] = pdata;
+          else Object.assign(this.players[pid], pdata);
+        }
+      }
       for (const [id, p] of Object.entries(data.players)) {
         if (id === this.myId && this.players[id]) {
           this.players[id].downed = p.downed;
