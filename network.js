@@ -245,7 +245,19 @@ const Net = {
         startBtn.textContent = activePlayers.length > 1 ? `🚀 DEPLOY SQUAD (${activePlayers.length}/4)` : '🚀 START SOLO';
       }
       if (roomTag) {
-        roomTag.textContent = this.roomCode ? ('CODE: ' + this.roomCode) : 'SOLO / READY';
+        if (this.roomCode) {
+          roomTag.innerHTML = `CODE: <b style="color:#facc15;letter-spacing:1.5px;">${this.roomCode}</b> <button type="button" id="home-copy-code-btn" style="background:#0284c7;border:none;color:#fff;font-size:0.58rem;padding:2px 6px;border-radius:4px;margin-left:4px;cursor:pointer;">COPY</button>`;
+          setTimeout(() => {
+            const cb = document.getElementById('home-copy-code-btn');
+            if (cb) cb.onclick = () => {
+              navigator.clipboard?.writeText(this.roomCode);
+              cb.textContent = 'COPIED!';
+              setTimeout(() => (cb.textContent = 'COPY'), 1500);
+            };
+          }, 0);
+        } else {
+          roomTag.textContent = 'SOLO / READY';
+        }
       }
     };
     renderHomeSquadSlots();
@@ -359,11 +371,16 @@ const Net = {
       AgentProfile.load().name = name;
       AgentProfile.save();
 
-      this.isHost = true;
-      this.myId = this.getDeviceUid();
-      this.players = {
-        [this.myId]: { id: this.myId, name, role, x: -32, z: 32, yaw: 0, torch: true, hp: 100, downed: false, hiding: false }
-      };
+      if (!this.roomCode) {
+        this.isHost = true;
+        this.myId = this.getDeviceUid();
+        this.players = {
+          [this.myId]: { id: this.myId, name, role, x: -32, z: 32, yaw: 0, torch: true, hp: 100, downed: false, hiding: false }
+        };
+      } else if (this.players[this.myId]) {
+        this.players[this.myId].name = name;
+        this.players[this.myId].role = role;
+      }
       document.getElementById('menu-screen')?.classList.add('hidden');
       document.getElementById('game-screen')?.classList.remove('hidden');
 
@@ -376,6 +393,9 @@ const Net = {
         { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
         { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
       ].sort(() => Math.random() - 0.5);
+      if (this.roomCode && this.isHost) {
+        this.broadcast({ type: 'START', players: this.players, codes, noteSpots: [pool[1], pool[2], pool[3]], fuseSpot: pool[0] });
+      }
       Game3D.start(codes, [pool[1], pool[2], pool[3]], pool[0]);
     });
 
@@ -532,7 +552,13 @@ const Net = {
       }
     };
 
-    document.getElementById('display-code').textContent = code;
+    const dc = document.getElementById('display-code');
+    if (dc) dc.textContent = code;
+    const drc = document.getElementById('display-room-code');
+    if (drc) drc.textContent = code;
+    if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
+    const cBtn = document.getElementById('create-room-btn');
+    if (cBtn) { cBtn.disabled = false; cBtn.textContent = '📋 CODE: ' + code; cBtn.style.borderColor = '#4ade80'; cBtn.style.color = '#4ade80'; }
     this.hideSetupCard();
     document.getElementById('start-game-btn')?.classList.remove('hidden');
     document.getElementById('wait-msg')?.classList.add('hidden');
@@ -579,7 +605,11 @@ const Net = {
       }
     };
 
-    document.getElementById('display-code').textContent = code;
+    const dc = document.getElementById('display-code');
+    if (dc) dc.textContent = code;
+    const drc = document.getElementById('display-room-code');
+    if (drc) drc.textContent = code;
+    if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
     this.hideSetupCard();
     document.getElementById('start-game-btn')?.classList.add('hidden');
     document.getElementById('wait-msg')?.classList.remove('hidden');
@@ -807,6 +837,7 @@ const Net = {
         `<li><span>${p.name} ${p.id === this.myId ? '(You)' : ''} ${p.ready ? '✅' : '⏳'}</span><strong style="color:#38bdf8">${p.role}</strong></li>`
       ).join('');
     }
+    if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
     if (typeof Lobby3D !== 'undefined') Lobby3D.syncSquad(this.players);
   },
 

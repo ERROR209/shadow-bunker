@@ -10,11 +10,11 @@
 </head>
 <body>
   <!-- 1. BGMI-STYLE 3D INTERACTIVE MAIN LOBBY -->
-  <div id="menu-screen" class="screen" style="position:fixed;inset:0;background:#050914;overflow:hidden;">
-    <canvas id="home-3d-canvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:1;touch-action:none;"></canvas>
+  <div id="menu-screen" class="screen" style="position:absolute;inset:0;width:100%;height:100%;background:#050914;overflow:hidden;">
+    <canvas id="home-3d-canvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;touch-action:none;"></canvas>
 
     <!-- Top-Left: Saved Agent Profile + XP Rank + 4 Squad Slots -->
-    <div style="position:fixed;top:10px;left:10px;z-index:10;width:min(310px,54vw);display:flex;flex-direction:column;gap:6px;">
+    <div style="position:absolute;top:10px;left:10px;z-index:10;width:min(310px,54vw);display:flex;flex-direction:column;gap:6px;">
       <div id="agent-profile-card" style="background:rgba(9,13,22,0.88);backdrop-filter:blur(8px);border:1px solid #38bdf8;border-radius:12px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,0.65);">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:5px;">
           <input id="player-name" type="text" maxlength="14" placeholder="Agent Name" style="background:rgba(30,41,59,0.95);border:1px solid #475569;color:#fff;font-weight:800;font-size:0.8rem;padding:4px 8px;border-radius:6px;width:62%;" />
@@ -45,7 +45,7 @@
     </div>
 
     <!-- Top-Right: Title + Suit Armory -->
-    <div style="position:fixed;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+    <div style="position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div style="text-align:right;background:rgba(9,13,22,0.8);padding:5px 10px;border-radius:10px;border-right:3px solid #ef4444;">
         <div style="font-size:0.98rem;font-weight:900;letter-spacing:1.2px;color:#f8fafc;">SHADOW BUNKER</div>
         <div style="font-size:0.6rem;color:#facc15;font-weight:700;">SECTOR-09 • 5-LEVEL HORROR</div>
@@ -63,7 +63,7 @@
     </div>
 
     <!-- Bottom-Left: Class Selector -->
-    <div style="position:fixed;bottom:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:4px;max-width:53vw;">
+    <div style="position:absolute;bottom:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:4px;max-width:53vw;">
       <div style="color:#94a3b8;font-size:0.62rem;font-weight:800;">🎭 CLASS (DRAG 3D CHAR TO ROTATE)</div>
       <div id="home-class-bar" style="display:flex;flex-wrap:wrap;gap:4px;">
         <button type="button" class="home-role-btn" data-role="SCOUT" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;font-weight:800;font-size:0.68rem;padding:5px 8px;border-radius:7px;cursor:pointer;">🏃 SCOUT</button>
@@ -75,7 +75,7 @@
     </div>
 
     <!-- Bottom-Right: Difficulty + Create/Join Team + Start Solo/Squad -->
-    <div style="position:fixed;bottom:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:min(255px,44vw);">
+    <div style="position:absolute;bottom:10px;right:10px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:min(255px,44vw);">
       <div style="display:flex;gap:3px;width:100%;background:rgba(9,13,22,0.92);padding:3px;border-radius:8px;border:1px solid #334155;">
         <button type="button" class="diff-btn" data-diff="NORMAL" style="flex:1;background:#16a34a;border:none;color:#fff;font-weight:900;font-size:0.6rem;padding:4px 2px;border-radius:5px;cursor:pointer;">🟢 NORMAL</button>
         <button type="button" class="diff-btn" data-diff="NIGHTMARE" style="flex:1;background:transparent;border:none;color:#94a3b8;font-weight:800;font-size:0.6rem;padding:4px 2px;border-radius:5px;cursor:pointer;">🟠 NIGHTMARE</button>

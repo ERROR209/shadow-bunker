@@ -473,3 +473,136 @@ input[type="text"] {
   transform: scale(0.92);
   filter: brightness(1.3);
 }
+
+
+/* AUTO-HORIZONTAL (LANDSCAPE) ENFORCEMENT ON PORTRAIT PHONES */
+@media screen and (orientation: portrait) {
+  body {
+    width: 100vh !important;
+    height: 100vw !important;
+    transform: rotate(90deg);
+    transform-origin: top left;
+    position: fixed;
+    top: 0;
+    left: 100vw;
+    overflow: hidden;
+  }
+  .screen, #menu-screen, #lobby-screen, #game-screen, #home-3d-canvas, #three-container, #look-zone {
+    width: 100vh !important;
+    height: 100vw !important;
+  }
+}
+
+/* PROPER HUD & ACTION PAD LAYOUT IN LANDSCAPE */
+.hud-top {
+  position: fixed;
+  top: 8px;
+  left: 10px;
+  right: 112px;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.hud-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  pointer-events: auto;
+}
+.hud-stats .badge {
+  background: rgba(8, 12, 22, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+.objective-banner {
+  background: rgba(15, 23, 42, 0.9);
+  border-left: 3px solid #facc15;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fef08a;
+}
+.radio-bar {
+  position: static !important;
+  display: flex;
+  gap: 5px;
+  pointer-events: auto;
+}
+#radar-canvas {
+  position: fixed;
+  top: 8px;
+  right: 10px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 2px solid rgba(34, 197, 94, 0.75);
+  background: rgba(2, 12, 8, 0.88);
+  z-index: 22;
+  pointer-events: none;
+}
+#joystick-zone {
+  position: fixed;
+  bottom: 18px;
+  left: 18px;
+  width: 102px;
+  height: 102px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(56, 189, 248, 0.45);
+  z-index: 26;
+}
+#joystick-stick {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.9);
+  position: absolute;
+  top: 29px;
+  left: 29px;
+}
+.action-buttons {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 132px;
+  height: 132px;
+  z-index: 26;
+}
+.action-btn {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 15, 28, 0.92);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+#stun-btn { top: 0; left: 0; border-color: #c084fc; }
+#run-btn { top: 0; right: 0; border-color: #38bdf8; }
+#torch-btn { bottom: 0; left: 0; border-color: #facc15; }
+#use-btn { bottom: 0; right: 0; border-color: #4ade80; }
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(56, 189, 248, 0.85);
+  font-size: 1.3rem;
+  pointer-events: none;
+  z-index: 15;
+}
+#look-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}

@@ -446,9 +446,15 @@ const Game3D = {
   },
 
   playCutscene(lvl, onFinish) {
-    this.inCutscene = true;
-    const overlay = document.getElementById('cutscene-overlay');
+    this.inCutscene = false;
     const hud = document.getElementById('hud');
+    if (hud) hud.classList.remove('hidden');
+    const ov = document.getElementById('cutscene-overlay');
+    if (ov) { ov.classList.add('hidden'); ov.style.display = 'none'; }
+    this.levelStartGrace = performance.now() + 4000;
+    this.showRadioToast('SECTOR-09', lvl === 1 ? '🎬 Mission Start: Find Blue Power Fuse & Restore Generator!' : ('🎬 Level ' + lvl + ' Started!'));
+    if (onFinish) onFinish();
+    return;
     const chapEl = document.getElementById('cutscene-chapter');
     const spkEl = document.getElementById('cutscene-speaker');
     const subEl = document.getElementById('cutscene-subtitle');
@@ -553,6 +559,8 @@ const Game3D = {
 
     const container = document.getElementById('three-container');
     container.innerHTML = '';
+    const hudEl = document.getElementById('hud');
+    if (hudEl) { hudEl.classList.remove('hidden'); hudEl.style.display = 'block'; }
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -610,12 +618,17 @@ const Game3D = {
     this.buildMonster();
     this.setupControls();
 
-    window.addEventListener('resize', () => {
+    const syncViewport = () => {
       if (!this.renderer || !this.camera) return;
-      this.camera.aspect = window.innerWidth / window.innerHeight;
+      const isPort = window.innerHeight > window.innerWidth;
+      const vw = isPort ? window.innerHeight : window.innerWidth;
+      const vh = isPort ? window.innerWidth : window.innerHeight;
+      this.camera.aspect = vw / vh;
       this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+      this.renderer.setSize(vw, vh);
+    };
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
 
     if (!this.animStarted) {
       this.animStarted = true;
@@ -2625,7 +2638,9 @@ const HomeShowcase3D = {
       const menu = document.getElementById('menu-screen');
       if (!menu || menu.classList.contains('hidden')) return;
       if (this.camera && this.renderer) {
-        const w = window.innerWidth, h = window.innerHeight;
+        const isPort = window.innerHeight > window.innerWidth;
+        const w = isPort ? window.innerHeight : window.innerWidth;
+        const h = isPort ? window.innerWidth : window.innerHeight;
         if (Math.abs(this.camera.aspect - w / h) > 0.01) {
           this.camera.aspect = w / h;
           this.camera.updateProjectionMatrix();
