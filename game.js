@@ -2510,3 +2510,112 @@ if (document.readyState === 'loading') { window.addEventListener('DOMContentLoad
   }
   setInterval(wireFs, 1500);
 })();
+
+(function enhanceShadowBunkerHudDrag() {
+  const STORAGE_KEY = 'sb09_hud_layout_v2';
+  const IDS = [
+    'joystick-zone', 'stun-btn', 'run-btn', 'torch-btn', 'use-btn',
+    'crouch-btn', 'ping-btn', 'flare-btn', 'skill-btn', 'radar-canvas'
+  ];
+
+  function applySavedPositions() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) {}
+    IDS.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && saved[id] && saved[id].left && saved[id].top) {
+        el.style.setProperty('position', 'fixed', 'important');
+        el.style.setProperty('left', saved[id].left, 'important');
+        el.style.setProperty('top', saved[id].top, 'important');
+        el.style.setProperty('right', 'auto', 'important');
+        el.style.setProperty('bottom', 'auto', 'important');
+      }
+    });
+  }
+
+  function isHudEditingNow() {
+    const gs = document.getElementById('game-screen');
+    const bar = document.getElementById('hud-editor-bar');
+    return !!(
+      (gs && gs.classList.contains('hud-editing')) ||
+      (bar && !bar.classList.contains('hidden') && getComputedStyle(bar).display !== 'none')
+    );
+  }
+
+  let activeDrag = null;
+
+  function onPointerDown(e) {
+    if (!isHudEditingNow()) return;
+    const target = e.target && e.target.closest ? e.target.closest(IDS.map(id => '#' + id).join(',')) : null;
+    if (!target) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+
+    const pt = e.touches && e.touches[0] ? e.touches[0] : e;
+    const rect = target.getBoundingClientRect();
+    activeDrag = {
+      el: target,
+      startX: pt.clientX,
+      startY: pt.clientY,
+      origLeft: rect.left,
+      origTop: rect.top
+    };
+    target.style.setProperty('position', 'fixed', 'important');
+    target.style.setProperty('left', rect.left + 'px', 'important');
+    target.style.setProperty('top', rect.top + 'px', 'important');
+    target.style.setProperty('right', 'auto', 'important');
+    target.style.setProperty('bottom', 'auto', 'important');
+  }
+
+  function onPointerMove(e) {
+    if (!activeDrag || !isHudEditingNow()) return;
+    const pt = e.touches && e.touches[0] ? e.touches[0] : e;
+    const el = activeDrag.el;
+    const w = el.offsetWidth || 60;
+    const h = el.offsetHeight || 42;
+    const nextLeft = Math.max(4, Math.min(window.innerWidth - w - 4, activeDrag.origLeft + (pt.clientX - activeDrag.startX)));
+    const nextTop = Math.max(4, Math.min(window.innerHeight - h - 4, activeDrag.origTop + (pt.clientY - activeDrag.startY)));
+    el.style.setProperty('left', nextLeft + 'px', 'important');
+    el.style.setProperty('top', nextTop + 'px', 'important');
+  }
+
+  function onPointerUp() {
+    if (!activeDrag) return;
+    const el = activeDrag.el;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) {}
+    if (el.id && el.style.left && el.style.top) {
+      saved[el.id] = { left: el.style.left, top: el.style.top };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch (e) {}
+    }
+    activeDrag = null;
+  }
+
+  document.addEventListener('touchstart', onPointerDown, { passive: false, capture: true });
+  document.addEventListener('touchmove', onPointerMove, { passive: false, capture: true });
+  document.addEventListener('touchend', onPointerUp, { capture: true });
+  document.addEventListener('mousedown', onPointerDown, true);
+  document.addEventListener('mousemove', onPointerMove, true);
+  document.addEventListener('mouseup', onPointerUp, true);
+
+  const resetBtn = document.getElementById('reset-hud-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        ['position', 'left', 'top', 'right', 'bottom'].forEach(prop => el.style.removeProperty(prop));
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applySavedPositions);
+  } else {
+    applySavedPositions();
+  }
+  setTimeout(applySavedPositions, 500);
+})();
+// sb09_hud_layout_v2_fixed

@@ -825,18 +825,17 @@ html, body {
   gap: 6px !important;
 }
 
+
 .controls-right .ctrl-btn {
-  position: static !important;
-  width: 62px !important;
-  height: 44px !important;
-  margin: 0 !important;
-  border-radius: 11px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 0.58rem !important;
-  font-weight: 900 !important;
+  width: 62px;
+  height: 42px;
+  font-size: 0.58rem;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 
 /* Fix SETTINGS & MIC OFF overlap with USE / STUN grid */
 .hud-right {
@@ -874,12 +873,17 @@ html, body {
   gap: 5px !important;
 }
 
+
 .controls-right .ctrl-btn {
-  width: 58px !important;
-  height: 39px !important;
-  font-size: 0.54rem !important;
-  border-radius: 10px !important;
+  width: 62px;
+  height: 42px;
+  font-size: 0.58rem;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 
 /* ================= LOBBY UI POLISH (NO OVERLAP / NO CLIPPING) ================= */
 #menu-screen .top-bar {
@@ -1022,9 +1026,30 @@ html, body {
   gap: 6px !important;
 }
 
+
 .controls-right .ctrl-btn {
-  width: 62px !important;
-  height: 42px !important;
-  font-size: 0.58rem !important;
-  border-radius: 11px !important;
+  width: 62px;
+  height: 42px;
+  font-size: 0.58rem;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* Allow HUD editor to freely drag & position action buttons */
+.hud-editing .controls-right {
+  position: static !important;
+  display: contents !important;
+}
+
+.hud-editing .ctrl-btn,
+.hud-editing #joystick-zone,
+.hud-editing #radar-canvas {
+  position: fixed !important;
+  z-index: 96 !important;
+  touch-action: none !important;
+  outline: 2px dashed #38bdf8 !important;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.75) !important;
 }
