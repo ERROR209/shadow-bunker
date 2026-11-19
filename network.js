@@ -533,7 +533,7 @@ const Net = {
       [this.myId]: {
         id: this.myId,
         name,
-        role: document.getElementById('role-select')?.value || 'SCOUT',
+        role: AgentProfile.load().role || 'SCOUT',
         ready: true,
         x: -32, z: 32, yaw: 0,
         lx: -1.2, lz: 3.8, lyaw: 0,
@@ -586,7 +586,7 @@ const Net = {
       [this.myId]: {
         id: this.myId,
         name,
-        role: document.getElementById('role-select')?.value || 'SCOUT',
+        role: AgentProfile.load().role || 'SCOUT',
         ready: true,
         x: -16, z: 18, yaw: 0,
         lx: 1.4, lz: 3.8, lyaw: 0,
@@ -803,12 +803,8 @@ const Net = {
           }
         }
       }
-      for (const [id, p] of Object.entries(data.players)) {
-        if (id === this.myId && this.players[id]) {
-          this.players[id].downed = p.downed;
-        } else {
-          this.players[id] = p;
-        }
+      if (data.players && data.players[this.myId] && this.players[this.myId]) {
+        this.players[this.myId].downed = data.players[this.myId].downed;
       }
       if (data.hunter && Game3D.hunter) {
         Game3D.hunter.x = data.hunter.x;

@@ -198,6 +198,7 @@ const Game3D = {
   lasers: [],
   flares: [],
   activePing: null,
+  pingMesh: null,
   stats: { stuns: 0, objectives: 0, revives: 0 },
   locks: [false, false, false],
   codes: ['123', '456', '789'],
@@ -1070,9 +1071,24 @@ const Game3D = {
     const now = performance.now();
     if (now < this.skillCooldownUntil) return this.showRadioToast('SKILL', '⏳ Class ability recharging...');
     this.skillCooldownUntil = now + 18000;
-    this.turboUntil = now + 7000;
-    this.battery = Math.min(100, this.battery + 25);
-    this.showRadioToast('SKILL ACTIVE', '✨ Tactical Surge: 7s Speed Boost +25% Battery!');
+    const role = me.role || 'SCOUT';
+    if (role === 'ENGINEER') {
+      this.decoyPos = { x: me.x, z: me.z };
+      this.decoyUntil = now + 11000;
+      this.showRadioToast('ENGINEER SKILL', '🔧 Sonic Decoy active! Subject-0 lured for 11s!');
+    } else if (role === 'MEDIC') {
+      me.downed = false;
+      this.sanity = 100;
+      this.stamina = 100;
+      this.showRadioToast('MEDIC SKILL', '💉 Adrenaline Surge: 100% Sanity & Stamina restored!');
+    } else if (role === 'TECH') {
+      this.battery = 100;
+      this.hunter.stunnedUntil = Math.max(this.hunter.stunnedUntil, now + 3000);
+      this.showRadioToast('TECH SKILL', '⚡ EMP Pulse: 100% Battery & Subject-0 disrupted!');
+    } else {
+      this.turboUntil = now + 7500;
+      this.showRadioToast('SCOUT SKILL', '🏃 Shadow Dash: 7.5s Silent High-Speed Sprint!');
+    }
   },
 
   fireStun() {
@@ -1484,6 +1500,20 @@ const Game3D = {
           }
         }
         hint.classList.toggle('hidden', !this.nearAction);
+      }
+
+      // Update Self-Destruct Escape Countdown
+      if (this.selfDestructActive) {
+        const nowSd = performance.now();
+        if (nowSd - this.lastTick >= 1000) {
+          this.lastTick = nowSd;
+          this.escapeTimeLeft = Math.max(0, this.escapeTimeLeft - 1);
+          const tb = document.getElementById('timer-badge');
+          if (tb) tb.textContent = `☢️ ${this.escapeTimeLeft}s`;
+          if (this.escapeTimeLeft <= 0) {
+            this.triggerEnd(false, '💥 Sector-09 Self-Destruct detonated before extraction!');
+          }
+        }
       }
 
       // Check Exit Gate Win Condition
