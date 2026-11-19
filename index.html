@@ -228,6 +228,18 @@
           <!-- Custom Control / Key Mapping -->
           <button id="edit-hud-btn" type="button" style="width:100%;background:linear-gradient(135deg,#d97706,#b45309);border:1px solid #facc15;color:#fff;padding:10px;border-radius:9px;font-size:0.78rem;font-weight:900;cursor:pointer;">🎛️ CUSTOMIZE CONTROLS / KEY MAP</button>
 
+          <!-- Camera Sensitivity Slider -->
+          <div style="background:#0f172a;padding:8px 10px;border-radius:9px;border:1px solid #1e293b;">
+            <div style="display:flex;justify-content:space-between;font-size:0.76rem;font-weight:800;color:#f8fafc;margin-bottom:4px;">
+              <span>🎯 Look Sensitivity</span>
+              <span id="sens-val-label" style="color:#38bdf8;">1.0x</span>
+            </div>
+            <input id="sens-slider" type="range" min="0.4" max="2.2" step="0.1" value="1.0" style="width:100%;accent-color:#38bdf8;margin:0;" />
+          </div>
+
+          <!-- Exit Match to Lobby Button -->
+          <button id="exit-lobby-btn" type="button" onclick="location.reload()" style="width:100%;background:linear-gradient(135deg,#dc2626,#991b1b);border:1px solid #f87171;color:#fff;padding:10px;border-radius:9px;font-size:0.78rem;font-weight:900;cursor:pointer;">🏠 EXIT MATCH TO LOBBY</button>
+
           <!-- PC Keybinds Cheat-Sheet -->
           <div style="background:#020617;border:1px solid #1e293b;padding:7px 9px;border-radius:8px;font-size:0.64rem;color:#94a3b8;line-height:1.45;">
             <strong style="color:#facc15;">⌨️ PC KEY MAPPING:</strong> WASD Move • Shift Run • F Torch • E Use • Q Stun • V FPP/TPP • C Crouch • M Mic

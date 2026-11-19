@@ -179,6 +179,12 @@ const Game3D = {
   stamina: 100,
   sanity: 100,
   crouching: false,
+  lookSens: 1.0,
+  inCCTV: false,
+  cctvIdx: 0,
+  cctvConsoles: [],
+  flickerLights: [],
+  animatedProps: [],
   nvgActive: false,
   skillCooldownUntil: 0,
   turboUntil: 0,
@@ -355,6 +361,32 @@ const Game3D = {
     this.showRadioToast('SECTOR-09', '🔦 Find the glowing Blue Power Fuse in the bunker & activate the Generator!');
   },
 
+  openCCTV() {
+    this.inCCTV = true;
+    this.cctvIdx = 0;
+    const modal = document.getElementById('cctv-modal');
+    if (modal) { modal.classList.remove('hidden'); modal.style.display = 'flex'; }
+    this.updateCCTVLabel();
+  },
+
+  closeCCTV() {
+    this.inCCTV = false;
+    const modal = document.getElementById('cctv-modal');
+    if (modal) { modal.classList.add('hidden'); modal.style.display = 'none'; }
+  },
+
+  updateCCTVLabel() {
+    const cams = [
+      { name: 'CAM-01: NORTH-WEST LAB', pos: [-30, 3.6, -30], look: [-10, 1.0, -10] },
+      { name: 'CAM-02: NORTH-EAST EXIT', pos: [30, 3.6, -30], look: [15, 1.0, -25] },
+      { name: 'CAM-03: CENTRAL CORRIDOR', pos: [0, 3.8, 22], look: [0, 1.0, -8] },
+      { name: 'CAM-04: SOUTH-EAST WING', pos: [30, 3.6, 30], look: [10, 1.0, 10] }
+    ];
+    this.cctvFeeds = cams;
+    const lbl = document.getElementById('cctv-cam-label');
+    if (lbl) lbl.textContent = `📹 ${cams[this.cctvIdx % cams.length].name} [LIVE ●]`;
+  },
+
   clearMap() {
     while (this.mapGroup && this.mapGroup.children.length > 0) {
       this.mapGroup.remove(this.mapGroup.children[0]);
@@ -400,42 +432,99 @@ const Game3D = {
   buildLevelMap(lvl, noteSpots = [{ x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 }], fuseSpot = { x: -24, z: 10 }) {
     this.clearMap();
     this.level = lvl;
+    this.cctvConsoles = [];
+    this.flickerLights = [];
+    this.animatedProps = [];
+
+    const isRooftop = lvl === 5;
+    this.scene.background = new THREE.Color(isRooftop ? 0x070b19 : 0x02040a);
+    this.scene.fog = new THREE.FogExp2(isRooftop ? 0x070b19 : 0x02040a, isRooftop ? 0.018 : 0.03);
 
     const floorTex = makeTexture('floor', lvl);
     floorTex.repeat.set(22, 22);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.88, metalness: 0.02 }));
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshStandardMaterial({ map: floorTex, color: isRooftop ? 0x334155 : 0xffffff, roughness: 0.88, metalness: 0.05 })
+    );
     floor.rotation.x = -Math.PI / 2;
     this.mapGroup.add(floor);
 
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.y = 4.2;
-    this.mapGroup.add(ceil);
+    if (!isRooftop) {
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
+      ceil.rotation.x = Math.PI / 2;
+      ceil.position.y = 4.2;
+      this.mapGroup.add(ceil);
+    } else {
+      // Rooftop Helipad Painted Ring + Open Night Sky Moon Glow
+      const heliPad = new THREE.Mesh(new THREE.RingGeometry(4.2, 5.0, 32), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+      heliPad.rotation.x = -Math.PI / 2;
+      heliPad.position.set(30, 0.03, -30);
+      this.mapGroup.add(heliPad);
+    }
 
     const wallTex = makeTexture('wall', lvl);
-    this.addWall(0, -40, 80, 1.2, wallTex);
-    this.addWall(0, 40, 80, 1.2, wallTex);
-    this.addWall(-40, 0, 1.2, 80, wallTex);
-    this.addWall(40, 0, 1.2, 80, wallTex);
+    const wallH = isRooftop ? 2.2 : 4.0;
+    this.addWall(0, -40, 80, 1.2, wallTex, wallH);
+    this.addWall(0, 40, 80, 1.2, wallTex, wallH);
+    this.addWall(-40, 0, 1.2, 80, wallTex, wallH);
+    this.addWall(40, 0, 1.2, 80, wallTex, wallH);
 
-    // Interior Bunker Corridors & Rooms
-    this.addWall(-16, 18, 20, 0.9, wallTex);
-    this.addWall(16, 18, 20, 0.9, wallTex);
-    this.addWall(-18, -10, 0.9, 22, wallTex);
-    this.addWall(14, -12, 22, 0.9, wallTex);
-    this.addWall(24, 4, 0.9, 18, wallTex);
-    this.addWall(-4, -26, 18, 0.9, wallTex);
+    // 5 COMPLETELY DIFFERENT LEVEL ARCHITECTURES!
+    if (lvl === 1) {
+      // Level 1: Sector-09 Containment Bunker
+      this.addWall(-16, 18, 20, 0.9, wallTex);
+      this.addWall(16, 18, 20, 0.9, wallTex);
+      this.addWall(-18, -10, 0.9, 22, wallTex);
+      this.addWall(14, -12, 22, 0.9, wallTex);
+      this.addWall(24, 4, 0.9, 18, wallTex);
+      this.addWall(-4, -26, 18, 0.9, wallTex);
+    } else if (lvl === 2) {
+      // Level 2: Bio-Research Lab (Central Glass Atrium + Side Labs)
+      this.addWall(-22, 10, 0.9, 28, wallTex);
+      this.addWall(22, -8, 0.9, 28, wallTex);
+      this.addWall(0, 16, 22, 0.9, wallTex);
+      this.addWall(0, -16, 22, 0.9, wallTex);
+      this.addWall(-10, 0, 0.9, 14, wallTex);
+      this.addWall(10, 0, 0.9, 14, wallTex);
+    } else if (lvl === 3) {
+      // Level 3: Deep Reactor Core (4 Pillar Blocks + Cross Corridors)
+      this.addWall(-16, 16, 12, 12, wallTex);
+      this.addWall(16, 16, 12, 12, wallTex);
+      this.addWall(-16, -16, 12, 12, wallTex);
+      this.addWall(16, -16, 12, 12, wallTex);
+      const corePillar = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.5, 4.2, 16), new THREE.MeshStandardMaterial({ color: 0xea580c, emissive: 0xf97316, emissiveIntensity: 0.7 }));
+      corePillar.position.set(0, 2.1, 0);
+      this.mapGroup.add(corePillar);
+      this.wallBoxes.push({ minX: -2.6, maxX: 2.6, minZ: -2.6, maxZ: 2.6 });
+    } else if (lvl === 4) {
+      // Level 4: Ventilation & Sewer Maze
+      this.addWall(-26, 14, 0.9, 32, wallTex);
+      this.addWall(-12, -12, 0.9, 34, wallTex);
+      this.addWall(2, 14, 0.9, 32, wallTex);
+      this.addWall(16, -12, 0.9, 34, wallTex);
+      this.addWall(28, 12, 0.9, 26, wallTex);
+    } else {
+      // Level 5: Rooftop Helipad (Ventilation Units & Radar Towers)
+      this.addWall(-18, 18, 8, 6, wallTex, 2.2);
+      this.addWall(14, 16, 10, 5, wallTex, 2.2);
+      this.addWall(-14, -18, 9, 6, wallTex, 2.2);
+      this.addWall(0, 2, 7, 7, wallTex, 2.4);
+    }
 
-    // Overhead Corridor Lights so every room is atmospheric & clearly visible
+    // Overhead Lights (with realistic subtle flicker on 2 lamps!)
     [
       { x: -30, z: 30 }, { x: -24, z: 10 }, { x: 0, z: 28 }, { x: 26, z: 26 },
       { x: -28, z: -26 }, { x: 0, z: -30 }, { x: 28, z: -26 }, { x: 0, z: 0 }
-    ].forEach(pt => {
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.4), new THREE.MeshBasicMaterial({ color: 0xbae6fd }));
-      lamp.position.set(pt.x, 4.12, pt.z);
-      const pl = new THREE.PointLight(0x38bdf8, 0.32, 11);
+    ].forEach((pt, idx) => {
+      if (!isRooftop) {
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.4), new THREE.MeshBasicMaterial({ color: 0xbae6fd }));
+        lamp.position.set(pt.x, 4.12, pt.z);
+        this.mapGroup.add(lamp);
+      }
+      const pl = new THREE.PointLight(isRooftop ? 0x60a5fa : 0x38bdf8, isRooftop ? 0.55 : 0.34, 13);
       pl.position.set(pt.x, 3.7, pt.z);
-      this.mapGroup.add(lamp, pl);
+      this.mapGroup.add(pl);
+      if (idx === 1 || idx === 5) this.flickerLights.push(pl);
     });
 
     this.addSafeLockers([
@@ -443,74 +532,112 @@ const Game3D = {
       { x: 18, z: -20 }, { x: 34, z: 22 }, { x: -12, z: -32 }, { x: 34, z: -8 }
     ]);
 
-    // Glowing Blue Power Fuse (placed near starting corridor so player spots it right away!)
+    // Live CCTV Security Monitor Console at (-24, 34)
+    const cctvGrp = new THREE.Group();
+    const desk = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 0.8), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 }));
+    desk.position.y = 0.45;
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.08), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
+    screen.position.set(0, 1.18, 0);
+    cctvGrp.add(desk, screen);
+    cctvGrp.position.set(-24, 0, 34);
+    this.mapGroup.add(cctvGrp);
+    this.cctvConsoles.push({ x: -24, z: 34, mesh: cctvGrp });
+
+    // 1. DETAILED 3D BLUE POWER FUSE (Copper Caps + Glowing Plasma Core + Orbit Ring)
     const fSpot = fuseSpot || { x: -24, z: 10 };
-    this.fuseMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.32, 0.85, 14),
-      new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 1.8 })
-    );
-    this.fuseMesh.position.set(fSpot.x, 1.0, fSpot.z);
-    const fuseLight = new THREE.PointLight(0x38bdf8, 3.0, 12);
+    const fuseGrp = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 16), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.14, 16), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 }));
+    capTop.position.y = 0.36;
+    const capBot = capTop.clone(); capBot.position.y = -0.36;
+    const fRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: 0x7dd3fc }));
+    fuseGrp.add(core, capTop, capBot, fRing);
+    fuseGrp.position.set(fSpot.x, 1.05, fSpot.z);
+    const fuseLight = new THREE.PointLight(0x38bdf8, 2.8, 11);
     fuseLight.position.set(fSpot.x, 1.4, fSpot.z);
-    this.mapGroup.add(this.fuseMesh, fuseLight);
+    this.mapGroup.add(fuseGrp, fuseLight);
+    this.fuseMesh = fuseGrp;
 
-    // Main Red Generator right in spawn room
-    this.genMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.9, 2.0, 1.4),
-      new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 1.1 })
-    );
-    this.genMesh.position.set(-35, 1.0, 35);
-    this.mapGroup.add(this.genMesh);
+    // 2. DETAILED 3D INDUSTRIAL GENERATOR (Steel Frame + Spinning Reactor Coil + Top Beacon)
+    const genGrp = new THREE.Group();
+    const genBase = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.35, 1.5), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 }));
+    genBase.position.y = 0.175;
+    const genTank = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.6, 16), new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 0.85, roughness: 0.4 }));
+    genTank.rotation.z = Math.PI / 2;
+    genTank.position.y = 1.0;
+    const genCoil = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.07, 10, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    genCoil.rotation.y = Math.PI / 2;
+    genCoil.position.y = 1.0;
+    const genBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    genBeacon.position.y = 1.78;
+    genGrp.add(genBase, genTank, genCoil, genBeacon);
+    genGrp.position.set(-35, 0, 35);
+    this.mapGroup.add(genGrp);
+    this.genMesh = genTank;
+    this.animatedProps.push(genCoil);
 
-    // 3 Purple Data Drives
+    // 3. DETAILED 3D HOLOGRAPHIC DATA DRIVES (Crystal + Golden Halo Ring)
     const driveSpots = [{ x: -32, z: -20 }, { x: 6, z: -6 }, { x: 32, z: 28 }];
     driveSpots.forEach((ds, idx) => {
-      const dMesh = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.4, 0),
-        new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x9333ea, emissiveIntensity: 1.6 })
-      );
-      dMesh.position.set(ds.x, 1.0, ds.z);
-      this.mapGroup.add(dMesh);
-      this.dataDrives.push({ x: ds.x, z: ds.z, idx, taken: false, mesh: dMesh });
+      const dGrp = new THREE.Group();
+      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshBasicMaterial({ color: 0xd8b4fe }));
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+      halo.rotation.x = Math.PI / 2;
+      dGrp.add(crystal, halo);
+      dGrp.position.set(ds.x, 1.05, ds.z);
+      this.mapGroup.add(dGrp);
+      this.dataDrives.push({ x: ds.x, z: ds.z, idx, taken: false, mesh: dGrp });
     });
 
-    // North Server Console
-    this.serverMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 2.1, 1.1),
-      new THREE.MeshStandardMaterial({ color: 0x581c87, emissive: 0x7e22ce, emissiveIntensity: 1.0 })
-    );
-    this.serverMesh.position.set(0, 1.05, -34);
-    this.mapGroup.add(this.serverMesh);
+    // 4. DETAILED 3D MAINFRAME SERVER RACK (Twin Towers + Blinking LED Bars + Holoscreen)
+    const srvGrp = new THREE.Group();
+    const rackL = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.3, 0.95), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 }));
+    rackL.position.set(-0.55, 1.15, 0);
+    const rackR = rackL.clone(); rackR.position.x = 0.55;
+    const srvScreen = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.65, 0.12), new THREE.MeshStandardMaterial({ color: 0x6b21a8, emissive: 0x9333ea, emissiveIntensity: 1.2 }));
+    srvScreen.position.set(0, 1.45, 0.48);
+    srvGrp.add(rackL, rackR, srvScreen);
+    srvGrp.position.set(0, 0, -34);
+    this.mapGroup.add(srvGrp);
+    this.serverMesh = srvScreen;
 
-    // 3 Dr. Verma Code Logs
+    // 5. Dr. Verma Secret Code Logs
     const logTexts = [
-      'Dr. Verma Log #1: Subject-0 hunts light & sprinting steps. Terminal #1 code:',
-      'Dr. Verma Log #2: Upload all 3 Data Drives at North Server first! Terminal #2 code:',
+      'Dr. Verma Log #1: Subject-0 rushes toward activated Generators & Terminals! Code #1:',
+      'Dr. Verma Log #2: Upload all 3 Data Drives at North Server first! Code #2:',
       'Dr. Verma Log #3: Final override code for Terminal #3:'
     ];
     noteSpots.forEach((spot, idx) => {
-      const stand = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.85, 1.0), new THREE.MeshStandardMaterial({ map: wallTex }));
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.85, 0.95), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 }));
       stand.position.set(spot.x, 0.425, spot.z);
-      const paper = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.65), new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 1.0 }));
-      paper.position.set(spot.x, 0.9, spot.z);
+      const paper = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.06, 0.62), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+      paper.position.set(spot.x, 0.88, spot.z);
       this.mapGroup.add(stand, paper);
       this.notes.push({ x: spot.x, z: spot.z, idx, text: logTexts[idx] });
     });
 
-    // 3 Security Terminals
+    // 6. DETAILED 3D SECURITY TERMINALS (Pedestal + Angled Monitor + Glowing Keypad)
     [{ x: -10, z: 35 }, { x: 18, z: 35 }, { x: 35, z: -6 }].forEach((spot, idx) => {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.7, 0.9), new THREE.MeshStandardMaterial({ color: 0xb91c1c, emissive: 0xef4444, emissiveIntensity: 0.9 }));
-      box.position.set(spot.x, 0.85, spot.z);
-      this.mapGroup.add(box);
-      this.terminals.push({ x: spot.x, z: spot.z, idx, mesh: box });
+      const tGrp = new THREE.Group();
+      const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.25, 0.75), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 }));
+      pedestal.position.y = 0.625;
+      const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.16), new THREE.MeshStandardMaterial({ color: 0xb91c1c, emissive: 0xef4444, emissiveIntensity: 1.1 }));
+      monitor.position.set(0, 1.48, 0);
+      monitor.rotation.x = -0.35;
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 0.35), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      pad.position.set(0, 1.28, 0.25);
+      tGrp.add(pedestal, monitor, pad);
+      tGrp.position.set(spot.x, 0, spot.z);
+      this.mapGroup.add(tGrp);
+      this.terminals.push({ x: spot.x, z: spot.z, idx, mesh: monitor });
     });
 
     // Exit Gate + Green Sky Beacon
     this.exitMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(3.0, 3.4, 0.5),
+      new THREE.BoxGeometry(3.2, 3.5, 0.5),
       new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x0f172a })
     );
-    this.exitMesh.position.set(34, 1.7, -39.2);
+    this.exitMesh.position.set(34, 1.75, -39.2);
     this.mapGroup.add(this.exitMesh);
 
     const beaconGrp = new THREE.Group();
@@ -736,7 +863,7 @@ const Game3D = {
       if (!me || lookTouchId === null) return;
       for (const t of e.changedTouches) {
         if (t.identifier === lookTouchId) {
-          me.yaw -= (t.clientX - lastTouchX) * 0.0068;
+          me.yaw -= (t.clientX - lastTouchX) * 0.0068 * (this.lookSens || 1.0);
           this.camera.rotation.x = Math.max(-0.9, Math.min(0.9, this.camera.rotation.x - (t.clientY - lastTouchY) * 0.0045));
           lastTouchX = t.clientX;
           lastTouchY = t.clientY;
@@ -763,7 +890,7 @@ const Game3D = {
       const me = Net.players[Net.myId];
       if (!me || this.gameOver) return;
       if (document.pointerLockElement === lookZone || pcMouseDown) {
-        me.yaw -= e.movementX * 0.0026;
+        me.yaw -= e.movementX * 0.0026 * (this.lookSens || 1.0);
         this.camera.rotation.x = Math.max(-0.95, Math.min(0.95, this.camera.rotation.x - e.movementY * 0.0022));
       }
     });
@@ -898,6 +1025,18 @@ const Game3D = {
     const restartBtn = document.getElementById('instant-restart-btn');
     if (restartBtn) restartBtn.onclick = () => location.reload();
 
+    const sensSlider = document.getElementById('sens-slider');
+    const sensLabel = document.getElementById('sens-val-label');
+    if (sensSlider) {
+      sensSlider.oninput = () => {
+        this.lookSens = parseFloat(sensSlider.value) || 1.0;
+        if (sensLabel) sensLabel.textContent = this.lookSens.toFixed(1) + 'x';
+      };
+    }
+    const cctvNext = document.getElementById('cctv-next-btn');
+    const cctvExit = document.getElementById('cctv-exit-btn');
+    if (cctvNext) cctvNext.onclick = () => { this.cctvIdx++; this.updateCCTVLabel(); };
+    if (cctvExit) cctvExit.onclick = () => this.closeCCTV();
     this.setupHudCustomizer();
   },
 
@@ -1165,7 +1304,9 @@ const Game3D = {
     if (!me || me.downed || !this.nearAction) return;
     const act = this.nearAction;
 
-    if (act.type === 'LOCKER') {
+    if (act.type === 'CCTV') {
+      this.openCCTV();
+    } else if (act.type === 'LOCKER') {
       me.hiding = !me.hiding;
       document.getElementById('locker-overlay')?.classList.toggle('hidden', !me.hiding);
       this.showRadioToast('STEALTH', me.hiding ? '🔒 Hidden inside Safe Locker!' : '🚪 Exited Safe Locker.');
@@ -1519,7 +1660,19 @@ const Game3D = {
       if (Net.updateVoiceProximity) Net.updateVoiceProximity(me);
       this.syncTeammates();
 
+      if (this.inCCTV && this.cctvFeeds) {
+        const feed = this.cctvFeeds[this.cctvIdx % this.cctvFeeds.length];
+        const pan = Math.sin(performance.now() * 0.0015) * 3.5;
+        this.camera.position.set(feed.pos[0], feed.pos[1], feed.pos[2]);
+        this.camera.lookAt(feed.look[0] + pan, feed.look[1], feed.look[2]);
+        this.renderer.render(this.scene, this.camera);
+        return;
+      }
       if (this.fuseMesh && this.fuseMesh.visible) this.fuseMesh.rotation.y += 0.04;
+      (this.animatedProps || []).forEach(p => { p.rotation.x += 0.05; });
+      (this.flickerLights || []).forEach((fl, i) => {
+        fl.intensity = Math.random() < 0.06 ? 0.06 : (0.34 + Math.sin(performance.now() * 0.02 + i) * 0.06);
+      });
       const nowFl = performance.now();
       this.flares = this.flares.filter(fl => {
         if (nowFl > fl.until) {
@@ -1597,7 +1750,14 @@ const Game3D = {
       this.nearAction = null;
       const hint = document.getElementById('interact-hint');
       if (!me.downed && hint) {
-        for (const lk of this.lockers) {
+        for (const c of (this.cctvConsoles || [])) {
+          if (Math.hypot(c.x - me.x, c.z - me.z) < 2.3) {
+            this.nearAction = { type: 'CCTV' };
+            hint.textContent = '📹 [USE] Open Live Bunker CCTV Monitor';
+            break;
+          }
+        }
+        if (!this.nearAction) for (const lk of this.lockers) {
           if (Math.hypot(lk.x - me.x, lk.z - me.z) < 2.2) {
             this.nearAction = { type: 'LOCKER' };
             hint.textContent = me.hiding ? '🚪 [USE] Exit Safe Locker' : '🔒 [USE] Hide in Safe Locker';
