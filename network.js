@@ -218,8 +218,19 @@ const Net = {
     };
 
     const renderHomeSquadSlots = () => {
-      const slotList = document.getElementById('home-slot-list');
-      const startBtn = document.getElementById('start-game-btn');
+      const slotList = document.getElementById("home-slot-list");
+      const roomTag = document.getElementById("home-room-tag");
+      const startBtn = document.getElementById("start-game-btn");
+      if (slotList) {
+        const list = Object.values(this.players || {});
+        const meProf = AgentProfile.load();
+        const slots = list.length ? list : [{ name: meProf.name || "YOU", role: meProf.role || "SCOUT", ready: true }];
+        slotList.innerHTML = [0, 1, 2, 3].map(i => {
+          const p = slots[i];
+          if (p) return `<div style="display:flex;justify-content:space-between;background:rgba(15,23,42,0.9);padding:3px 6px;border-radius:5px;font-size:0.62rem;"><span style="color:#f8fafc;font-weight:800;">#${i+1} ${p.name}</span><span style="color:#38bdf8;font-weight:800;">${p.role} ✅</span></div>`;
+          return `<div style="background:rgba(15,23,42,0.45);padding:3px 6px;border-radius:5px;font-size:0.6rem;color:#475569;">#${i+1} [OPEN SQUAD SLOT]</div>`;
+        }).join("");
+      }
       if (startBtn) {
         const count = Object.keys(this.players || {}).length;
         if (this.roomCode && !this.isHost) {
