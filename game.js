@@ -106,27 +106,27 @@ const SFX = {
 
 function makeTexture(kind = 'wall', lvl = 1) {
   const c = document.createElement('canvas');
-  c.width = 128; c.height = 128;
+  c.width = 64; c.height = 64;
   const ctx = c.getContext('2d');
   if (kind === 'floor') {
     ctx.fillStyle = lvl === 3 ? '#292524' : (lvl === 2 ? '#0b2e26' : '#162033');
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillRect(0, 0, 64, 64);
     ctx.strokeStyle = 'rgba(148,163,184,0.28)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(2, 2, 60, 60); ctx.strokeRect(66, 2, 60, 60);
-    ctx.strokeRect(2, 66, 60, 60); ctx.strokeRect(66, 66, 60, 60);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(1, 1, 30, 30); ctx.strokeRect(33, 1, 30, 30);
+    ctx.strokeRect(1, 33, 30, 30); ctx.strokeRect(33, 33, 30, 30);
   } else if (kind === 'ceil') {
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillRect(0, 0, 64, 64);
     ctx.fillStyle = '#334155';
-    ctx.fillRect(0, 58, 128, 12);
+    ctx.fillRect(0, 28, 64, 6);
   } else {
     ctx.fillStyle = lvl === 3 ? '#44403c' : (lvl === 2 ? '#134e4a' : '#26354d');
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillRect(0, 0, 64, 64);
     ctx.fillStyle = lvl === 3 ? '#f97316' : (lvl === 2 ? '#22c55e' : '#eab308');
-    ctx.fillRect(0, 96, 128, 10);
+    ctx.fillRect(0, 48, 64, 5);
     ctx.strokeStyle = 'rgba(56,189,248,0.22)';
-    ctx.strokeRect(1, 1, 126, 126);
+    ctx.strokeRect(1, 1, 62, 62);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -268,23 +268,24 @@ const Game3D = {
 
     const W = Math.max(320, window.innerWidth);
     const H = Math.max(200, window.innerHeight);
-    this.camera = new THREE.PerspectiveCamera(74, W / H, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(74, W / H, 0.1, 85);
     this.camera.rotation.order = 'YXZ';
 
     const container = document.getElementById('three-container');
     container.innerHTML = '';
     container.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:1;display:block;';
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    this.renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: 'high-performance', stencil: false });
     this.renderer.setSize(W, H);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.35));
     this.renderer.domElement.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:1;';
     container.appendChild(this.renderer.domElement);
 
-    this.hemiLight = new THREE.HemisphereLight(0x334155, 0x02040a, 0.085);
+    this.hemiLight = new THREE.HemisphereLight(0x475569, 0x050811, 0.16);
     this.scene.add(this.hemiLight);
 
-    this.flashlight = new THREE.SpotLight(0xfef3c7, 3.2, 36, Math.PI / 3.6, 0.72, 1.5);
+    this.flashlight = new THREE.SpotLight(0xfef3c7, 3.3, 36, Math.PI / 3.5, 0.72, 1.4);
     this.flashlight.position.set(0, 0, 0);
     this.flashlight.target.position.set(0, 0, -1);
     this.camera.add(this.flashlight);
@@ -297,7 +298,7 @@ const Game3D = {
     const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.44), sleeveMat);
     leftArm.position.set(-0.26, -0.22, -0.38);
     const torchTube = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.032, 0.038, 0.24, 12),
+      new THREE.CylinderGeometry(0.032, 0.038, 0.24, 10),
       new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.7 })
     );
     torchTube.rotation.x = Math.PI / 2;
@@ -442,7 +443,7 @@ const Game3D = {
       ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
     } else {
-      const heliPad = new THREE.Mesh(new THREE.RingGeometry(4.2, 5.0, 32), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+      const heliPad = new THREE.Mesh(new THREE.RingGeometry(4.2, 5.0, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
       heliPad.rotation.x = -Math.PI / 2;
       heliPad.position.set(30, 0.03, -30);
       this.mapGroup.add(heliPad);
@@ -496,23 +497,20 @@ const Game3D = {
     };
     (roomConfigs[lvl] || roomConfigs[1]).forEach(r => this.addRoom(r.cx, r.cz, r.rw, r.rd, r.door, wallTex, r.h || wallH));
 
-    [
-      { x: -27, z: 27 }, { x: -27, z: 0 }, { x: -27, z: -27 },
-      { x: 0, z: 27 }, { x: 0, z: 0 }, { x: 0, z: -27 },
-      { x: 27, z: 27 }, { x: 27, z: 0 }, { x: 27, z: -27 }
-    ].forEach((pt, idx) => {
-      let tubeMat = null;
-      if (!isRooftop) {
-        tubeMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
+    // Performance-optimized ceiling tubes (zero heavy PointLight overhead for 60 FPS!)
+    if (!isRooftop) {
+      [
+        { x: -27, z: 27 }, { x: -27, z: 0 }, { x: -27, z: -27 },
+        { x: 0, z: 27 }, { x: 0, z: 0 }, { x: 0, z: -27 },
+        { x: 27, z: 27 }, { x: 27, z: 0 }, { x: 27, z: -27 }
+      ].forEach((pt, idx) => {
+        const tubeMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
         const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.35), tubeMat);
         lamp.position.set(pt.x, 4.12, pt.z);
         this.mapGroup.add(lamp);
-      }
-      const pl = new THREE.PointLight(isRooftop ? 0x60a5fa : 0x38bdf8, isRooftop ? 0.35 : 0.18, 12);
-      pl.position.set(pt.x, 3.75, pt.z);
-      this.mapGroup.add(pl);
-      if (idx !== 0) this.flickerLights.push({ light: pl, mat: tubeMat, phase: idx * 1.9 });
-    });
+        if (idx !== 0) this.flickerLights.push({ mat: tubeMat, phase: idx * 1.9 });
+      });
+    }
 
     this.addSafeLockers([
       { x: -33, z: 21 }, { x: -33, z: 5 }, { x: -33, z: -21 }, { x: -6, z: 33 },
@@ -535,14 +533,14 @@ const Game3D = {
     const termSpots = [orderedSpots[9], orderedSpots[10], { x: -22, z: -5 }];
 
     const fuseGrp = new THREE.Group();
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 16), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.14, 16), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 }));
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.14, 12), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 }));
     capTop.position.y = 0.36;
     const capBot = capTop.clone(); capBot.position.y = -0.36;
-    const fRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: 0x7dd3fc }));
+    const fRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 6, 18), new THREE.MeshBasicMaterial({ color: 0x7dd3fc }));
     fuseGrp.add(core, capTop, capBot, fRing);
     fuseGrp.position.set(fuseSpot.x, 1.05, fuseSpot.z);
-    const fuseLight = new THREE.PointLight(0x38bdf8, 2.8, 11);
+    const fuseLight = new THREE.PointLight(0x38bdf8, 2.5, 10);
     fuseLight.position.set(fuseSpot.x, 1.4, fuseSpot.z);
     this.mapGroup.add(fuseGrp, fuseLight);
     this.fuseMesh = fuseGrp;
@@ -563,7 +561,7 @@ const Game3D = {
     });
     const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.88, 0.86), bodyMetal);
     engineBlock.position.set(-0.22, 0.72, 0);
-    const alternatorDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.75, 18), steelDark);
+    const alternatorDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.75, 14), steelDark);
     alternatorDrum.rotation.z = Math.PI / 2;
     alternatorDrum.position.set(0.65, 0.72, 0);
     const fuelTank = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.32, 0.92), new THREE.MeshStandardMaterial({ color: 0x991b1b, metalness: 0.5, roughness: 0.4 }));
@@ -571,7 +569,7 @@ const Game3D = {
     genGrp.add(engineBlock, alternatorDrum, fuelTank);
 
     const genCoil = new THREE.Group();
-    const fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 12), hazardMat);
+    const fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 10), hazardMat);
     fanHub.rotation.z = Math.PI / 2;
     genCoil.add(fanHub);
     for (let b = 0; b < 4; b++) {
@@ -589,11 +587,11 @@ const Game3D = {
     genTank.position.set(0.35, 1.05, 0.68);
     genGrp.add(genTank);
 
-    const genSparkLight = new THREE.PointLight(0x38bdf8, 0, 12);
+    const genSparkLight = new THREE.PointLight(0x38bdf8, 0, 11);
     genSparkLight.position.set(0, 1.5, 0);
     genGrp.add(genSparkLight);
 
-    for (let s = 0; s < 12; s++) {
+    for (let s = 0; s < 8; s++) {
       const spMesh = new THREE.Mesh(
         new THREE.BoxGeometry(0.06, 0.42, 0.06),
         new THREE.MeshBasicMaterial({ color: s % 2 === 0 ? 0x38bdf8 : 0xfef08a })
@@ -612,7 +610,7 @@ const Game3D = {
     driveSpots.forEach((ds, idx) => {
       const dGrp = new THREE.Group();
       const coreObj = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshBasicMaterial({ color: itemCol }));
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: itemCol }));
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.03, 6, 18), new THREE.MeshBasicMaterial({ color: itemCol }));
       halo.rotation.x = Math.PI / 2;
       dGrp.add(coreObj, halo);
       dGrp.position.set(ds.x, 1.05, ds.z);
@@ -669,7 +667,7 @@ const Game3D = {
 
     const beaconGrp = new THREE.Group();
     const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.9, 12, 16, 1, true),
+      new THREE.CylinderGeometry(0.5, 0.9, 12, 12, 1, true),
       new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.45, side: THREE.DoubleSide })
     );
     beam.position.y = 6;
@@ -764,16 +762,58 @@ const Game3D = {
     }).join('');
   },
 
+  // REAL-LIFE TEAMMATE FLASHLIGHT BEAM + VOLUMETRIC LIGHT CONE!
   createTeammateAvatar(player, slotIdx = 0) {
     const built = buildTacticalCharacter(player);
     const col = this.SQUAD_COLORS[slotIdx] || this.SQUAD_COLORS[0];
     const nameTag = this.makeNameTagSprite(String(slotIdx + 1), player.name || 'AGENT', col.hex);
     built.grp.add(nameTag);
-    const torchLight = new THREE.PointLight(0xfef3c7, 0.9, 8);
-    torchLight.position.set(-0.35, 1.35, -0.6);
-    built.grp.add(torchLight);
+
+    // Torch assembly attached to player's hand & facing their look direction (-Z)
+    const torchAssembly = new THREE.Group();
+    torchAssembly.position.set(-0.36, 1.38, -0.35);
+
+    // Glowing lens tip
+    const lens = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.08, 10),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    lens.rotation.x = Math.PI / 2;
+    torchAssembly.add(lens);
+
+    // Visible volumetric light cone so teammates see your beam through the dark!
+    const beamConeGeo = new THREE.ConeGeometry(2.3, 13.5, 16, 1, true);
+    beamConeGeo.translate(0, -6.75, 0);
+    beamConeGeo.rotateX(Math.PI / 2);
+    const beamConeMat = new THREE.MeshBasicMaterial({
+      color: 0xfef3c7,
+      transparent: true,
+      opacity: 0.13,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const beamCone = new THREE.Mesh(beamConeGeo, beamConeMat);
+    torchAssembly.add(beamCone);
+
+    // Real SpotLight illuminating walls & floor ahead for teammates whose torch is OFF!
+    const spotLight = new THREE.SpotLight(0xfef3c7, 2.6, 26, Math.PI / 3.8, 0.72, 1.4);
+    spotLight.position.set(0, 0, 0);
+    spotLight.target.position.set(0, -0.25, -8);
+    torchAssembly.add(spotLight);
+    torchAssembly.add(spotLight.target);
+
+    built.grp.add(torchAssembly);
     this.scene.add(built.grp);
-    return { grp: built.grp, limbs: built.limbs, torchLight, lastX: player.x || 0, lastZ: player.z || 0, stride: 0 };
+    return {
+      grp: built.grp,
+      limbs: built.limbs,
+      torchAssembly,
+      spotLight,
+      lastX: player.x || 0,
+      lastZ: player.z || 0,
+      stride: 0
+    };
   },
 
   animateCharacterLimbs(charObj, isMoving) {
@@ -806,12 +846,17 @@ const Game3D = {
       }
       const tm = this.teammateMeshes[p.id];
       tm.grp.visible = !p.hiding;
+
+      // Real-life torch sync: ON when teammate's torch is ON, OFF when OFF!
+      const isTorchOn = p.torch !== false && !p.hiding && !p.downed;
+      if (tm.torchAssembly) tm.torchAssembly.visible = isTorchOn;
+      if (tm.spotLight) tm.spotLight.visible = isTorchOn;
+
       const moved = Math.hypot((p.x || 0) - tm.lastX, (p.z || 0) - tm.lastZ) > 0.006;
       tm.lastX = p.x || 0; tm.lastZ = p.z || 0;
       tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x || 0, 0.35);
       tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z || 0, 0.35);
       tm.grp.rotation.y = p.yaw || 0;
-      // Crawling visual when downed
       if (p.downed) {
         tm.grp.rotation.x = -1.25;
         tm.grp.position.y = 0.35;
@@ -857,7 +902,7 @@ const Game3D = {
     const shockGrp = new THREE.Group();
     const arcMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
     for (let i = 0; i < 2; i++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 6, 18), arcMat);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 6, 14), arcMat);
       ring.rotation.x = Math.PI / 2 + (i - 0.5) * 0.35;
       ring.position.y = 0.85 + i * 0.75;
       shockGrp.add(ring);
@@ -869,7 +914,6 @@ const Game3D = {
     this.hunter.limbs = { armL, armR, legL, legR };
   },
 
-  // SMART MULTI-RAY WALL AVOIDANCE & UNSTUCK AI (Never bangs head on walls!)
   isHunterClear(x, z) {
     if (x < -38.4 || x > 38.4 || z < -38.4 || z > 38.4) return false;
     const pad = 0.35;
@@ -913,14 +957,12 @@ const Game3D = {
       chosenAng = desiredAng + Math.PI * 0.75 * this.hunter.avoidDir;
     }
 
-    // Smooth rotation so it doesn't jitter
     this.hunter.yaw = chosenAng;
     const nx = this.hunter.x + Math.sin(chosenAng) * speed;
     const nz = this.hunter.z + Math.cos(chosenAng) * speed;
     if (this.isHunterClear(nx, this.hunter.z)) this.hunter.x = nx;
     if (this.isHunterClear(this.hunter.x, nz)) this.hunter.z = nz;
 
-    // Anti-stuck detector: if blocked in a corner, pick a fresh open corridor
     const movedStep = Math.hypot(this.hunter.x - (this.hunter.lastProgressX || 0), this.hunter.z - (this.hunter.lastProgressZ || 0));
     if (movedStep < speed * 0.25) {
       this.hunter.stuckFrames = (this.hunter.stuckFrames || 0) + 1;
@@ -1157,7 +1199,6 @@ const Game3D = {
     }
     if (closeSetBtn && settingsModal) closeSetBtn.onclick = () => settingsModal.classList.add('hidden');
 
-    // Individual customization for Crouch, Ping, Flare, Skill + all action buttons!
     const draggableIds = [
       'joystick-zone', 'stun-btn', 'run-btn', 'torch-btn', 'use-btn',
       'crouch-btn', 'ping-btn', 'flare-btn', 'skill-btn', 'radar-canvas'
@@ -1260,14 +1301,18 @@ const Game3D = {
     if (!me || me.downed || this.battery <= 0) return;
     me.torch = !me.torch;
     if (this.flashlight) this.flashlight.visible = me.torch;
+    if (this.selfAvatar && this.selfAvatar.torchAssembly) {
+      this.selfAvatar.torchAssembly.visible = me.torch;
+      if (this.selfAvatar.spotLight) this.selfAvatar.spotLight.visible = me.torch;
+    }
     SFX.torchClick();
   },
 
   toggleNightVision() {
     this.nvgActive = !this.nvgActive;
     if (this.hemiLight) {
-      this.hemiLight.color.setHex(this.nvgActive ? 0x4ade80 : 0xe0f2fe);
-      this.hemiLight.intensity = this.nvgActive ? 1.65 : (this.powerRestored ? 0.16 : 0.085);
+      this.hemiLight.color.setHex(this.nvgActive ? 0x4ade80 : 0x475569);
+      this.hemiLight.intensity = this.nvgActive ? 1.65 : (this.powerRestored ? 0.24 : 0.16);
     }
     this.showRadioToast('OPTICS', this.nvgActive ? '🥽 Night Vision ON' : '🥽 Night Vision OFF');
   },
@@ -1293,7 +1338,7 @@ const Game3D = {
   applyPing(px, pz, sender) {
     if (this.pingMesh) this.mapGroup.remove(this.pingMesh);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.45, 0.75, 24),
+      new THREE.RingGeometry(0.45, 0.75, 18),
       new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
     );
     ring.rotation.x = -Math.PI / 2;
@@ -1317,21 +1362,21 @@ const Game3D = {
   spawnFlare(fx, fz, yaw, sender) {
     const flareGrp = new THREE.Group();
     const stick = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 0.42, 12),
+      new THREE.CylinderGeometry(0.045, 0.045, 0.42, 10),
       new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 })
     );
     stick.rotation.z = Math.PI / 2;
     stick.rotation.y = yaw + 0.5;
     stick.position.y = 0.05;
 
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffedd5 }));
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffedd5 }));
     tip.position.set(0.22, 0.06, 0);
 
-    const floorGlow = new THREE.Mesh(new THREE.CircleGeometry(0.55, 20), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }));
+    const floorGlow = new THREE.Mesh(new THREE.CircleGeometry(0.55, 16), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }));
     floorGlow.rotation.x = -Math.PI / 2;
     floorGlow.position.y = 0.015;
 
-    const fLight = new THREE.PointLight(0xff2a2a, 6.5, 22);
+    const fLight = new THREE.PointLight(0xff2a2a, 5.5, 20);
     fLight.position.set(0, 0.45, 0);
 
     flareGrp.add(stick, tip, floorGlow, fLight);
@@ -1341,7 +1386,7 @@ const Game3D = {
     this.flares.push({ x: fx, z: fz, grp: flareGrp, light: fLight, until: performance.now() + 20000 });
     this.decoyPos = { x: fx, z: fz };
     this.decoyUntil = performance.now() + 9000;
-    this.hunter.chaseTargetId = null; // Flare breaks monster lock!
+    this.hunter.chaseTargetId = null;
     SFX.torchClick();
     this.showRadioToast('FLARE', `🧨 ${sender} dropped a Flare! Luring threat!`);
   },
@@ -1507,7 +1552,6 @@ const Game3D = {
     if (!me || !this.nearAction) return;
     const act = this.nearAction;
 
-    // Allow reviving a downed teammate (even if you're alive, Medic revives faster!)
     if (act.type === 'REVIVE' && !me.downed) {
       const target = act.player;
       target.downed = false;
@@ -1523,7 +1567,7 @@ const Game3D = {
     if (act.type === 'LOCKER') {
       me.hiding = !me.hiding;
       if (me.hiding && this.hunter.chaseTargetId === Net.myId) {
-        this.hunter.chaseTargetId = null; // Hiding in locker breaks monster chase!
+        this.hunter.chaseTargetId = null;
       }
       document.getElementById('locker-overlay')?.classList.toggle('hidden', !me.hiding);
       this.showRadioToast('STEALTH', me.hiding ? '🔒 Hidden inside Safe Locker! Monster lost you!' : '🚪 Exited Safe Locker.');
@@ -1590,7 +1634,7 @@ const Game3D = {
     this.powerRestored = true;
     this.hasFuse = true;
     if (this.fuseMesh) this.fuseMesh.visible = false;
-    if (this.hemiLight) this.hemiLight.intensity = 0.16;
+    if (this.hemiLight && !this.nvgActive) this.hemiLight.intensity = 0.24;
     if (this.genMesh) {
       this.genMesh.material.color.setHex(0x16a34a);
       this.genMesh.material.emissive.setHex(0x22c55e);
@@ -1648,7 +1692,6 @@ const Game3D = {
     }
   },
 
-  // MONSTER LOCKS ONTO THE PLAYER DIRECTLY (Not the object's static spot!)
   alertMonsterToPlayer(playerId, label) {
     if (Net.isHost && Net.players[playerId]) {
       this.hunter.chaseTargetId = playerId;
@@ -1712,7 +1755,7 @@ const Game3D = {
   },
 
   hasLineOfSight(x1, z1, x2, z2) {
-    const steps = 10;
+    const steps = 8;
     for (let i = 1; i < steps; i++) {
       const t = i / steps;
       if (this.checkCollision(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t)) return false;
@@ -1834,7 +1877,6 @@ const Game3D = {
       const tNow = performance.now();
       (this.flickerLights || []).forEach((fl) => {
         const blink = Math.sin(tNow * 0.035 + fl.phase) * Math.sin(tNow * 0.091 + fl.phase) > 0.62;
-        if (fl.light) fl.light.intensity = blink ? 0.01 : 0.19;
         if (fl.mat) fl.mat.color.setHex(blink ? 0x1e293b : 0xe0f2fe);
       });
       (this.genSparks || []).forEach((sp) => {
@@ -1869,7 +1911,6 @@ const Game3D = {
       const isRunning = (this.keys['ShiftLeft'] || this.sprinting) && !me.downed && !me.hiding && this.stamina > 2;
       const turboBoost = performance.now() < this.turboUntil ? 1.35 : 1.0;
       const crouchMult = this.crouching ? 0.55 : 1.0;
-      // Crawling speed when downed (0.038) so player can crawl toward Medic/Teammate!
       const speed = (me.downed ? 0.038 : me.hiding ? 0 : (isRunning ? 0.14 : 0.085)) * turboBoost * crouchMult;
 
       const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
@@ -1892,7 +1933,6 @@ const Game3D = {
         SFX.step(isRunning);
       }
 
-      // Low crawl camera height when downed!
       const baseEye = me.downed ? 0.62 : (this.crouching ? 1.0 : 1.62);
       const bob = me.downed ? Math.sin(this.walkBob) * 0.02 : Math.sin(this.walkBob) * 0.04;
       if (this.playerHandGroup) {
@@ -1906,6 +1946,8 @@ const Game3D = {
           this.selfAvatar.grp.position.set(me.x, me.downed ? 0.35 : 0, me.z);
           this.selfAvatar.grp.rotation.y = me.yaw;
           this.selfAvatar.grp.rotation.x = me.downed ? -1.25 : 0;
+          if (this.selfAvatar.torchAssembly) this.selfAvatar.torchAssembly.visible = me.torch && !me.downed;
+          if (this.selfAvatar.spotLight) this.selfAvatar.spotLight.visible = false;
           this.animateCharacterLimbs(this.selfAvatar, isMoving);
         }
         this.camera.position.set(me.x + Math.sin(me.yaw) * 2.6, 2.25 + bob, me.z + Math.cos(me.yaw) * 2.6);
@@ -1917,7 +1959,7 @@ const Game3D = {
       }
 
       const nearFlare = (this.flares || []).some(f => performance.now() < f.until && Math.hypot(f.x - me.x, f.z - me.z) < 12);
-      const nearMate = Object.values(Net.players || {}).some(p => p.id !== Net.myId && Math.hypot((p.x || 0) - me.x, (p.z || 0) - me.z) < 10);
+      const nearMate = Object.values(Net.players || {}).some(p => p.id !== Net.myId && Math.hypot((p.x || 0) - me.x, (p.z || 0) - me.z) < 12 && (p.torch !== false || Math.hypot((p.x || 0) - me.x, (p.z || 0) - me.z) < 6));
       if (me.torch || nearFlare || nearMate || this.nvgActive || this.powerRestored) {
         this.sanity = Math.min(100, this.sanity + 0.03);
       } else {
@@ -1944,7 +1986,6 @@ const Game3D = {
       this.nearAction = null;
       const hint = document.getElementById('interact-hint');
 
-      // DOWNED BLEED-OUT & REVIVE PROMPT
       if (me.downed && hint) {
         this.bleedoutTimer = Math.max(0, this.bleedoutTimer - 0.016);
         hint.classList.remove('hidden');
@@ -1961,7 +2002,6 @@ const Game3D = {
         hint.style.borderColor = '#4ade80';
         hint.style.color = '#4ade80';
 
-        // Check if any teammate is downed nearby so you can REVIVE them!
         for (const p of Object.values(Net.players || {})) {
           if (p.id !== Net.myId && p.downed && Math.hypot((p.x || 0) - me.x, (p.z || 0) - me.z) < 2.8) {
             this.nearAction = { type: 'REVIVE', player: p };
@@ -2078,7 +2118,6 @@ const Game3D = {
         }
       }
 
-      // PERSISTENT PLAYER-LOCK CHASE AI
       if (Net.isHost && !isStunned) {
         const nowAi = performance.now();
         const diff = Net.difficulty || 'NORMAL';
@@ -2086,17 +2125,15 @@ const Game3D = {
         const lvlMult = 1 + (this.level - 1) * 0.06;
         const activePlayers = Object.values(Net.players || {}).filter(p => !p.hiding && !p.downed);
 
-        // 1. Check if monster sees any active player directly -> locks onto them!
         for (const p of activePlayers) {
           const d = Math.hypot((p.x || 0) - this.hunter.x, (p.z || 0) - this.hunter.z);
           const sightRange = (p.torch ? 19 : 10) * diffMult;
           if (d < sightRange && this.hasLineOfSight(this.hunter.x, this.hunter.z, p.x, p.z)) {
             this.hunter.chaseTargetId = p.id;
-            this.hunter.chaseUntil = nowAi + 12000; // Keeps chasing even around corners!
+            this.hunter.chaseUntil = nowAi + 12000;
           }
         }
 
-        // 2. Validate locked target (breaks only if player hides in locker, gets downed, timer expires, or escapes > 28m far away)
         let lockedTarget = null;
         if (this.hunter.chaseTargetId && nowAi < this.hunter.chaseUntil) {
           const cand = Net.players[this.hunter.chaseTargetId];
@@ -2105,10 +2142,10 @@ const Game3D = {
             if (distToCand <= 28) {
               lockedTarget = cand;
             } else {
-              this.hunter.chaseTargetId = null; // Escaped far enough!
+              this.hunter.chaseTargetId = null;
             }
           } else {
-            this.hunter.chaseTargetId = null; // Player hid in a locker or went down!
+            this.hunter.chaseTargetId = null;
           }
         }
 
@@ -2117,7 +2154,6 @@ const Game3D = {
           this.moveHunterToward(lockedTarget.x, lockedTarget.z, 0.072 * diffMult * lvlMult);
 
           if (distToTarget < 1.35) {
-            // Check Solo Emergency Self-Revive (if Solo + Medic or has Stun Charge)
             const totalSquad = Object.keys(Net.players || {}).length;
             if (totalSquad === 1 && lockedTarget.id === Net.myId && !this.selfReviveUsed && ((lockedTarget.role === 'MEDIC') || this.stunCharges > 0)) {
               this.selfReviveUsed = true;
@@ -2240,11 +2276,11 @@ const HomeShowcase3D = {
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(14, 36), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 }));
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(14, 24), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 }));
     floor.rotation.x = -Math.PI / 2;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.22, 36), new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.22, 24), new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
     const amb = new THREE.AmbientLight(0x94a3b8, 0.85);
     const keyLight = new THREE.SpotLight(0x38bdf8, 4.5, 18, 0.7); keyLight.position.set(2.5, 5.2, 3.5);
