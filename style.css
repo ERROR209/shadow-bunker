@@ -606,3 +606,14 @@ input[type="text"] {
   inset: 0;
   z-index: 10;
 }
+
+#game-screen, #three-container, #three-container canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+#three-container canvas {
+  display: block !important;
+  z-index: 1 !important;
+}

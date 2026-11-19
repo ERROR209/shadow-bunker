@@ -1,3 +1,23 @@
+window.toggleFullScreen = function() {
+  const docEl = document.documentElement;
+  if (!document.fullscreenElement) {
+    docEl.requestFullscreen?.().catch(() => {});
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } else {
+    document.exitFullscreen?.().catch(() => {});
+  }
+};
+document.addEventListener('pointerdown', () => {
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  }
+}, { once: true });
+
 const SFX = {
   ctx: null,
   masterGain: null,
@@ -559,6 +579,11 @@ const Game3D = {
 
     const container = document.getElementById('three-container');
     container.innerHTML = '';
+    container.style.position = 'absolute';
+    container.style.inset = '0';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.zIndex = '1';
     const hudEl = document.getElementById('hud');
     if (hudEl) { hudEl.classList.remove('hidden'); hudEl.style.display = 'block'; }
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -566,7 +591,7 @@ const Game3D = {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     container.appendChild(this.renderer.domElement);
 
-    this.hemiLight = new THREE.HemisphereLight(0x334155, 0x05080f, 0.08);
+    this.hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.68);
     this.scene.add(this.hemiLight);
 
     this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 36, Math.PI / 4.0, 0.32, 0.95);
@@ -788,7 +813,7 @@ const Game3D = {
 
     if (lvl === 1) {
       this.scene.background = new THREE.Color(0x020408);
-      this.scene.fog = new THREE.FogExp2(0x020408, 0.052);
+      this.scene.fog = new THREE.FogExp2(0x0b1324, 0.022);
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
