@@ -567,25 +567,103 @@ const Game3D = {
     this.mapGroup.add(fuseGrp, fuseLight);
     this.fuseMesh = fuseGrp;
 
-    // 2. DETAILED 3D INDUSTRIAL GENERATOR + LIVE ELECTRIC SPARKS
+    // 2. REALISTIC HEAVY-DUTY INDUSTRIAL DIESEL GENERATOR
     const genGrp = new THREE.Group();
-    const genBase = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.35, 1.5), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 }));
-    genBase.position.y = 0.175;
-    const genTank = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.6, 16), new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 0.85, roughness: 0.4 }));
-    genTank.rotation.z = Math.PI / 2;
-    genTank.position.y = 1.0;
-    const genCoil = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.07, 10, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
-    genCoil.rotation.y = Math.PI / 2;
-    genCoil.position.y = 1.0;
-    const genBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
-    genBeacon.position.y = 1.78;
+    const steelDark = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.75, roughness: 0.35 });
+    const bodyMetal = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.65, roughness: 0.4 });
+    const hazardMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.5 });
+
+    // Heavy Skid Base + Anti-Vibration Pads
+    const genBase = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.22, 1.55), steelDark);
+    genBase.position.y = 0.11;
+    genGrp.add(genBase);
+
+    // Outer Steel Tubular Roll-Cage Frame (4 Corner Pillars + Top Rails)
+    [[-1.15, -0.68], [1.15, -0.68], [-1.15, 0.68], [1.15, 0.68]].forEach(([px, pz]) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.72, 0.11), hazardMat);
+      post.position.set(px, 0.96, pz);
+      genGrp.add(post);
+    });
+    const topRailF = new THREE.Mesh(new THREE.BoxGeometry(2.42, 0.1, 0.11), hazardMat);
+    topRailF.position.set(0, 1.82, 0.68);
+    const topRailB = topRailF.clone(); topRailB.position.z = -0.68;
+    const topRailL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.1, 1.46), hazardMat);
+    topRailL.position.set(-1.15, 1.82, 0);
+    const topRailR = topRailL.clone(); topRailR.position.x = 1.15;
+    genGrp.add(topRailF, topRailB, topRailL, topRailR);
+
+    // V-Twin Diesel Engine Block + Alternator Turbine Housing
+    const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.88, 0.86), bodyMetal);
+    engineBlock.position.set(-0.22, 0.72, 0);
+    const alternatorDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.75, 18), steelDark);
+    alternatorDrum.rotation.z = Math.PI / 2;
+    alternatorDrum.position.set(0.65, 0.72, 0);
+    genGrp.add(engineBlock, alternatorDrum);
+
+    // Front Radiator Cooling Grill Slats
+    const radFrame = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.92, 0.92), steelDark);
+    radFrame.position.set(-0.92, 0.78, 0);
+    genGrp.add(radFrame);
+    for (let g = 0; g < 6; g++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.8), hazardMat);
+      slat.position.set(-0.92, 0.44 + g * 0.13, 0);
+      genGrp.add(slat);
+    }
+
+    // Top Fuel Tank + Exhaust Muffler & Vertical Smoke Pipe
+    const fuelTank = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.32, 0.92), new THREE.MeshStandardMaterial({ color: 0x991b1b, metalness: 0.5, roughness: 0.4 }));
+    fuelTank.position.set(-0.15, 1.42, 0);
+    const exhaustPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.65, 12), steelDark);
+    exhaustPipe.position.set(0.82, 1.65, -0.32);
+    const muffler = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.55, 14), bodyMetal);
+    muffler.rotation.z = Math.PI / 2;
+    muffler.position.set(0.68, 1.32, -0.32);
+    genGrp.add(fuelTank, exhaustPipe, muffler);
+
+    // Spinning Flywheel Cooling Fan (Rotates when running)
+    const genCoil = new THREE.Group();
+    const fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 12), hazardMat);
+    fanHub.rotation.z = Math.PI / 2;
+    genCoil.add(fanHub);
+    for (let b = 0; b < 4; b++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.62, 0.12), steelDark);
+      blade.rotation.x = (b * Math.PI) / 4;
+      genCoil.add(blade);
+    }
+    genCoil.position.set(1.06, 0.72, 0);
+    genGrp.add(genCoil);
+
+    // Glowing Power Status Core & Control Panel Box (Changes Red -> Bright Green on Activation)
+    const genTank = new THREE.Mesh(
+      new THREE.BoxGeometry(0.68, 0.58, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x991b1b, emissive: 0xdc2626, emissiveIntensity: 1.1, roughness: 0.3 })
+    );
+    genTank.position.set(0.35, 1.05, 0.68);
+    const panelScreen = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.24, 0.16), new THREE.MeshBasicMaterial({ color: 0x0f172a }));
+    panelScreen.position.set(0.35, 1.12, 0.69);
+    const genBeacon = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.22, 12), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    genBeacon.position.set(0.35, 1.96, 0.68);
+    genGrp.add(genTank, panelScreen, genBeacon);
+
+    // Heavy Floor Power Cables snaking out of Generator
+    const cable1 = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.8, 8), steelDark);
+    cable1.rotation.z = Math.PI / 2;
+    cable1.rotation.y = 0.35;
+    cable1.position.set(1.75, 0.045, 0.35);
+    const cable2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.5, 8), hazardMat);
+    cable2.rotation.z = Math.PI / 2;
+    cable2.rotation.y = -0.25;
+    cable2.position.set(1.6, 0.04, -0.25);
+    genGrp.add(cable1, cable2);
+
     const genSparkLight = new THREE.PointLight(0x38bdf8, 0, 12);
     genSparkLight.position.set(0, 1.5, 0);
-    genGrp.add(genBase, genTank, genCoil, genBeacon, genSparkLight);
-    // Create 12 3D Electric Current Spark Bolts around Generator
+    genGrp.add(genSparkLight);
+
+    // 12 3D Electric Current Spark Bolts
     for (let s = 0; s < 12; s++) {
       const spMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.06, 0.38, 0.06),
+        new THREE.BoxGeometry(0.06, 0.42, 0.06),
         new THREE.MeshBasicMaterial({ color: s % 2 === 0 ? 0x38bdf8 : 0xfef08a })
       );
       spMesh.visible = false;
