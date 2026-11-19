@@ -790,8 +790,17 @@ const Net = {
       if (data.players) {
         for (const [pid, pdata] of Object.entries(data.players)) {
           if (pid === this.myId) continue;
-          if (!this.players[pid]) this.players[pid] = pdata;
-          else Object.assign(this.players[pid], pdata);
+          if (!this.players[pid]) this.players[pid] = { ...pdata };
+          else {
+            this.players[pid].x = pdata.x;
+            this.players[pid].z = pdata.z;
+            this.players[pid].yaw = pdata.yaw;
+            this.players[pid].torch = pdata.torch;
+            this.players[pid].hiding = pdata.hiding;
+            this.players[pid].downed = pdata.downed;
+            this.players[pid].name = pdata.name;
+            this.players[pid].role = pdata.role;
+          }
         }
       }
       for (const [id, p] of Object.entries(data.players)) {

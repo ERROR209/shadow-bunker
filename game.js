@@ -313,10 +313,15 @@ const Game3D = {
     this.mapGroup = new THREE.Group();
     this.scene.add(this.mapGroup);
 
-    const initSpawns = [{ x: -32, z: 32 }, { x: -30, z: 32 }, { x: -32, z: 30 }, { x: -30, z: 30 }];
-    Object.values(Net.players).forEach((p, idx) => {
+    const initSpawns = [
+      { x: -33, z: 31, yaw: -Math.PI / 2 },
+      { x: -29, z: 31, yaw: Math.PI / 2 },
+      { x: -33, z: 29, yaw: -Math.PI / 2 },
+      { x: -29, z: 29, yaw: Math.PI / 2 }
+    ];
+    this.getOrderedSquad().forEach((p, idx) => {
       const sp = initSpawns[idx % 4];
-      p.x = sp.x; p.z = sp.z; p.yaw = -0.6;
+      p.x = sp.x; p.z = sp.z; p.yaw = sp.yaw;
     });
 
     this.buildLevelMap(1, noteSpots, fuseSpot);
@@ -543,7 +548,7 @@ const Game3D = {
     const cvs = document.createElement('canvas');
     cvs.width = 256; cvs.height = 64;
     const ctx = cvs.getContext('2d');
-    ctx.fillStyle = 'rgba(9, 13, 22, 0.82)';
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.96)';
     ctx.beginPath();
     ctx.roundRect(10, 10, 236, 44, 12);
     ctx.fill();
@@ -631,7 +636,9 @@ const Game3D = {
     squad.forEach((p, idx) => {
       if (p.id === Net.myId) return;
       if (!this.teammateMeshes[p.id]) {
-        this.teammateMeshes[p.id] = this.createTeammateAvatar(p, idx);
+        const created = this.createTeammateAvatar(p, idx);
+        created.grp.position.set(p.x || -31, 0, p.z || 31);
+        this.teammateMeshes[p.id] = created;
       }
       const tm = this.teammateMeshes[p.id];
       tm.grp.visible = !p.hiding;
