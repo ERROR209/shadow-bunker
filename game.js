@@ -2424,3 +2424,54 @@ const HomeShowcase3D = {
 };
 window.HomeShowcase3D = HomeShowcase3D;
 if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', () => HomeShowcase3D.init()); } else { HomeShowcase3D.init(); }
+
+
+(function bindShadowBunkerSettingsExtras() {
+  function toggleFullscreenMode() {
+    const doc = document;
+    const root = doc.documentElement;
+    if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+      const req = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (req) req.call(root).catch(() => {});
+    } else {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit) exit.call(doc).catch(() => {});
+    }
+  }
+
+  function exitMatchToLobby() {
+    try {
+      if (window.Net && typeof Net.leaveRoom === 'function') Net.leaveRoom();
+      if (window.Net && typeof Net.disconnect === 'function') Net.disconnect();
+    } catch (e) {}
+    const settingsModal = document.getElementById('settings-modal') || document.getElementById('pause-modal');
+    if (settingsModal) settingsModal.classList.add('hidden');
+    const gameScreen = document.getElementById('game-screen');
+    const menuScreen = document.getElementById('menu-screen');
+    if (gameScreen) gameScreen.classList.add('hidden');
+    if (menuScreen) menuScreen.classList.remove('hidden');
+    if (window.HomeShowcase3D && typeof HomeShowcase3D.refreshCharacter === 'function') {
+      HomeShowcase3D.refreshCharacter();
+    }
+  }
+
+  function wireButtons() {
+    const fsBtn = document.getElementById('settings-fullscreen-btn');
+    const exitBtn = document.getElementById('settings-exit-lobby-btn');
+    if (fsBtn && !fsBtn.dataset.bound) {
+      fsBtn.dataset.bound = '1';
+      fsBtn.addEventListener('click', toggleFullscreenMode);
+    }
+    if (exitBtn && !exitBtn.dataset.bound) {
+      exitBtn.dataset.bound = '1';
+      exitBtn.addEventListener('click', exitMatchToLobby);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireButtons);
+  } else {
+    wireButtons();
+  }
+  setInterval(wireButtons, 1500);
+})();

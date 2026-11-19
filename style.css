@@ -753,3 +753,39 @@ html, body {
 }
 .key.clear { background: #b45309; }
 .key.close { background: #be123c; }
+
+/* ================= FULLSCREEN & EXIT BUTTONS IN SETTINGS ================= */
+.settings-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.modal-btn {
+  border: none;
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.modal-btn.cyan {
+  background: #0284c7;
+}
+
+.modal-btn.danger {
+  background: #dc2626;
+}
+
+.modal-btn.resume {
+  width: 100%;
+  margin-top: 8px;
+  background: #16a34a;
+}
+
+.top-mini-btns {
+  margin-right: 116px;
+}
