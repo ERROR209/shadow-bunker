@@ -285,7 +285,7 @@ const Game3D = {
     container.appendChild(this.renderer.domElement);
 
     // Bright, high-visibility bunker lighting so rooms & corridors are clearly visible on mobile!
-    this.hemiLight = new THREE.HemisphereLight(0x475569, 0x090d16, 0.34);
+    this.hemiLight = new THREE.HemisphereLight(0x334155, 0x02040a, 0.085);
     this.scene.add(this.hemiLight);
 
     // Player Tactical Flashlight
@@ -527,16 +527,17 @@ const Game3D = {
         lamp.position.set(pt.x, 4.12, pt.z);
         this.mapGroup.add(lamp);
       }
-      const pl = new THREE.PointLight(isRooftop ? 0x60a5fa : 0x38bdf8, isRooftop ? 0.55 : 0.38, 15);
+      const pl = new THREE.PointLight(isRooftop ? 0x60a5fa : 0x38bdf8, isRooftop ? 0.35 : 0.18, 12);
       pl.position.set(pt.x, 3.75, pt.z);
       this.mapGroup.add(pl);
       // Make 4 ceiling lights visibly flicker on & off!
-      if (idx % 2 === 1) this.flickerLights.push({ light: pl, mat: tubeMat, phase: idx * 1.7 });
+      if (idx !== 0) this.flickerLights.push({ light: pl, mat: tubeMat, phase: idx * 1.9 });
     });
 
     this.addSafeLockers([
       { x: -33, z: 21 }, { x: -33, z: 5 }, { x: -33, z: -21 }, { x: -6, z: 33 },
-      { x: 6, z: -21 }, { x: 33, z: 21 }, { x: 33, z: 5 }, { x: 14, z: -12 }
+      { x: 6, z: -21 }, { x: 33, z: 21 }, { x: 33, z: 5 }, { x: 14, z: -12 },
+      { x: -16, z: 8 }, { x: -16, z: -18 }, { x: 16, z: 18 }, { x: 16, z: -2 }
     ]);
 
     // RANDOMIZED OBJECT SPAWN SLOTS ACROSS ALL ROOMS (Every match & every level has brand-new locations!)
@@ -675,13 +676,26 @@ const Game3D = {
     this.genMesh = genTank;
     this.animatedProps.push(genCoil);
 
-    // 3. DETAILED 3D HOLOGRAPHIC DATA DRIVES (Randomized Rooms)
+    // 3. LEVEL-SPECIFIC OBJECTIVE ITEMS (Different 3D Objects & Missions per Level!)
+    const itemColors = { 1: 0xd8b4fe, 2: 0x38bdf8, 3: 0xf97316, 4: 0x4ade80, 5: 0xfacc15 };
+    const itemCol = itemColors[lvl] || 0xd8b4fe;
     driveSpots.forEach((ds, idx) => {
       const dGrp = new THREE.Group();
-      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshBasicMaterial({ color: 0xd8b4fe }));
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+      let coreObj;
+      if (lvl === 2) {
+        coreObj = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.07, 8, 18), new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x38bdf8, emissiveIntensity: 0.9 }));
+      } else if (lvl === 3) {
+        coreObj = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.3, 0.08), new THREE.MeshStandardMaterial({ color: 0xea580c, emissive: 0xf97316, emissiveIntensity: 1.0 }));
+      } else if (lvl === 4) {
+        coreObj = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.55, 12), new THREE.MeshStandardMaterial({ color: 0x16a34a, emissive: 0x4ade80, emissiveIntensity: 0.9 }));
+      } else if (lvl === 5) {
+        coreObj = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0xeab308, emissive: 0xfacc15, emissiveIntensity: 1.0 }));
+      } else {
+        coreObj = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshBasicMaterial({ color: itemCol }));
+      }
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: itemCol }));
       halo.rotation.x = Math.PI / 2;
-      dGrp.add(crystal, halo);
+      dGrp.add(coreObj, halo);
       dGrp.position.set(ds.x, 1.05, ds.z);
       this.mapGroup.add(dGrp);
       this.dataDrives.push({ x: ds.x, z: ds.z, idx, taken: false, mesh: dGrp });
@@ -887,35 +901,54 @@ const Game3D = {
     });
   },
 
-  buildMonster() {
+  buildMonster(lvl = 1) {
+    if (this.hunter && this.hunter.mesh) {
+      this.scene.remove(this.hunter.mesh);
+    }
+    const configs = {
+      1: { name: 'SUBJECT-0', skin: 0x18181b, claw: 0x991b1b, eye: 0xff0000, aura: 0xdc2626, sx: 1.0, sy: 1.0, sz: 1.0 },
+      2: { name: 'THE WATCHER (SOUND HUNTER)', skin: 0x0f172a, claw: 0x0284c7, eye: 0x38bdf8, aura: 0x0ea5e9, sx: 0.88, sy: 1.22, sz: 0.88 },
+      3: { name: 'REACTOR MUTANT', skin: 0x291509, claw: 0xea580c, eye: 0xfacc15, aura: 0xf97316, sx: 1.18, sy: 1.12, sz: 1.18 },
+      4: { name: 'SEWER CRAWLER', skin: 0x052e16, claw: 0x16a34a, eye: 0x4ade80, aura: 0x22c55e, sx: 1.3, sy: 0.68, sz: 1.35 },
+      5: { name: 'TITAN PRIME (APEX BOSS)', skin: 0x1e1b4b, claw: 0xc026d3, eye: 0xf43f5e, aura: 0xe11d48, sx: 1.42, sy: 1.35, sz: 1.42 }
+    };
+    const cfg = configs[lvl] || configs[1];
+    this.hunterVariant = cfg.name;
+
     const grp = new THREE.Group();
-    const skin = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.35 });
-    const clawMat = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.4 });
+    const skin = new THREE.MeshStandardMaterial({ color: cfg.skin, roughness: 0.35 });
+    const clawMat = new THREE.MeshStandardMaterial({ color: cfg.claw, emissive: cfg.claw, emissiveIntensity: 0.35, roughness: 0.4 });
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.84, 1.3, 0.48), skin); torso.position.y = 1.48;
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.54, 0.54), skin); head.position.set(0, 2.34, 0.16);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), eyeMat); eyeL.position.set(-0.14, 2.38, 0.43);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: cfg.eye });
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), eyeMat); eyeL.position.set(-0.14, 2.38, 0.43);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.14;
     const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), clawMat); armL.position.set(-0.56, 1.42, 0.12);
     const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), clawMat); armR.position.set(0.56, 1.42, 0.12);
     const legL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.24), skin); legL.position.set(-0.22, 0.45, 0);
     const legR = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.24), skin); legR.position.set(0.22, 0.45, 0);
-    const aura = new THREE.PointLight(0xff0000, 3.0, 12); aura.position.set(0, 1.8, 0.3);
 
+    if (lvl === 3 || lvl === 5) {
+      const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 6), clawMat);
+      hornL.position.set(-0.24, 2.75, 0.15); hornL.rotation.z = 0.35;
+      const hornR = hornL.clone(); hornR.position.x = 0.24; hornR.rotation.z = -0.35;
+      grp.add(hornL, hornR);
+    }
+
+    const aura = new THREE.PointLight(cfg.aura, 2.2, 10); aura.position.set(0, 1.8, 0.3);
     grp.add(torso, head, eyeL, eyeR, armL, armR, legL, legR, aura);
+    grp.scale.set(cfg.sx, cfg.sy, cfg.sz);
     grp.position.set(this.hunter.x, 0, this.hunter.z);
     this.scene.add(grp);
+
     const shockGrp = new THREE.Group();
     const arcMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    for (let i = 0; i < 3; i++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 8, 24), arcMat);
-      ring.rotation.x = Math.PI / 2 + (i - 1) * 0.35;
-      ring.position.y = 0.7 + i * 0.65;
+    for (let i = 0; i < 2; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 6, 18), arcMat);
+      ring.rotation.x = Math.PI / 2 + (i - 0.5) * 0.35;
+      ring.position.y = 0.85 + i * 0.75;
       shockGrp.add(ring);
     }
-    const shockLight = new THREE.PointLight(0x38bdf8, 6.0, 14);
-    shockLight.position.set(0, 1.5, 0);
-    shockGrp.add(shockLight);
     shockGrp.visible = false;
     grp.add(shockGrp);
     this.hunter.shockGrp = shockGrp;
@@ -1260,7 +1293,7 @@ const Game3D = {
     this.nvgActive = !this.nvgActive;
     if (this.hemiLight) {
       this.hemiLight.color.setHex(this.nvgActive ? 0x4ade80 : 0xe0f2fe);
-      this.hemiLight.intensity = this.nvgActive ? 1.85 : (this.powerRestored ? 0.68 : 0.34);
+      this.hemiLight.intensity = this.nvgActive ? 1.65 : (this.powerRestored ? 0.16 : 0.085);
     }
     this.showRadioToast('OPTICS', this.nvgActive ? '🥽 Night Vision ON' : '🥽 Night Vision OFF');
   },
@@ -1421,7 +1454,7 @@ const Game3D = {
       SFX.pickup();
       const ob = document.getElementById('objective-banner');
       if (ob) ob.textContent = 'CHAPTER 2: Activate the Red GENERATOR in the corner!';
-      this.showRadioToast('ITEM', '🔋 Picked up Blue Power Fuse!');
+      this.alertMonsterTo(me.x, me.z, 'Power Fuse pickup');
     } else if (act.type === 'GEN') {
       if (!this.hasFuse) return this.showRadioToast('OBJECTIVE', '⚠️ Find the Blue Power Fuse first!');
       this.restorePower();
@@ -1460,15 +1493,22 @@ const Game3D = {
   restorePower() {
     if (this.powerRestored) return;
     this.powerRestored = true;
-    if (this.hemiLight) this.hemiLight.intensity = 0.68;
+    if (this.hemiLight) this.hemiLight.intensity = 0.16;
     if (this.genMesh) {
       this.genMesh.material.color.setHex(0x16a34a);
       this.genMesh.material.emissive.setHex(0x22c55e);
     }
     const ls = document.getElementById('locks-status');
     if (ls) ls.textContent = '⚡ ON (0/3)';
+    const ch3Msgs = {
+      1: 'LVL 1 • CH-3: Collect 3 Data Drives & upload at Mainframe Server!',
+      2: 'LVL 2 • CH-3: Seal 3 Bio-Containment Valves & sync at Bio-Console!',
+      3: 'LVL 3 • CH-3: Grab 3 Nuclear Keycards & insert into Reactor Core!',
+      4: 'LVL 4 • CH-3: Collect 3 Breaker Cells & reboot Pump Station!',
+      5: 'LVL 5 • CH-3: Collect 3 Signal Relays & power Helipad Radar!'
+    };
     const ob = document.getElementById('objective-banner');
-    if (ob) ob.textContent = `LVL ${this.level} • CH-3: Collect 3 Purple Data Drives & upload at North Server!`;
+    if (ob) ob.textContent = ch3Msgs[this.level] || ch3Msgs[1];
     SFX.pickup();
     this.showRadioToast('POWER', '⚡ Main Bunker Power Restored!');
   },
@@ -1517,11 +1557,26 @@ const Game3D = {
   },
 
   alertMonsterTo(tx, tz, label) {
+    const me = Net.players[Net.myId];
+    if (me) {
+      const dist = Math.hypot(this.hunter.x - me.x, this.hunter.z - me.z);
+      if (dist > 34) {
+        const ang = Math.atan2(this.hunter.x - me.x, this.hunter.z - me.z);
+        const nx = Math.max(-35, Math.min(35, me.x + Math.sin(ang) * 29));
+        const nz = Math.max(-35, Math.min(35, me.z + Math.cos(ang) * 29));
+        if (!this.checkCollision(nx, nz)) { this.hunter.x = nx; this.hunter.z = nz; }
+      } else if (dist < 22) {
+        const ang = Math.atan2(this.hunter.x - me.x, this.hunter.z - me.z);
+        const nx = Math.max(-35, Math.min(35, me.x + Math.sin(ang) * 26));
+        const nz = Math.max(-35, Math.min(35, me.z + Math.cos(ang) * 26));
+        if (!this.checkCollision(nx, nz)) { this.hunter.x = nx; this.hunter.z = nz; }
+      }
+    }
     this.hunter.goalX = tx;
     this.hunter.goalZ = tz;
-    this.hunter.alertUntil = performance.now() + 14000;
+    this.hunter.alertUntil = performance.now() + 16000;
     SFX.tone(320, 'sawtooth', 0.25, 0.22, 160);
-    this.showRadioToast('⚠️ ALERT', `👹 ${this.hunterVariant || 'Subject-0'} heard ${label} & is rushing there!`);
+    this.showRadioToast('🚨 HIDE (~9s)!', `👹 ${this.hunterVariant || 'Subject-0'} heard ${label}! Find a Safe Locker!`);
   },
 
   configureMonsterVariant(lvl) {
@@ -1579,7 +1634,7 @@ const Game3D = {
     const me = Net.players[Net.myId];
     if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; }
     this.hunter.x = 26; this.hunter.z = -26; this.hunter.alertUntil = 0;
-    this.configureMonsterVariant(nextLvl);
+    this.buildMonster(nextLvl);
     const ob = document.getElementById('objective-banner');
     if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
     SFX.pickup();
@@ -1729,7 +1784,7 @@ const Game3D = {
       const tNow = performance.now();
       (this.flickerLights || []).forEach((fl) => {
         const blink = Math.sin(tNow * 0.035 + fl.phase) * Math.sin(tNow * 0.091 + fl.phase) > 0.62;
-        if (fl.light) fl.light.intensity = blink ? 0.04 : 0.45;
+        if (fl.light) fl.light.intensity = blink ? 0.01 : 0.19;
         if (fl.mat) fl.mat.color.setHex(blink ? 0x1e293b : 0xe0f2fe);
       });
       (this.genSparks || []).forEach((sp) => {
@@ -1973,8 +2028,8 @@ const Game3D = {
           }
         } else {
           const isAlerted = performance.now() < (this.hunter.alertUntil || 0);
-          if (isAlerted && !me.hiding && !me.downed && dPlayer < 16) {
-            this.moveHunterToward(me.x, me.z, 0.076 * diffMult * lvlMult);
+          if (isAlerted && !me.hiding && !me.downed && dPlayer < 26) {
+            this.moveHunterToward(me.x, me.z, 0.088 * diffMult * lvlMult);
             if (dPlayer < 1.35) {
               SFX.jumpscareScream();
               this.triggerEnd(false, `💀 ${this.hunterVariant || 'Subject-0'} hunted you down!`);
@@ -2019,9 +2074,9 @@ const Game3D = {
       if (danger) {
         if (dMonster < 14 && !me.hiding && !me.downed) {
           SFX.heartbeat(dMonster);
-          danger.style.boxShadow = `inset 0 0 ${Math.round((14 - dMonster) * 8)}px rgba(220,38,38,0.6)`;
-        } else {
-          danger.style.boxShadow = 'none';
+          danger.style.opacity = Math.min(0.85, (14 - dMonster) / 14).toFixed(2);
+        } else if (danger.style.opacity !== '0') {
+          danger.style.opacity = '0';
         }
       }
 
