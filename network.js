@@ -693,16 +693,6 @@ const Net = {
       if (this.players[data.id]) Object.assign(this.players[data.id], data.state);
     } else if (data.type === 'POWER_ON') {
       Game3D.restorePower();
-    } else if (data.type === 'SERVER_UPLOAD') {
-      Game3D.drivesUploaded = true;
-      if (Game3D.serverMesh) { Game3D.serverMesh.material.color.setHex(0x16a34a); Game3D.serverMesh.material.emissive.setHex(0x22c55e); }
-    } else if (data.type === 'NEXT_LEVEL') {
-      Game3D.advanceToLevel(data.level);
-    } else if (data.type === 'SERVER_UPLOAD') {
-      Game3D.drivesUploaded = true;
-      if (Game3D.serverMesh) { Game3D.serverMesh.material.color.setHex(0x16a34a); Game3D.serverMesh.material.emissive.setHex(0x22c55e); }
-    } else if (data.type === 'NEXT_LEVEL') {
-      Game3D.advanceToLevel(data.level);
       this.broadcast(data);
     } else if (data.type === 'SERVER_UPLOAD') {
       Game3D.drivesUploaded = true;
@@ -830,6 +820,11 @@ const Net = {
       }
     } else if (data.type === 'POWER_ON') {
       Game3D.restorePower();
+    } else if (data.type === 'SERVER_UPLOAD') {
+      Game3D.drivesUploaded = true;
+      if (Game3D.serverMesh) { Game3D.serverMesh.material.color.setHex(0x16a34a); Game3D.serverMesh.material.emissive.setHex(0x22c55e); }
+    } else if (data.type === 'NEXT_LEVEL') {
+      Game3D.advanceToLevel(data.level);
     } else if (data.type === 'UNLOCK') {
       Game3D.unlockTerminal(data.lockIdx);
     } else if (data.type === 'LEVEL_2') {
