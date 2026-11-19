@@ -106,27 +106,27 @@ const SFX = {
 
 function makeTexture(kind = 'wall', lvl = 1) {
   const c = document.createElement('canvas');
-  c.width = 64; c.height = 64;
+  c.width = 128; c.height = 128;
   const ctx = c.getContext('2d');
   if (kind === 'floor') {
     ctx.fillStyle = lvl === 3 ? '#292524' : (lvl === 2 ? '#0b2e26' : '#162033');
-    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillRect(0, 0, 128, 128);
     ctx.strokeStyle = 'rgba(148,163,184,0.28)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(1, 1, 30, 30); ctx.strokeRect(33, 1, 30, 30);
-    ctx.strokeRect(1, 33, 30, 30); ctx.strokeRect(33, 33, 30, 30);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2, 2, 60, 60); ctx.strokeRect(66, 2, 60, 60);
+    ctx.strokeRect(2, 66, 60, 60); ctx.strokeRect(66, 66, 60, 60);
   } else if (kind === 'ceil') {
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillRect(0, 0, 128, 128);
     ctx.fillStyle = '#334155';
-    ctx.fillRect(0, 28, 64, 6);
+    ctx.fillRect(0, 58, 128, 12);
   } else {
     ctx.fillStyle = lvl === 3 ? '#44403c' : (lvl === 2 ? '#134e4a' : '#26354d');
-    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillRect(0, 0, 128, 128);
     ctx.fillStyle = lvl === 3 ? '#f97316' : (lvl === 2 ? '#22c55e' : '#eab308');
-    ctx.fillRect(0, 48, 64, 5);
+    ctx.fillRect(0, 96, 128, 10);
     ctx.strokeStyle = 'rgba(56,189,248,0.22)';
-    ctx.strokeRect(1, 1, 62, 62);
+    ctx.strokeRect(1, 1, 126, 126);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -155,6 +155,7 @@ function buildTacticalCharacter(player = {}) {
   const armR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.66, 0.18), suitMat); armR.position.y = -0.33; rightArmPivot.add(armR);
 
   grp.add(torso, head, visor, leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot);
+  grp.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; } });
   return { grp, limbs: { leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot } };
 }
 
@@ -167,6 +168,7 @@ const Game3D = {
   playerHandGroup: null,
   selfAvatar: null,
   thirdPerson: false,
+  gfxQuality: localStorage.getItem('sb09_gfx_quality') || 'NORMAL',
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
@@ -256,6 +258,73 @@ const Game3D = {
     this.init3D();
   },
 
+  applyGraphicsQuality(mode, silent = false) {
+    const q = ['LOW', 'NORMAL', 'HIGH'].includes(mode) ? mode : 'NORMAL';
+    this.gfxQuality = q;
+    localStorage.setItem('sb09_gfx_quality', q);
+
+    const sel = document.getElementById('gfx-select');
+    if (sel) sel.value = q;
+
+    const dpr = window.devicePixelRatio || 1;
+    const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+
+    if (this.renderer) {
+      if (q === 'LOW') {
+        this.renderer.setPixelRatio(0.75);
+        this.renderer.shadowMap.enabled = false;
+      } else if (q === 'HIGH') {
+        this.renderer.setPixelRatio(Math.min(dpr, isMobile ? 1.65 : 2.0));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      } else {
+        this.renderer.setPixelRatio(isMobile ? 1.0 : Math.min(dpr, 1.35));
+        this.renderer.shadowMap.enabled = false;
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+      this.renderer.setSize(Math.max(320, window.innerWidth), Math.max(200, window.innerHeight));
+    }
+
+    if (this.camera) {
+      this.camera.far = q === 'LOW' ? 58 : (q === 'HIGH' ? 115 : 85);
+      this.camera.updateProjectionMatrix();
+    }
+
+    if (this.scene && this.scene.fog) {
+      const isRooftop = this.level === 5;
+      if (q === 'LOW') this.scene.fog.density = isRooftop ? 0.024 : 0.036;
+      else if (q === 'HIGH') this.scene.fog.density = isRooftop ? 0.015 : 0.026;
+      else this.scene.fog.density = isRooftop ? 0.018 : 0.03;
+    }
+
+    if (this.flashlight) {
+      this.flashlight.castShadow = (q === 'HIGH');
+      this.flashlight.intensity = q === 'HIGH' ? 3.8 : (q === 'LOW' ? 3.0 : 3.3);
+      this.flashlight.distance = q === 'HIGH' ? 42 : (q === 'LOW' ? 30 : 36);
+    }
+
+    if (this.hemiLight && !this.nvgActive) {
+      this.hemiLight.intensity = q === 'HIGH' ? (this.powerRestored ? 0.28 : 0.18) : (this.powerRestored ? 0.22 : 0.15);
+    }
+
+    // Update teammate torch lights immediately based on quality
+    Object.values(this.teammateMeshes || {}).forEach(tm => {
+      if (tm.spotLight) {
+        tm.spotLight.castShadow = false;
+        tm.spotLight.intensity = q === 'LOW' ? 0 : (q === 'HIGH' ? 3.0 : 2.4);
+      }
+    });
+
+    if (!silent) {
+      const labels = {
+        LOW: '🟢 LOW Graphics: 60 FPS Performance Mode active!',
+        NORMAL: '🟡 NORMAL Graphics: Balanced HD + Dynamic Torch Lights!',
+        HIGH: '🔴 HIGH Graphics: Retina Sharpness + Real-Time Shadows!'
+      };
+      this.showRadioToast('GRAPHICS', labels[q]);
+    }
+  },
+
   init3D() {
     const me = Net.players[Net.myId];
     const myRole = me ? me.role : 'SCOUT';
@@ -264,7 +333,7 @@ const Game3D = {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x02040a);
-    this.scene.fog = new THREE.FogExp2(0x02040a, 0.032);
+    this.scene.fog = new THREE.FogExp2(0x02040a, 0.03);
 
     const W = Math.max(320, window.innerWidth);
     const H = Math.max(200, window.innerHeight);
@@ -277,8 +346,9 @@ const Game3D = {
 
     const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
     this.renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: 'high-performance', stencil: false });
+    this.renderer.shadowMap.enabled = (this.gfxQuality === 'HIGH');
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setSize(W, H);
-    this.renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.35));
     this.renderer.domElement.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:1;';
     container.appendChild(this.renderer.domElement);
 
@@ -286,6 +356,9 @@ const Game3D = {
     this.scene.add(this.hemiLight);
 
     this.flashlight = new THREE.SpotLight(0xfef3c7, 3.3, 36, Math.PI / 3.5, 0.72, 1.4);
+    this.flashlight.shadow.mapSize.width = 512;
+    this.flashlight.shadow.mapSize.height = 512;
+    this.flashlight.shadow.bias = -0.0005;
     this.flashlight.position.set(0, 0, 0);
     this.flashlight.target.position.set(0, 0, -1);
     this.camera.add(this.flashlight);
@@ -338,6 +411,7 @@ const Game3D = {
     this.buildLevelMap(1);
     this.buildMonster(1);
     this.setupControls();
+    this.applyGraphicsQuality(this.gfxQuality, true);
 
     if (!this.animStarted) {
       this.animStarted = true;
@@ -370,8 +444,10 @@ const Game3D = {
     const t = wallTex.clone();
     t.needsUpdate = true;
     t.repeat.set(Math.max(1, Math.round(Math.max(w, d) / 4)), 1);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0.02 }));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, metalness: 0.05 }));
     mesh.position.set(x, h / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     this.mapGroup.add(mesh);
     this.wallBoxes.push({ minX: x - w / 2 - 0.45, maxX: x + w / 2 + 0.45, minZ: z - d / 2 - 0.45, maxZ: z + d / 2 + 0.45 });
   },
@@ -384,6 +460,8 @@ const Game3D = {
         new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.55 })
       );
       body.position.y = 1.175;
+      body.castShadow = true;
+      body.receiveShadow = true;
       const topBeacon = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.18, 1.22), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
       topBeacon.position.y = 2.42;
       grp.add(body, topBeacon);
@@ -432,9 +510,10 @@ const Game3D = {
     floorTex.repeat.set(22, 22);
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(80, 80),
-      new THREE.MeshStandardMaterial({ map: floorTex, color: isRooftop ? 0x334155 : 0xffffff, roughness: 0.88, metalness: 0.05 })
+      new THREE.MeshStandardMaterial({ map: floorTex, color: isRooftop ? 0x334155 : 0xffffff, roughness: 0.82, metalness: 0.08 })
     );
     floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
     this.mapGroup.add(floor);
 
     if (!isRooftop) {
@@ -497,7 +576,6 @@ const Game3D = {
     };
     (roomConfigs[lvl] || roomConfigs[1]).forEach(r => this.addRoom(r.cx, r.cz, r.rw, r.rd, r.door, wallTex, r.h || wallH));
 
-    // Performance-optimized ceiling tubes (zero heavy PointLight overhead for 60 FPS!)
     if (!isRooftop) {
       [
         { x: -27, z: 27 }, { x: -27, z: 0 }, { x: -27, z: -27 },
@@ -601,6 +679,7 @@ const Game3D = {
       this.genSparks.push({ mesh: spMesh, light: genSparkLight, seed: s * 0.9 });
     }
     genGrp.position.set(this.genPos.x, 0, this.genPos.z);
+    genGrp.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.mapGroup.add(genGrp);
     this.genMesh = genTank;
     this.animatedProps.push(genCoil);
@@ -762,18 +841,15 @@ const Game3D = {
     }).join('');
   },
 
-  // REAL-LIFE TEAMMATE FLASHLIGHT BEAM + VOLUMETRIC LIGHT CONE!
   createTeammateAvatar(player, slotIdx = 0) {
     const built = buildTacticalCharacter(player);
     const col = this.SQUAD_COLORS[slotIdx] || this.SQUAD_COLORS[0];
     const nameTag = this.makeNameTagSprite(String(slotIdx + 1), player.name || 'AGENT', col.hex);
     built.grp.add(nameTag);
 
-    // Torch assembly attached to player's hand & facing their look direction (-Z)
     const torchAssembly = new THREE.Group();
     torchAssembly.position.set(-0.36, 1.38, -0.35);
 
-    // Glowing lens tip
     const lens = new THREE.Mesh(
       new THREE.CylinderGeometry(0.055, 0.055, 0.08, 10),
       new THREE.MeshBasicMaterial({ color: 0xfef08a })
@@ -781,7 +857,6 @@ const Game3D = {
     lens.rotation.x = Math.PI / 2;
     torchAssembly.add(lens);
 
-    // Visible volumetric light cone so teammates see your beam through the dark!
     const beamConeGeo = new THREE.ConeGeometry(2.3, 13.5, 16, 1, true);
     beamConeGeo.translate(0, -6.75, 0);
     beamConeGeo.rotateX(Math.PI / 2);
@@ -796,8 +871,8 @@ const Game3D = {
     const beamCone = new THREE.Mesh(beamConeGeo, beamConeMat);
     torchAssembly.add(beamCone);
 
-    // Real SpotLight illuminating walls & floor ahead for teammates whose torch is OFF!
-    const spotLight = new THREE.SpotLight(0xfef3c7, 2.6, 26, Math.PI / 3.8, 0.72, 1.4);
+    const spotIntensity = this.gfxQuality === 'LOW' ? 0 : (this.gfxQuality === 'HIGH' ? 3.0 : 2.4);
+    const spotLight = new THREE.SpotLight(0xfef3c7, spotIntensity, 26, Math.PI / 3.8, 0.72, 1.4);
     spotLight.position.set(0, 0, 0);
     spotLight.target.position.set(0, -0.25, -8);
     torchAssembly.add(spotLight);
@@ -847,10 +922,9 @@ const Game3D = {
       const tm = this.teammateMeshes[p.id];
       tm.grp.visible = !p.hiding;
 
-      // Real-life torch sync: ON when teammate's torch is ON, OFF when OFF!
       const isTorchOn = p.torch !== false && !p.hiding && !p.downed;
       if (tm.torchAssembly) tm.torchAssembly.visible = isTorchOn;
-      if (tm.spotLight) tm.spotLight.visible = isTorchOn;
+      if (tm.spotLight) tm.spotLight.visible = isTorchOn && this.gfxQuality !== 'LOW';
 
       const moved = Math.hypot((p.x || 0) - tm.lastX, (p.z || 0) - tm.lastZ) > 0.006;
       tm.lastX = p.x || 0; tm.lastZ = p.z || 0;
@@ -895,6 +969,7 @@ const Game3D = {
 
     const aura = new THREE.PointLight(cfg.aura, 2.2, 10); aura.position.set(0, 1.8, 0.3);
     grp.add(torso, head, eyeL, eyeR, armL, armR, legL, legR, aura);
+    grp.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     grp.scale.set(cfg.sx, cfg.sy, cfg.sz);
     grp.position.set(this.hunter.x, 0, this.hunter.z);
     this.scene.add(grp);
@@ -1178,6 +1253,13 @@ const Game3D = {
         if (sensLabel) sensLabel.textContent = this.lookSens.toFixed(1) + 'x';
       };
     }
+
+    const gfxSel = document.getElementById('gfx-select');
+    if (gfxSel) {
+      gfxSel.value = this.gfxQuality;
+      gfxSel.onchange = () => this.applyGraphicsQuality(gfxSel.value, false);
+    }
+
     this.setupHudCustomizer();
   },
 
@@ -1303,7 +1385,7 @@ const Game3D = {
     if (this.flashlight) this.flashlight.visible = me.torch;
     if (this.selfAvatar && this.selfAvatar.torchAssembly) {
       this.selfAvatar.torchAssembly.visible = me.torch;
-      if (this.selfAvatar.spotLight) this.selfAvatar.spotLight.visible = me.torch;
+      if (this.selfAvatar.spotLight) this.selfAvatar.spotLight.visible = me.torch && this.gfxQuality !== 'LOW';
     }
     SFX.torchClick();
   },
@@ -1634,7 +1716,7 @@ const Game3D = {
     this.powerRestored = true;
     this.hasFuse = true;
     if (this.fuseMesh) this.fuseMesh.visible = false;
-    if (this.hemiLight && !this.nvgActive) this.hemiLight.intensity = 0.24;
+    if (this.hemiLight && !this.nvgActive) this.hemiLight.intensity = this.gfxQuality === 'HIGH' ? 0.28 : 0.22;
     if (this.genMesh) {
       this.genMesh.material.color.setHex(0x16a34a);
       this.genMesh.material.emissive.setHex(0x22c55e);
@@ -1739,6 +1821,7 @@ const Game3D = {
     if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; me.downed = false; }
     this.hunter.x = 26; this.hunter.z = -26; this.hunter.chaseTargetId = null; this.hunter.chaseUntil = 0;
     this.buildMonster(nextLvl);
+    this.applyGraphicsQuality(this.gfxQuality, true);
     const ob = document.getElementById('objective-banner');
     if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
     SFX.pickup();
@@ -1880,7 +1963,11 @@ const Game3D = {
         if (fl.mat) fl.mat.color.setHex(blink ? 0x1e293b : 0xe0f2fe);
       });
       (this.genSparks || []).forEach((sp) => {
-        if (!this.powerRestored) { sp.mesh.visible = false; return; }
+        if (!this.powerRestored || this.gfxQuality === 'LOW') {
+          sp.mesh.visible = false;
+          if (sp.light) sp.light.intensity = 0;
+          return;
+        }
         const burst = Math.sin(tNow * 0.045 + sp.seed) > 0.25;
         sp.mesh.visible = burst;
         if (burst) {
