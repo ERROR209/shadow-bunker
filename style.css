@@ -475,25 +475,44 @@ input[type="text"] {
 }
 
 
-/* AUTO-HORIZONTAL (LANDSCAPE) ENFORCEMENT ON PORTRAIT PHONES */
-@media screen and (orientation: portrait) {
-  body {
-    width: 100vh !important;
-    height: 100vw !important;
-    transform: rotate(90deg);
-    transform-origin: top left;
-    position: fixed;
-    top: 0;
-    left: 100vw;
-    overflow: hidden;
-  }
-  .screen, #menu-screen, #lobby-screen, #game-screen, #home-3d-canvas, #three-container, #look-zone {
-    width: 100vh !important;
-    height: 100vw !important;
-  }
-}
 
-/* PROPER HUD & ACTION PAD LAYOUT IN LANDSCAPE */
+/* CLEAN FULLSCREEN LANDSCAPE LAYOUT (NO WEBGL-BREAKING CSS ROTATION) */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050914;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#game-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #050914;
+  z-index: 5;
+}
+#three-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+}
+#three-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
 .hud-top {
   position: fixed;
   top: 8px;
@@ -530,7 +549,6 @@ input[type="text"] {
   color: #fef08a;
 }
 .radio-bar {
-  position: static !important;
   display: flex;
   gap: 5px;
   pointer-events: auto;
@@ -557,6 +575,7 @@ input[type="text"] {
   background: rgba(255, 255, 255, 0.08);
   border: 2px solid rgba(56, 189, 248, 0.45);
   z-index: 26;
+  pointer-events: auto;
 }
 #joystick-stick {
   width: 40px;
@@ -574,6 +593,7 @@ input[type="text"] {
   width: 132px;
   height: 132px;
   z-index: 26;
+  pointer-events: auto;
 }
 .action-btn {
   position: absolute;
@@ -605,26 +625,5 @@ input[type="text"] {
   position: fixed;
   inset: 0;
   z-index: 10;
-}
-
-#game-screen, #three-container, #three-container canvas {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-#three-container canvas {
-  display: block !important;
-  z-index: 1 !important;
-}
-
-#game-screen, #three-container, #three-container canvas {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-#three-container canvas {
-  display: block !important;
-  z-index: 1 !important;
+  pointer-events: auto;
 }

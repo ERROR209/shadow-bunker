@@ -9,14 +9,7 @@ window.toggleFullScreen = function() {
     document.exitFullscreen?.().catch(() => {});
   }
 };
-document.addEventListener('pointerdown', () => {
-  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-    document.documentElement.requestFullscreen().catch(() => {});
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
-  }
-}, { once: true });
+
 
 const SFX = {
   ctx: null,
@@ -440,6 +433,12 @@ const Game3D = {
     const noteSpots = [{ x: -18, z: -18 }, { x: 0, z: 16 }, { x: 18, z: 4 }];
     const fuseSpot = { x: -16, z: -4 };
     this.codes = cp.codes || ['123', '456', '789'];
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        screen.orientation?.lock?.('landscape').catch(() => {});
+      }
+    } catch (e) {}
     this.init3D(noteSpots, fuseSpot);
 
     this.battery = cp.battery ?? 100;
@@ -596,7 +595,7 @@ const Game3D = {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     container.appendChild(this.renderer.domElement);
 
-    this.hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.68);
+    this.hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x334155, 1.35);
     this.scene.add(this.hemiLight);
 
     this.flashlight = new THREE.SpotLight(0xfffbeb, 7.5, 36, Math.PI / 4.0, 0.32, 0.95);
@@ -650,12 +649,11 @@ const Game3D = {
 
     const syncViewport = () => {
       if (!this.renderer || !this.camera) return;
-      const isPort = window.innerHeight > window.innerWidth;
-      const vw = isPort ? window.innerHeight : window.innerWidth;
-      const vh = isPort ? window.innerWidth : window.innerHeight;
-      this.camera.aspect = vw / vh;
+      const w = Math.max(300, window.innerWidth);
+      const h = Math.max(200, window.innerHeight);
+      this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
-      this.renderer.setSize(vw, vh);
+      this.renderer.setSize(w, h);
     };
     syncViewport();
     window.addEventListener('resize', syncViewport);
@@ -818,7 +816,7 @@ const Game3D = {
 
     if (lvl === 1) {
       this.scene.background = new THREE.Color(0x020408);
-      this.scene.fog = new THREE.FogExp2(0x0b1324, 0.022);
+      this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
@@ -904,7 +902,7 @@ const Game3D = {
     } else if (lvl === 2) {
       // LEVEL 2: MEDICAL QUARANTINE WING (4 Bio-Containment Samples)
       this.scene.background = new THREE.Color(0x020a08);
-      this.scene.fog = new THREE.FogExp2(0x020a08, 0.048);
+      this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
@@ -941,7 +939,7 @@ const Game3D = {
     } else if (lvl === 3) {
       // LEVEL 3: BIO-REACTOR CORE (2 Golden Keycards + South Switch + 6 Coolant Valves)
       this.scene.background = new THREE.Color(0x090203);
-      this.scene.fog = new THREE.FogExp2(0x090203, 0.048);
+      this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
@@ -1008,7 +1006,7 @@ const Game3D = {
     } else if (lvl === 4) {
       // LEVEL 4: FLOODED COMMAND TUNNEL (4 Blast Override Switches)
       this.scene.background = new THREE.Color(0x040712);
-      this.scene.fog = new THREE.FogExp2(0x040712, 0.054);
+      this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
       const ceil = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: makeTexture('ceil'), side: THREE.DoubleSide }));
       ceil.rotation.x = Math.PI / 2; ceil.position.y = 4.2;
       this.mapGroup.add(ceil);
@@ -1042,7 +1040,7 @@ const Game3D = {
     } else if (lvl === 5) {
       // LEVEL 5: ROOFTOP HELIPAD EXTRACTION
       this.scene.background = new THREE.Color(0x060b16);
-      this.scene.fog = new THREE.FogExp2(0x060b16, 0.016);
+      this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
 
       const padOuter = new THREE.Mesh(new THREE.RingGeometry(4.8, 5.6, 36), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
       padOuter.rotation.x = -Math.PI / 2; padOuter.position.y = 0.03;
@@ -1638,7 +1636,7 @@ const Game3D = {
       if (!this.powerRestored) {
         this.powerRestored = true;
       this.emitTaskSync({ task: 'GEN' });
-        if (this.hemiLight) this.hemiLight.intensity = 0.22;
+        if (this.hemiLight) this.hemiLight.intensity = this.powerRestored ? 1.85 : 1.35;
         if (this.genMesh) {
           this.genMesh.material.color.setHex(0x16a34a);
           this.genMesh.material.emissive.setHex(0x22c55e);
@@ -1860,7 +1858,7 @@ const Game3D = {
   restorePower() {
     if (this.powerRestored) return;
     this.powerRestored = true;
-    if (this.hemiLight) this.hemiLight.intensity = 0.22;
+    if (this.hemiLight) this.hemiLight.intensity = this.powerRestored ? 1.85 : 1.35;
     this.genMesh.material.color.setHex(0x16a34a);
     this.genMesh.material.emissive.setHex(0x22c55e);
     document.getElementById('locks-status').textContent = '⚡ ON (0/3)';
@@ -2619,7 +2617,7 @@ const HomeShowcase3D = {
     if (!canvas || typeof THREE === 'undefined') return;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x050914);
-    this.scene.fog = new THREE.FogExp2(0x050914, 0.055);
+    this.scene.fog = new THREE.FogExp2(0x0f172a, 0.014);
 
     this.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 60);
     this.camera.position.set(0, 1.65, 3.8);
@@ -2668,9 +2666,7 @@ const HomeShowcase3D = {
       const menu = document.getElementById('menu-screen');
       if (!menu || menu.classList.contains('hidden')) return;
       if (this.camera && this.renderer) {
-        const isPort = window.innerHeight > window.innerWidth;
-        const w = isPort ? window.innerHeight : window.innerWidth;
-        const h = isPort ? window.innerWidth : window.innerHeight;
+        const w = window.innerWidth, h = window.innerHeight;
         if (Math.abs(this.camera.aspect - w / h) > 0.01) {
           this.camera.aspect = w / h;
           this.camera.updateProjectionMatrix();
