@@ -170,11 +170,18 @@ const Game3D = {
   mapGroup: null,
   wallBoxes: [],
   teammateMeshes: {},
-  hunter: { x: 26, z: -26, yaw: 0, mesh: null, limbs: null, walkCycle: 0, stunnedUntil: 0, goalX: 16, goalZ: -16, alertUntil: 0 },
+  hunter: {
+    x: 26, z: -26, yaw: 0, mesh: null, limbs: null, walkCycle: 0,
+    stunnedUntil: 0, goalX: 16, goalZ: -16,
+    chaseTargetId: null, chaseUntil: 0,
+    lastProgressX: 26, lastProgressZ: -26, stuckFrames: 0, avoidDir: 1
+  },
   level: 1,
   battery: 100,
   stamina: 100,
   sanity: 100,
+  bleedoutTimer: 35,
+  selfReviveUsed: false,
   crouching: false,
   lookSens: 1.0,
   flickerLights: [],
@@ -386,7 +393,7 @@ const Game3D = {
   },
 
   addRoom(cx, cz, rw, rd, doorSide, wallTex, h = 4.0) {
-    const gap = 3.4;
+    const gap = 3.8;
     const hw = rw / 2, hd = rd / 2;
     if (doorSide === 'N') {
       this.addWall(cx - (hw + gap / 2) / 2, cz - hd, hw - gap / 2, 0.85, wallTex, h);
@@ -625,7 +632,7 @@ const Game3D = {
     this.serverMesh = srvScreen;
 
     const logTexts = [
-      'Dr. Verma Log #1: Objective alerts draw the Monster straight to you! Code #1:',
+      'Dr. Verma Log #1: Objective alerts make the Monster hunt YOU directly! Code #1:',
       'Dr. Verma Log #2: Upload all 3 Data Drives at the Server first! Code #2:',
       'Dr. Verma Log #3: Final override code for Terminal #3:'
     ];
@@ -743,15 +750,15 @@ const Game3D = {
     box.innerHTML = squad.map((p, idx) => {
       const col = this.SQUAD_COLORS[idx] || this.SQUAD_COLORS[0];
       const isMe = p.id === Net.myId;
-      const statusTxt = p.downed ? '🆘 CAUGHT' : (p.hiding ? '🔒 HIDING' : (p.role || 'SCOUT'));
+      const statusTxt = p.downed ? '🆘 NEEDS REVIVE!' : (p.hiding ? '🔒 HIDING' : (p.role || 'SCOUT'));
       const hpWidth = p.downed ? '22%' : '100%';
       const hpColor = p.downed ? '#ef4444' : col.hex;
-      return `<div style="display:flex;align-items:center;gap:6px;background:rgba(9,13,22,0.82);border-left:3px solid ${col.hex};padding:3px 8px 3px 5px;border-radius:6px;min-width:132px;backdrop-filter:blur(4px);">
+      return `<div style="display:flex;align-items:center;gap:6px;background:rgba(9,13,22,0.82);border-left:3px solid ${col.hex};padding:3px 8px 3px 5px;border-radius:6px;min-width:136px;backdrop-filter:blur(4px);">
         <span style="width:17px;height:17px;border-radius:50%;background:${col.hex};color:#090d16;font-weight:900;font-size:0.68rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${idx + 1}</span>
         <div style="flex:1;overflow:hidden;">
           <div style="font-size:0.66rem;font-weight:900;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name || 'Agent'} ${isMe ? '(YOU)' : ''}</div>
           <div style="width:100%;height:3px;background:#1e293b;border-radius:2px;margin-top:2px;"><div style="width:${hpWidth};height:100%;background:${hpColor};border-radius:2px;"></div></div>
-          <div style="font-size:0.54rem;color:#94a3b8;font-weight:700;margin-top:1px;">${statusTxt}</div>
+          <div style="font-size:0.54rem;color:${p.downed ? '#f87171' : '#94a3b8'};font-weight:800;margin-top:1px;">${statusTxt}</div>
         </div>
       </div>`;
     }).join('');
@@ -804,6 +811,14 @@ const Game3D = {
       tm.grp.position.x = THREE.MathUtils.lerp(tm.grp.position.x, p.x || 0, 0.35);
       tm.grp.position.z = THREE.MathUtils.lerp(tm.grp.position.z, p.z || 0, 0.35);
       tm.grp.rotation.y = p.yaw || 0;
+      // Crawling visual when downed
+      if (p.downed) {
+        tm.grp.rotation.x = -1.25;
+        tm.grp.position.y = 0.35;
+      } else {
+        tm.grp.rotation.x = 0;
+        tm.grp.position.y = 0;
+      }
       this.animateCharacterLimbs(tm, moved);
     });
   },
@@ -854,15 +869,72 @@ const Game3D = {
     this.hunter.limbs = { armL, armR, legL, legR };
   },
 
+  // SMART MULTI-RAY WALL AVOIDANCE & UNSTUCK AI (Never bangs head on walls!)
+  isHunterClear(x, z) {
+    if (x < -38.4 || x > 38.4 || z < -38.4 || z > 38.4) return false;
+    const pad = 0.35;
+    for (const w of this.wallBoxes) {
+      if (x > w.minX - pad && x < w.maxX + pad && z > w.minZ - pad && z < w.maxZ + pad) return false;
+    }
+    return true;
+  },
+
   moveHunterToward(tx, tz, speed) {
-    let ang = Math.atan2(tx - this.hunter.x, tz - this.hunter.z);
-    const frontBlocked = this.checkCollision(this.hunter.x + Math.sin(ang) * 1.35, this.hunter.z + Math.cos(ang) * 1.35);
-    if (frontBlocked) ang += 0.85;
-    this.hunter.yaw = ang;
-    const nx = this.hunter.x + Math.sin(ang) * speed;
-    const nz = this.hunter.z + Math.cos(ang) * speed;
-    if (!this.checkCollision(nx, this.hunter.z)) this.hunter.x = nx;
-    if (!this.checkCollision(this.hunter.x, nz)) this.hunter.z = nz;
+    const desiredAng = Math.atan2(tx - this.hunter.x, tz - this.hunter.z);
+    const d = this.hunter.avoidDir || 1;
+    const candidateAngles = [
+      desiredAng,
+      desiredAng + 0.38 * d,
+      desiredAng - 0.38 * d,
+      desiredAng + 0.85 * d,
+      desiredAng - 0.85 * d,
+      desiredAng + 1.45 * d,
+      desiredAng - 1.45 * d,
+      desiredAng + 2.2 * d,
+      desiredAng - 2.2 * d
+    ];
+
+    let chosenAng = desiredAng;
+    let foundPath = false;
+    for (const ang of candidateAngles) {
+      const p1x = this.hunter.x + Math.sin(ang) * 0.9;
+      const p1z = this.hunter.z + Math.cos(ang) * 0.9;
+      const p2x = this.hunter.x + Math.sin(ang) * 1.8;
+      const p2z = this.hunter.z + Math.cos(ang) * 1.8;
+      if (this.isHunterClear(p1x, p1z) && this.isHunterClear(p2x, p2z)) {
+        chosenAng = ang;
+        foundPath = true;
+        break;
+      }
+    }
+
+    if (!foundPath) {
+      this.hunter.avoidDir = -d;
+      chosenAng = desiredAng + Math.PI * 0.75 * this.hunter.avoidDir;
+    }
+
+    // Smooth rotation so it doesn't jitter
+    this.hunter.yaw = chosenAng;
+    const nx = this.hunter.x + Math.sin(chosenAng) * speed;
+    const nz = this.hunter.z + Math.cos(chosenAng) * speed;
+    if (this.isHunterClear(nx, this.hunter.z)) this.hunter.x = nx;
+    if (this.isHunterClear(this.hunter.x, nz)) this.hunter.z = nz;
+
+    // Anti-stuck detector: if blocked in a corner, pick a fresh open corridor
+    const movedStep = Math.hypot(this.hunter.x - (this.hunter.lastProgressX || 0), this.hunter.z - (this.hunter.lastProgressZ || 0));
+    if (movedStep < speed * 0.25) {
+      this.hunter.stuckFrames = (this.hunter.stuckFrames || 0) + 1;
+      if (this.hunter.stuckFrames > 25) {
+        this.hunter.stuckFrames = 0;
+        this.hunter.avoidDir = -(this.hunter.avoidDir || 1);
+        this.hunter.goalX = (Math.random() - 0.5) * 56;
+        this.hunter.goalZ = (Math.random() - 0.5) * 56;
+      }
+    } else {
+      this.hunter.stuckFrames = 0;
+      this.hunter.lastProgressX = this.hunter.x;
+      this.hunter.lastProgressZ = this.hunter.z;
+    }
   },
 
   setupControls() {
@@ -1085,8 +1157,12 @@ const Game3D = {
     }
     if (closeSetBtn && settingsModal) closeSetBtn.onclick = () => settingsModal.classList.add('hidden');
 
-    const draggableIds = ['joystick-zone', 'stun-btn', 'run-btn', 'torch-btn', 'use-btn', 'tactical-strip', 'radar-canvas'];
-    const saved = JSON.parse(localStorage.getItem('sb09_hud_layout_v1') || '{}');
+    // Individual customization for Crouch, Ping, Flare, Skill + all action buttons!
+    const draggableIds = [
+      'joystick-zone', 'stun-btn', 'run-btn', 'torch-btn', 'use-btn',
+      'crouch-btn', 'ping-btn', 'flare-btn', 'skill-btn', 'radar-canvas'
+    ];
+    const saved = JSON.parse(localStorage.getItem('sb09_hud_layout_v2') || '{}');
     draggableIds.forEach(id => {
       const el = document.getElementById(id);
       if (el && saved[id]) {
@@ -1156,7 +1232,7 @@ const Game3D = {
           const el = document.getElementById(id);
           if (el) { el.style.outline = ''; if (el.style.left) layout[id] = { left: el.style.left, top: el.style.top }; }
         });
-        localStorage.setItem('sb09_hud_layout_v1', JSON.stringify(layout));
+        localStorage.setItem('sb09_hud_layout_v2', JSON.stringify(layout));
         isEditing = false;
         gameScreen?.classList.remove('hud-editing');
         if (editorBar) { editorBar.classList.add('hidden'); editorBar.style.display = 'none'; }
@@ -1166,7 +1242,7 @@ const Game3D = {
 
     if (resetBtn) {
       resetBtn.onclick = () => {
-        localStorage.removeItem('sb09_hud_layout_v1');
+        localStorage.removeItem('sb09_hud_layout_v2');
         draggableIds.forEach(id => {
           const el = document.getElementById(id);
           if (el) { el.style.outline = ''; el.style.position = ''; el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = ''; }
@@ -1265,6 +1341,7 @@ const Game3D = {
     this.flares.push({ x: fx, z: fz, grp: flareGrp, light: fLight, until: performance.now() + 20000 });
     this.decoyPos = { x: fx, z: fz };
     this.decoyUntil = performance.now() + 9000;
+    this.hunter.chaseTargetId = null; // Flare breaks monster lock!
     SFX.torchClick();
     this.showRadioToast('FLARE', `🧨 ${sender} dropped a Flare! Luring threat!`);
   },
@@ -1279,10 +1356,12 @@ const Game3D = {
     if (role === 'ENGINEER') {
       this.decoyPos = { x: me.x, z: me.z };
       this.decoyUntil = now + 11000;
+      this.hunter.chaseTargetId = null;
       Net.sendEvent({ type: 'WORLD_EVENT', action: 'DECOY', x: me.x, z: me.z });
       this.showRadioToast('ENGINEER SKILL', '🔧 Sonic Decoy active! Threat lured for 11s!');
     } else if (role === 'MEDIC') {
-      me.downed = false;
+      Object.values(Net.players).forEach(p => { p.downed = false; });
+      this.bleedoutTimer = 35;
       this.sanity = 100;
       this.stamina = 100;
       Net.sendEvent({ type: 'WORLD_EVENT', action: 'MEDIC_REVIVE_ALL' });
@@ -1300,7 +1379,7 @@ const Game3D = {
 
   fireStun() {
     const me = Net.players[Net.myId];
-    if (!me || me.downed || me.hiding) return;
+    if (!me || me.hiding) return;
     if (this.stunCharges <= 0) return this.showRadioToast('SYSTEM', '⚠️ Stun Gun out of charges!');
     this.stunCharges--;
     const st = document.getElementById('stun-status');
@@ -1322,6 +1401,7 @@ const Game3D = {
 
     if (hit) {
       this.hunter.stunnedUntil = performance.now() + 4500;
+      this.hunter.chaseTargetId = null;
       if (this.hunter.shockGrp) this.hunter.shockGrp.visible = true;
       SFX.electricShockHit();
       Net.sendEvent({ type: 'WORLD_EVENT', action: 'STUN_MONSTER', dur: 4500 });
@@ -1339,6 +1419,7 @@ const Game3D = {
       const ob = document.getElementById('objective-banner');
       if (ob) ob.textContent = 'CHAPTER 2: Activate the Generator!';
       this.showRadioToast('SQUAD', `🔋 ${ev.sender || 'Teammate'} picked up the Power Fuse!`);
+      if (ev.playerId) this.alertMonsterToPlayer(ev.playerId, 'Power Fuse pickup');
     } else if (ev.action === 'GEN_ON') {
       this.restorePower(true);
     } else if (ev.action === 'DRIVE_TAKEN') {
@@ -1348,6 +1429,7 @@ const Game3D = {
         if (d.mesh) d.mesh.visible = false;
         this.drivesCollected = this.dataDrives.filter(x => x.taken).length;
         this.showRadioToast('SQUAD', `💾 Data Drive #${ev.idx + 1} collected (${this.drivesCollected}/3)!`);
+        if (ev.playerId) this.alertMonsterToPlayer(ev.playerId, `Data Drive #${ev.idx + 1}`);
       }
     } else if (ev.action === 'SERVER_UPLOADED') {
       this.drivesUploaded = true;
@@ -1358,33 +1440,52 @@ const Game3D = {
       const ob = document.getElementById('objective-banner');
       if (ob) ob.textContent = `LVL ${this.level} • CH-4: Read logs & unlock all 3 Terminals!`;
       this.showRadioToast('SERVER', '🖥️ Data Drives uploaded to Mainframe!');
+      if (ev.playerId) this.alertMonsterToPlayer(ev.playerId, 'Mainframe Server upload');
     } else if (ev.action === 'TERM_UNLOCKED') {
       this.unlockTerminal(ev.idx, true);
+      if (ev.playerId) this.alertMonsterToPlayer(ev.playerId, `Terminal #${ev.idx + 1}`);
     } else if (ev.action === 'PICKUP_TAKEN') {
       const pk = this.pickups[ev.idx];
       if (pk) { pk.taken = true; if (pk.mesh) pk.mesh.visible = false; }
     } else if (ev.action === 'STUN_MONSTER') {
       this.hunter.stunnedUntil = performance.now() + (ev.dur || 4500);
+      this.hunter.chaseTargetId = null;
       if (this.hunter.shockGrp) this.hunter.shockGrp.visible = true;
       SFX.electricShockHit();
     } else if (ev.action === 'DECOY') {
       this.decoyPos = { x: ev.x, z: ev.z };
       this.decoyUntil = performance.now() + 11000;
+      this.hunter.chaseTargetId = null;
     } else if (ev.action === 'PING') {
       this.applyPing(ev.x, ev.z, ev.sender);
     } else if (ev.action === 'FLARE') {
       this.spawnFlare(ev.x, ev.z, ev.yaw || 0, ev.sender);
+    } else if (ev.action === 'REVIVE_PLAYER') {
+      const target = Net.players[ev.targetId];
+      if (target) {
+        target.downed = false;
+        if (ev.targetId === Net.myId) {
+          this.bleedoutTimer = 35;
+          this.sanity = Math.max(50, this.sanity);
+          SFX.pickup();
+          this.showRadioToast('REVIVED!', `💉 ${ev.medicName || 'Teammate'} revived you! Run!`);
+        } else {
+          this.showRadioToast('SQUAD', `💉 ${ev.medicName || 'Teammate'} revived ${target.name}!`);
+        }
+      }
     } else if (ev.action === 'MEDIC_REVIVE_ALL') {
       Object.values(Net.players).forEach(p => { p.downed = false; });
+      this.bleedoutTimer = 35;
       this.sanity = 100;
       this.stamina = 100;
     } else if (ev.action === 'PLAYER_CAUGHT') {
       if (Net.players[ev.id]) Net.players[ev.id].downed = true;
       if (ev.id === Net.myId) {
+        this.bleedoutTimer = 35;
         SFX.jumpscareScream();
-        this.showRadioToast('CAUGHT!', '🆘 You were caught! Wait for Medic or Squad!');
+        this.showRadioToast('🆘 YOU ARE DOWN!', 'Crawl to a teammate! Medic can revive you in 2s!');
       } else {
-        this.showRadioToast('SQUAD ALERT', `🆘 ${ev.name || 'A teammate'} was caught!`);
+        this.showRadioToast('🆘 TEAMMATE DOWN!', `${ev.name || 'Teammate'} needs REVIVE! Go press [USE] near them!`);
       }
       const alive = Object.values(Net.players).filter(p => !p.downed);
       if (alive.length === 0) {
@@ -1403,13 +1504,29 @@ const Game3D = {
 
   interact() {
     const me = Net.players[Net.myId];
-    if (!me || me.downed || !this.nearAction) return;
+    if (!me || !this.nearAction) return;
     const act = this.nearAction;
+
+    // Allow reviving a downed teammate (even if you're alive, Medic revives faster!)
+    if (act.type === 'REVIVE' && !me.downed) {
+      const target = act.player;
+      target.downed = false;
+      SFX.pickup();
+      Net.sendEvent({ type: 'WORLD_EVENT', action: 'REVIVE_PLAYER', targetId: target.id, medicName: me.name || 'Medic' });
+      this.showRadioToast('REVIVED!', `💉 You revived ${target.name}! (+50 XP)`);
+      if (window.AgentProfile) AgentProfile.addXP(50);
+      return;
+    }
+
+    if (me.downed) return;
 
     if (act.type === 'LOCKER') {
       me.hiding = !me.hiding;
+      if (me.hiding && this.hunter.chaseTargetId === Net.myId) {
+        this.hunter.chaseTargetId = null; // Hiding in locker breaks monster chase!
+      }
       document.getElementById('locker-overlay')?.classList.toggle('hidden', !me.hiding);
-      this.showRadioToast('STEALTH', me.hiding ? '🔒 Hidden inside Safe Locker!' : '🚪 Exited Safe Locker.');
+      this.showRadioToast('STEALTH', me.hiding ? '🔒 Hidden inside Safe Locker! Monster lost you!' : '🚪 Exited Safe Locker.');
     } else if (act.type === 'PICKUP') {
       act.item.taken = true;
       act.item.mesh.visible = false;
@@ -1430,8 +1547,8 @@ const Game3D = {
       SFX.pickup();
       const ob = document.getElementById('objective-banner');
       if (ob) ob.textContent = 'CHAPTER 2: Activate the Generator!';
-      Net.sendEvent({ type: 'WORLD_EVENT', action: 'FUSE_TAKEN', sender: me.name });
-      this.alertMonsterTo(me.x, me.z, 'Power Fuse pickup');
+      Net.sendEvent({ type: 'WORLD_EVENT', action: 'FUSE_TAKEN', sender: me.name, playerId: Net.myId });
+      this.alertMonsterToPlayer(Net.myId, 'Power Fuse pickup');
     } else if (act.type === 'GEN') {
       if (!this.hasFuse) return this.showRadioToast('OBJECTIVE', '⚠️ Find the Blue Power Fuse first!');
       this.restorePower(false);
@@ -1440,8 +1557,8 @@ const Game3D = {
       act.drive.mesh.visible = false;
       this.drivesCollected = this.dataDrives.filter(x => x.taken).length;
       SFX.pickup();
-      Net.sendEvent({ type: 'WORLD_EVENT', action: 'DRIVE_TAKEN', idx: act.drive.idx });
-      this.alertMonsterTo(act.drive.x, act.drive.z, `Data Drive #${act.drive.idx + 1}`);
+      Net.sendEvent({ type: 'WORLD_EVENT', action: 'DRIVE_TAKEN', idx: act.drive.idx, playerId: Net.myId });
+      this.alertMonsterToPlayer(Net.myId, `Data Drive #${act.drive.idx + 1}`);
     } else if (act.type === 'SERVER') {
       if (!this.powerRestored) return this.showRadioToast('OFFLINE', '⚠️ Restore Generator Power first!');
       if (this.drivesCollected < 3) return this.showRadioToast('SERVER', `⚠️ Collect all 3 Data Drives first (${this.drivesCollected}/3)!`);
@@ -1450,8 +1567,8 @@ const Game3D = {
       this.serverMesh.material.emissive.setHex(0x22c55e);
       const ob = document.getElementById('objective-banner');
       if (ob) ob.textContent = `LVL ${this.level} • CH-4: Read Dr. Verma logs & unlock all 3 Terminals!`;
-      Net.sendEvent({ type: 'WORLD_EVENT', action: 'SERVER_UPLOADED' });
-      this.alertMonsterTo(this.serverPos.x, this.serverPos.z, 'the Mainframe Server');
+      Net.sendEvent({ type: 'WORLD_EVENT', action: 'SERVER_UPLOADED', playerId: Net.myId });
+      this.alertMonsterToPlayer(Net.myId, 'Mainframe Server upload');
     } else if (act.type === 'NOTE') {
       document.getElementById('note-title').textContent = `DR. VERMA LOG #${act.note.idx + 1}`;
       document.getElementById('note-body').textContent = act.note.text;
@@ -1515,8 +1632,8 @@ const Game3D = {
     const ls = document.getElementById('locks-status');
     if (ls) ls.textContent = `🔓 ${count}/3`;
     if (!fromNet) {
-      Net.sendEvent({ type: 'WORLD_EVENT', action: 'TERM_UNLOCKED', idx });
-      if (t) this.alertMonsterTo(t.x, t.z, `Terminal #${idx + 1}`);
+      Net.sendEvent({ type: 'WORLD_EVENT', action: 'TERM_UNLOCKED', idx, playerId: Net.myId });
+      this.alertMonsterToPlayer(Net.myId, `Terminal #${idx + 1}`);
     }
     if (count === 3) {
       this.selfDestructActive = true;
@@ -1531,14 +1648,15 @@ const Game3D = {
     }
   },
 
-  alertMonsterTo(tx, tz, label) {
-    if (Net.isHost) {
-      this.hunter.goalX = tx;
-      this.hunter.goalZ = tz;
-      this.hunter.alertUntil = performance.now() + 16000;
+  // MONSTER LOCKS ONTO THE PLAYER DIRECTLY (Not the object's static spot!)
+  alertMonsterToPlayer(playerId, label) {
+    if (Net.isHost && Net.players[playerId]) {
+      this.hunter.chaseTargetId = playerId;
+      this.hunter.chaseUntil = performance.now() + 22000;
     }
+    const pName = Net.players[playerId]?.name || 'You';
     SFX.tone(320, 'sawtooth', 0.25, 0.22, 160);
-    this.showRadioToast('🚨 ALERT!', `👹 ${this.hunterVariant || 'Subject-0'} heard ${label}! Hide!`);
+    this.showRadioToast('🚨 HUNTING YOU!', `👹 ${this.hunterVariant || 'Subject-0'} is chasing ${pName} after ${label}! Run or Hide in a Locker!`);
   },
 
   advanceToLevel(nextLvl, newCodes = null, newSpotOrder = null, fromNet = false) {
@@ -1556,6 +1674,7 @@ const Game3D = {
     this.locks = [false, false, false];
     this.selfDestructActive = false;
     this.escapeTimeLeft = 60;
+    this.bleedoutTimer = 35;
     this.battery = Math.min(100, this.battery + 35);
     this.sanity = Math.min(100, this.sanity + 30);
     this.stunCharges = Math.min(3, this.stunCharges + 1);
@@ -1575,7 +1694,7 @@ const Game3D = {
     this.buildLevelMap(nextLvl);
     const me = Net.players[Net.myId];
     if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; me.downed = false; }
-    this.hunter.x = 26; this.hunter.z = -26; this.hunter.alertUntil = 0;
+    this.hunter.x = 26; this.hunter.z = -26; this.hunter.chaseTargetId = null; this.hunter.chaseUntil = 0;
     this.buildMonster(nextLvl);
     const ob = document.getElementById('objective-banner');
     if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
@@ -1655,14 +1774,14 @@ const Game3D = {
       ctx.save();
       ctx.translate(px, pz);
       ctx.rotate(headAng);
-      ctx.fillStyle = col.hex + '44';
+      ctx.fillStyle = (p.downed ? '#ef4444' : col.hex) + '44';
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, 12, -0.45, 0.45);
       ctx.closePath();
       ctx.fill();
 
-      ctx.fillStyle = col.hex;
+      ctx.fillStyle = p.downed ? '#ef4444' : col.hex;
       ctx.beginPath();
       ctx.moveTo(6.5, 0);
       ctx.lineTo(-4, -4);
@@ -1674,7 +1793,7 @@ const Game3D = {
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 8px sans-serif';
-      ctx.fillText(String(idx + 1), px + 4, pz - 3);
+      ctx.fillText(p.downed ? '🆘' : String(idx + 1), px + 4, pz - 3);
     });
 
     const mx = cx + this.hunter.x * scale;
@@ -1750,7 +1869,8 @@ const Game3D = {
       const isRunning = (this.keys['ShiftLeft'] || this.sprinting) && !me.downed && !me.hiding && this.stamina > 2;
       const turboBoost = performance.now() < this.turboUntil ? 1.35 : 1.0;
       const crouchMult = this.crouching ? 0.55 : 1.0;
-      const speed = (me.downed ? 0.02 : me.hiding ? 0 : (isRunning ? 0.14 : 0.085)) * turboBoost * crouchMult;
+      // Crawling speed when downed (0.038) so player can crawl toward Medic/Teammate!
+      const speed = (me.downed ? 0.038 : me.hiding ? 0 : (isRunning ? 0.14 : 0.085)) * turboBoost * crouchMult;
 
       const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
       const moveX = (-fwd * sin + str * cos);
@@ -1772,18 +1892,20 @@ const Game3D = {
         SFX.step(isRunning);
       }
 
-      const baseEye = this.crouching ? 1.0 : 1.62;
-      const bob = me.downed ? 0 : Math.sin(this.walkBob) * 0.04;
+      // Low crawl camera height when downed!
+      const baseEye = me.downed ? 0.62 : (this.crouching ? 1.0 : 1.62);
+      const bob = me.downed ? Math.sin(this.walkBob) * 0.02 : Math.sin(this.walkBob) * 0.04;
       if (this.playerHandGroup) {
-        this.playerHandGroup.visible = !this.thirdPerson;
+        this.playerHandGroup.visible = !this.thirdPerson && !me.downed;
         this.playerHandGroup.position.y = Math.sin(this.walkBob * 2) * 0.015;
       }
 
       if (this.thirdPerson) {
         if (this.selfAvatar) {
           this.selfAvatar.grp.visible = !me.hiding;
-          this.selfAvatar.grp.position.set(me.x, 0, me.z);
+          this.selfAvatar.grp.position.set(me.x, me.downed ? 0.35 : 0, me.z);
           this.selfAvatar.grp.rotation.y = me.yaw;
+          this.selfAvatar.grp.rotation.x = me.downed ? -1.25 : 0;
           this.animateCharacterLimbs(this.selfAvatar, isMoving);
         }
         this.camera.position.set(me.x + Math.sin(me.yaw) * 2.6, 2.25 + bob, me.z + Math.cos(me.yaw) * 2.6);
@@ -1821,12 +1943,41 @@ const Game3D = {
 
       this.nearAction = null;
       const hint = document.getElementById('interact-hint');
-      if (!me.downed && hint) {
-        for (const lk of this.lockers) {
-          if (Math.hypot(lk.x - me.x, lk.z - me.z) < 2.2) {
-            this.nearAction = { type: 'LOCKER' };
-            hint.textContent = me.hiding ? '🚪 [USE] Exit Safe Locker' : '🔒 [USE] Hide in Safe Locker';
+
+      // DOWNED BLEED-OUT & REVIVE PROMPT
+      if (me.downed && hint) {
+        this.bleedoutTimer = Math.max(0, this.bleedoutTimer - 0.016);
+        hint.classList.remove('hidden');
+        hint.style.borderColor = '#ef4444';
+        hint.style.color = '#fca5a5';
+        hint.textContent = `🆘 DOWNED! Crawl to Teammate/Medic! (${Math.ceil(this.bleedoutTimer)}s left)`;
+        if (this.bleedoutTimer <= 0) {
+          const aliveOthers = Object.values(Net.players || {}).filter(p => !p.downed);
+          if (aliveOthers.length === 0) {
+            this.triggerEnd(false, `💀 ${this.hunterVariant || 'Subject-0'} eliminated the squad!`);
+          }
+        }
+      } else if (hint) {
+        hint.style.borderColor = '#4ade80';
+        hint.style.color = '#4ade80';
+
+        // Check if any teammate is downed nearby so you can REVIVE them!
+        for (const p of Object.values(Net.players || {})) {
+          if (p.id !== Net.myId && p.downed && Math.hypot((p.x || 0) - me.x, (p.z || 0) - me.z) < 2.8) {
+            this.nearAction = { type: 'REVIVE', player: p };
+            const isMed = (me.role || '') === 'MEDIC';
+            hint.textContent = isMed ? `💉 [USE] Instant Medic Revive ${p.name}!` : `🤝 [USE] Revive ${p.name}!`;
             break;
+          }
+        }
+
+        if (!this.nearAction) {
+          for (const lk of this.lockers) {
+            if (Math.hypot(lk.x - me.x, lk.z - me.z) < 2.2) {
+              this.nearAction = { type: 'LOCKER' };
+              hint.textContent = me.hiding ? '🚪 [USE] Exit Safe Locker' : '🔒 [USE] Hide in Safe Locker';
+              break;
+            }
           }
         }
         if (!this.nearAction && !this.hasFuse && this.fuseMesh && Math.hypot(this.fuseMesh.position.x - me.x, this.fuseMesh.position.z - me.z) < 2.4) {
@@ -1893,7 +2044,7 @@ const Game3D = {
         }
       }
 
-      if (this.selfDestructActive && Math.hypot(this.exitPos.x - me.x, this.exitPos.z - me.z) < 3.5) {
+      if (this.selfDestructActive && !me.downed && Math.hypot(this.exitPos.x - me.x, this.exitPos.z - me.z) < 3.5) {
         if (this.level < 5) {
           this.advanceToLevel(this.level + 1);
         } else {
@@ -1927,49 +2078,84 @@ const Game3D = {
         }
       }
 
+      // PERSISTENT PLAYER-LOCK CHASE AI
       if (Net.isHost && !isStunned) {
+        const nowAi = performance.now();
         const diff = Net.difficulty || 'NORMAL';
         const diffMult = diff === 'INFERNO' ? 1.25 : (diff === 'NIGHTMARE' ? 1.12 : 1.0);
         const lvlMult = 1 + (this.level - 1) * 0.06;
         const activePlayers = Object.values(Net.players || {}).filter(p => !p.hiding && !p.downed);
 
-        let closestTarget = null;
-        let closestDist = Infinity;
-
+        // 1. Check if monster sees any active player directly -> locks onto them!
         for (const p of activePlayers) {
           const d = Math.hypot((p.x || 0) - this.hunter.x, (p.z || 0) - this.hunter.z);
-          const sightRange = (p.torch ? 18 : 9) * diffMult;
-          if (d < sightRange && this.hasLineOfSight(this.hunter.x, this.hunter.z, p.x, p.z) && d < closestDist) {
-            closestDist = d;
-            closestTarget = p;
+          const sightRange = (p.torch ? 19 : 10) * diffMult;
+          if (d < sightRange && this.hasLineOfSight(this.hunter.x, this.hunter.z, p.x, p.z)) {
+            this.hunter.chaseTargetId = p.id;
+            this.hunter.chaseUntil = nowAi + 12000; // Keeps chasing even around corners!
           }
         }
 
-        if (closestTarget) {
-          this.moveHunterToward(closestTarget.x, closestTarget.z, 0.068 * diffMult * lvlMult);
-          if (closestDist < 1.35) {
-            closestTarget.downed = true;
-            const aliveLeft = Object.values(Net.players || {}).filter(p => !p.downed);
-            if (aliveLeft.length === 0) {
-              SFX.jumpscareScream();
-              Net.sendEvent({ type: 'WORLD_EVENT', action: 'PLAYER_CAUGHT', id: closestTarget.id, name: closestTarget.name });
-              this.triggerEnd(false, `💀 ${this.hunterVariant || 'Subject-0'} wiped out the squad!`);
+        // 2. Validate locked target (breaks only if player hides in locker, gets downed, timer expires, or escapes > 28m far away)
+        let lockedTarget = null;
+        if (this.hunter.chaseTargetId && nowAi < this.hunter.chaseUntil) {
+          const cand = Net.players[this.hunter.chaseTargetId];
+          if (cand && !cand.hiding && !cand.downed) {
+            const distToCand = Math.hypot((cand.x || 0) - this.hunter.x, (cand.z || 0) - this.hunter.z);
+            if (distToCand <= 28) {
+              lockedTarget = cand;
             } else {
-              if (closestTarget.id === Net.myId) SFX.jumpscareScream();
-              Net.sendEvent({ type: 'WORLD_EVENT', action: 'PLAYER_CAUGHT', id: closestTarget.id, name: closestTarget.name });
-              this.showRadioToast('SQUAD ALERT', `🆘 ${closestTarget.name} was caught by ${this.hunterVariant}!`);
+              this.hunter.chaseTargetId = null; // Escaped far enough!
+            }
+          } else {
+            this.hunter.chaseTargetId = null; // Player hid in a locker or went down!
+          }
+        }
+
+        if (lockedTarget) {
+          const distToTarget = Math.hypot((lockedTarget.x || 0) - this.hunter.x, (lockedTarget.z || 0) - this.hunter.z);
+          this.moveHunterToward(lockedTarget.x, lockedTarget.z, 0.072 * diffMult * lvlMult);
+
+          if (distToTarget < 1.35) {
+            // Check Solo Emergency Self-Revive (if Solo + Medic or has Stun Charge)
+            const totalSquad = Object.keys(Net.players || {}).length;
+            if (totalSquad === 1 && lockedTarget.id === Net.myId && !this.selfReviveUsed && ((lockedTarget.role === 'MEDIC') || this.stunCharges > 0)) {
+              this.selfReviveUsed = true;
+              if (lockedTarget.role !== 'MEDIC' && this.stunCharges > 0) {
+                this.stunCharges--;
+                const st = document.getElementById('stun-status');
+                if (st) st.textContent = `🔫 ${this.stunCharges}/2`;
+              }
+              this.hunter.stunnedUntil = nowAi + 4000;
+              this.hunter.chaseTargetId = null;
+              SFX.electricShockHit();
+              this.showRadioToast('EMERGENCY REVIVE!', '💉 Medic/Shock pulse saved you! Run to a Locker!');
+            } else {
+              lockedTarget.downed = true;
+              this.hunter.chaseTargetId = null;
+              const aliveLeft = Object.values(Net.players || {}).filter(p => !p.downed);
+              if (aliveLeft.length === 0) {
+                SFX.jumpscareScream();
+                Net.sendEvent({ type: 'WORLD_EVENT', action: 'PLAYER_CAUGHT', id: lockedTarget.id, name: lockedTarget.name });
+                this.triggerEnd(false, `💀 ${this.hunterVariant || 'Subject-0'} wiped out the squad!`);
+              } else {
+                if (lockedTarget.id === Net.myId) {
+                  this.bleedoutTimer = 35;
+                  SFX.jumpscareScream();
+                }
+                Net.sendEvent({ type: 'WORLD_EVENT', action: 'PLAYER_CAUGHT', id: lockedTarget.id, name: lockedTarget.name });
+                this.showRadioToast('🆘 TEAMMATE DOWN!', `${lockedTarget.name} is down! Revive them before bleed-out!`);
+              }
             }
           }
-        } else if (this.decoyPos && performance.now() < this.decoyUntil) {
+        } else if (this.decoyPos && nowAi < this.decoyUntil) {
           this.moveHunterToward(this.decoyPos.x, this.decoyPos.z, 0.075 * diffMult);
         } else {
-          const isAlerted = performance.now() < (this.hunter.alertUntil || 0);
-          if (Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z) < 2.0) {
-            this.hunter.alertUntil = 0;
-            this.hunter.goalX = (Math.random() - 0.5) * 60;
-            this.hunter.goalZ = (Math.random() - 0.5) * 60;
+          if (Math.hypot(this.hunter.goalX - this.hunter.x, this.hunter.goalZ - this.hunter.z) < 2.5) {
+            this.hunter.goalX = (Math.random() - 0.5) * 58;
+            this.hunter.goalZ = (Math.random() - 0.5) * 58;
           }
-          this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, isAlerted ? 0.078 : 0.048);
+          this.moveHunterToward(this.hunter.goalX, this.hunter.goalZ, 0.052);
         }
       }
 
@@ -1999,7 +2185,9 @@ const Game3D = {
       if (!isStunned) SFX.monsterStep(dMonster);
       const danger = document.getElementById('danger-overlay');
       if (danger) {
-        if (dMonster < 14 && !me.hiding && !me.downed) {
+        if (me.downed) {
+          danger.style.opacity = '0.75';
+        } else if (dMonster < 14 && !me.hiding) {
           SFX.heartbeat(dMonster);
           danger.style.opacity = Math.min(0.85, (14 - dMonster) / 14).toFixed(2);
         } else if (danger.style.opacity !== '0') {
@@ -2020,7 +2208,7 @@ const Game3D = {
           Net.sendToHost({
             type: 'MOVE',
             id: Net.myId,
-            state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding }
+            state: { x: me.x, z: me.z, yaw: me.yaw, torch: me.torch, hiding: me.hiding, downed: me.downed }
           });
         }
       }

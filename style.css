@@ -278,7 +278,7 @@ html, body {
 .hud-editing #joystick-zone,
 .hud-editing .action-btn,
 .hud-editing #radar-canvas,
-.hud-editing #tactical-strip {
+.hud-editing #crouch-btn,.hud-editing #ping-btn,.hud-editing #flare-btn,.hud-editing #skill-btn {
   outline: 2px dashed #38bdf8 !important;
   box-shadow: 0 0 18px rgba(56, 189, 248, 0.8) !important;
   z-index: 92 !important;
