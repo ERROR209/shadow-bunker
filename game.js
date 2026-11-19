@@ -345,12 +345,8 @@ const Game3D = {
     container.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:1;display:block;';
 
     const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-    try {
-      this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
-    } catch (e) {
-      this.renderer = new THREE.WebGLRenderer();
-    }
-    this.renderer.shadowMap.enabled = false;
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
+    this.renderer.shadowMap.enabled = (this.gfxQuality === "HIGH");
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setSize(W, H);
     this.renderer.domElement.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:1;';
