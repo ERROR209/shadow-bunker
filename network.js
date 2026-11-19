@@ -219,30 +219,22 @@ const Net = {
 
     const renderHomeSquadSlots = () => {
       const slotList = document.getElementById('home-slot-list');
-      const startBtn = document.getElementById('solo-or-squad-start-btn');
-      const roomTag = document.getElementById('home-room-tag');
-      if (!slotList) return;
-      const pName = AgentProfile.load().name || 'You';
-      const pRole = AgentProfile.load().role || 'SCOUT';
-      const activePlayers = Object.values(this.players || {});
-      const slots = [];
-      if (activePlayers.length > 0) {
-        activePlayers.forEach((p, idx) => {
-          slots.push(`<div style="background:rgba(30,41,59,0.85);border-left:3px solid ${this.squadColors[idx % 4]};padding:4px 8px;border-radius:6px;font-size:0.72rem;color:#fff;display:flex;justify-content:space-between;">
-            <span><b>${idx + 1}. ${p.name}</b></span><span style="color:#38bdf8;">[${p.role || 'SCOUT'}]</span>
-          </div>`);
-        });
-      } else {
-        slots.push(`<div style="background:rgba(30,41,59,0.85);border-left:3px solid #38bdf8;padding:4px 8px;border-radius:6px;font-size:0.72rem;color:#fff;display:flex;justify-content:space-between;">
-          <span><b>1. ${pName} (You)</b></span><span style="color:#38bdf8;">[${pRole}]</span>
-        </div>`);
-      }
-      while (slots.length < 4) {
-        slots.push(`<div style="background:rgba(15,23,42,0.55);border:1px dashed #334155;padding:3px 8px;border-radius:6px;font-size:0.68rem;color:#64748b;">+ Empty Squad Slot (Create/Join Team)</div>`);
-      }
-      slotList.innerHTML = slots.join('');
+      const startBtn = document.getElementById('start-game-btn');
       if (startBtn) {
-        startBtn.textContent = activePlayers.length > 1 ? `🚀 DEPLOY SQUAD (${activePlayers.length}/4)` : '🚀 START SOLO';
+        const count = Object.keys(this.players || {}).length;
+        if (this.roomCode && !this.isHost) {
+          startBtn.disabled = true;
+          startBtn.textContent = '⏳ WAITING FOR HOST TO START...';
+          startBtn.style.background = '#334155';
+        } else if (this.roomCode && count > 1) {
+          startBtn.disabled = false;
+          startBtn.textContent = `▶ START TEAM MATCH (${count} PLAYERS)`;
+          startBtn.style.background = 'linear-gradient(135deg,#0284c7,#1d4ed8)';
+        } else {
+          startBtn.disabled = false;
+          startBtn.textContent = '▶ START MATCH (SOLO)';
+          startBtn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+        }
       }
       if (roomTag) {
         if (this.roomCode) {
@@ -358,14 +350,25 @@ const Net = {
     });
 
     // Toggle Join Code Input Row
-    document.getElementById('toggle-join-btn')?.addEventListener('click', () => {
-      const row = document.getElementById('join-code-row');
-      if (row) row.classList.toggle('hidden');
+    document.getElementById('open-join-btn')?.addEventListener('click', () => {
+      const row = document.getElementById('join-input-row');
+      if (!row) return;
+      const isHidden = row.classList.contains('hidden') || row.style.display === 'none';
+      row.classList.remove('hidden');
+      row.style.display = isHidden ? 'flex' : 'none';
     });
 
     // 1-Click START SOLO / DEPLOY SQUAD button directly from 3D Home Lobby!
-    document.getElementById('solo-or-squad-start-btn')?.addEventListener('click', () => {
+    const launchSmartMatch = () => {
+      if (this.roomCode && !this.isHost) return;
       if (typeof SFX !== 'undefined') SFX.init();
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+          screen.orientation?.lock?.('landscape').catch(() => {});
+        }
+      } catch (e) {}
+
       const name = document.getElementById('player-name')?.value.trim() || AgentProfile.load().name || ('Agent-' + Math.floor(10 + Math.random() * 89));
       const role = AgentProfile.load().role || 'SCOUT';
       AgentProfile.load().name = name;
@@ -375,12 +378,13 @@ const Net = {
         this.isHost = true;
         this.myId = this.getDeviceUid();
         this.players = {
-          [this.myId]: { id: this.myId, name, role, x: -32, z: 32, yaw: 0, torch: true, hp: 100, downed: false, hiding: false }
+          [this.myId]: { id: this.myId, name, role, x: -32, z: 32, yaw: 0, torch: true, hp: 100, downed: false, hiding: false, boarded: false }
         };
       } else if (this.players[this.myId]) {
         this.players[this.myId].name = name;
         this.players[this.myId].role = role;
       }
+
       document.getElementById('menu-screen')?.classList.add('hidden');
       document.getElementById('game-screen')?.classList.remove('hidden');
 
@@ -393,11 +397,17 @@ const Net = {
         { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
         { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
       ].sort(() => Math.random() - 0.5);
+      const fuseSpot = pool[0];
+      const noteSpots = [pool[1], pool[2], pool[3]];
+
       if (this.roomCode && this.isHost) {
-        this.broadcast({ type: 'START', players: this.players, codes, noteSpots: [pool[1], pool[2], pool[3]], fuseSpot: pool[0] });
+        const matchSeed = Date.now();
+        this.matchSeed = matchSeed;
+        this.broadcast({ type: 'START', matchSeed, players: this.players, codes, noteSpots, fuseSpot });
       }
-      Game3D.start(codes, [pool[1], pool[2], pool[3]], pool[0]);
-    });
+      Game3D.start(codes, noteSpots, fuseSpot);
+    };
+    if (startBtn) startBtn.onclick = launchSmartMatch;
 
     if (createBtn) {
       createBtn.onclick = () => {
@@ -433,39 +443,7 @@ const Net = {
       };
     }
 
-    if (startBtn) {
-      startBtn.onclick = () => {
-        if (!this.isHost || this.deployTimer) return;
-        startBtn.disabled = true;
-        let sec = 10;
-        this.broadcast({ type: 'DEPLOY_COUNTDOWN', sec });
-        this.showDeployCountdown(sec);
-        this.deployTimer = setInterval(() => {
-          sec--;
-          if (sec > 0) {
-            this.broadcast({ type: 'DEPLOY_COUNTDOWN', sec });
-            this.showDeployCountdown(sec);
-          } else {
-            clearInterval(this.deployTimer);
-            this.deployTimer = null;
-            document.getElementById('deploy-countdown-banner')?.classList.add('hidden');
-            const codes = [
-              String(Math.floor(100 + Math.random() * 899)),
-              String(Math.floor(100 + Math.random() * 899)),
-              String(Math.floor(100 + Math.random() * 899))
-            ];
-            const pool = [
-              { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
-              { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
-            ].sort(() => Math.random() - 0.5);
-            const fuseSpot = pool[0];
-            const noteSpots = [pool[1], pool[2], pool[3]];
-            this.broadcast({ type: 'START', players: this.players, codes, noteSpots, fuseSpot });
-            Game3D.start(codes, noteSpots, fuseSpot);
-          }
-        }, 1000);
-      };
-    }
+    
 
     const manRecBtn = document.getElementById('manual-reconnect-btn');
     if (manRecBtn) {
@@ -560,7 +538,7 @@ const Net = {
     const cBtn = document.getElementById('create-room-btn');
     if (cBtn) { cBtn.disabled = false; cBtn.textContent = '📋 CODE: ' + code; cBtn.style.borderColor = '#4ade80'; cBtn.style.color = '#4ade80'; }
     this.hideSetupCard();
-    document.getElementById('start-game-btn')?.classList.remove('hidden');
+    if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
     document.getElementById('wait-msg')?.classList.add('hidden');
     this.saveRoomSession(code, true, name);
     this.updateSquadUI();
@@ -611,7 +589,7 @@ const Net = {
     if (drc) drc.textContent = code;
     if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
     this.hideSetupCard();
-    document.getElementById('start-game-btn')?.classList.add('hidden');
+    if (this.renderHomeSquadSlots) this.renderHomeSquadSlots();
     document.getElementById('wait-msg')?.classList.remove('hidden');
     document.getElementById('manual-reconnect-btn')?.classList.remove('hidden');
     if (this.reconnectLoop) clearInterval(this.reconnectLoop);
@@ -787,10 +765,12 @@ const Net = {
       }
       Game3D.showRadioToast('RECONNECTED', '🔄 Back in live squad match!');
     } else if (data.type === 'START') {
+      this.matchSeed = data.matchSeed || Date.now();
       const myBackup = this.players[this.myId];
       this.players = { ...data.players };
       if (myBackup && !this.players[this.myId]) this.players[this.myId] = myBackup;
-      document.getElementById('deploy-countdown-banner')?.classList.add('hidden');
+      document.getElementById('menu-screen')?.classList.add('hidden');
+      document.getElementById('game-screen')?.classList.remove('hidden');
       Game3D.start(data.codes, data.noteSpots, data.fuseSpot);
     } else if (data.type === 'RESTART') {
       this.players = data.players;

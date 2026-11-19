@@ -225,10 +225,49 @@ const SFX = {
     setTimeout(() => this.tone(580, 'triangle', 0.38, 0.18, 410), 360);
   },
 
-  pickup() {
+    pickup() {
     this.tone(520, 'sine', 0.14, 0.16, 780);
     setTimeout(() => this.tone(780, 'sine', 0.18, 0.16, 1040), 90);
-  }
+  },
+
+  lastDrip: 0,
+  ambientDrip() {
+    const now = performance.now();
+    if (now - this.lastDrip < 7500) return;
+    this.lastDrip = now;
+    if (Math.random() < 0.5) this.tone(980, 'sine', 0.06, 0.04, 1450);
+  },
+
+  lastMonsterStep: 0,
+  monsterStep(dist) {
+    if (dist > 20) return;
+    const now = performance.now();
+    const gap = Math.max(260, dist * 35);
+    if (now - this.lastMonsterStep < gap) return;
+    this.lastMonsterStep = now;
+    this.tone(72, 'sine', 0.12, Math.min(0.22, (20 - dist) * 0.012), 32);
+  },
+
+  lastBeat: 0,
+  heartbeat(dist) {
+    const now = performance.now();
+    const gap = Math.max(320, dist * 55);
+    if (now - this.lastBeat < gap) return;
+    this.lastBeat = now;
+    this.tone(64, 'sine', 0.11, 0.18, 42);
+    setTimeout(() => this.tone(58, 'sine', 0.12, 0.14, 38), 130);
+  },
+
+  jumpscareScream() {
+    this.tone(240, 'sawtooth', 0.55, 0.28, 75);
+    this.tone(520, 'triangle', 0.45, 0.22, 140);
+  },
+
+  stunZap() {
+    this.stunBlast();
+  },
+
+  updateHelicopter() {}
 };
 
 function makeTexture(kind = 'wall', lvl = 1) {
@@ -1404,6 +1443,15 @@ const Game3D = {
       document.getElementById('cam-toggle-btn').textContent = this.thirdPerson ? '🎥 3RD' : '🎥 1ST';
     });
     bindInstantTouch('mic-btn', () => Net.toggleMic());
+    bindInstantTouch('nvg-toggle-btn', () => this.toggleNightVision());
+    bindInstantTouch('crouch-btn', () => this.toggleCrouch());
+    bindInstantTouch('ping-btn', () => this.sendTacticalPing());
+    bindInstantTouch('flare-btn', () => this.dropFlare());
+    bindInstantTouch('skill-btn', () => this.activateClassSkill());
+    const cctvNext = document.getElementById('cctv-next-btn');
+    const cctvExit = document.getElementById('cctv-exit-btn');
+    if (cctvNext) cctvNext.onclick = () => { this.cctvIdx++; this.updateCCTVLabel(); };
+    if (cctvExit) cctvExit.onclick = () => this.closeCCTV();
 
     const runBtn = document.getElementById('run-btn');
     if (runBtn) {
@@ -1482,7 +1530,7 @@ const Game3D = {
     const resetBtn = document.getElementById('reset-hud-btn');
     const gameScreen = document.getElementById('game-screen');
 
-    fsBtn.onclick = async () => {
+    if (fsBtn) fsBtn.onclick = async () => {
       try {
         if (!document.fullscreenElement) {
           await document.documentElement.requestFullscreen();
@@ -1510,7 +1558,7 @@ const Game3D = {
     });
 
     let isEditing = false;
-    editBtn.onclick = () => {
+    if (editBtn) editBtn.onclick = () => {
       isEditing = !isEditing;
       gameScreen.classList.toggle('hud-editing', isEditing);
       editorBar.classList.toggle('hidden', !isEditing);
@@ -1542,7 +1590,7 @@ const Game3D = {
       }, { passive: false, capture: true });
     });
 
-    saveBtn.onclick = () => {
+    if (saveBtn) saveBtn.onclick = () => {
       const layout = {};
       draggableIds.forEach(id => {
         const el = document.getElementById(id);
@@ -1555,7 +1603,7 @@ const Game3D = {
       this.showRadioToast('SETTINGS', '✅ Custom button layout saved!');
     };
 
-    resetBtn.onclick = () => {
+    if (resetBtn) resetBtn.onclick = () => {
       localStorage.removeItem('sb_hud_v2');
       draggableIds.forEach(id => {
         const el = document.getElementById(id);
@@ -2195,9 +2243,17 @@ const Game3D = {
       const aliveTeammates = Object.values(Net.players).filter(p => p.id !== Net.myId && !p.downed);
       const specBar = document.getElementById('spectate-bar');
 
+      if (this.inCCTV && this.cctvFeeds) {
+        const feed = this.cctvFeeds[this.cctvIdx % this.cctvFeeds.length];
+        const pan = Math.sin(performance.now() * 0.0015) * 3.5;
+        this.camera.position.set(feed.pos[0], feed.pos[1], feed.pos[2]);
+        this.camera.lookAt(feed.look[0] + pan, feed.look[1], feed.look[2]);
+        this.renderer.render(this.scene, this.camera);
+        return;
+      }
       if ((me.boarded || this.heliTakeoff) && this.chopperGroup) {
         specBar.classList.add('hidden');
-        hint.classList.add('hidden');
+        document.getElementById('interact-hint')?.classList.add('hidden');
         const cy = this.chopperGroup.position.y;
         const cz = this.chopperGroup.position.z;
         this.camera.position.set(6.5, Math.max(2.4, cy + 1.8), cz + 7.5);
