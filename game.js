@@ -249,8 +249,8 @@ const Game3D = {
     if (rb) rb.textContent = myRole;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0c1424);
-    this.scene.fog = new THREE.FogExp2(0x0c1424, 0.011);
+    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.fog = new THREE.FogExp2(0x02040a, 0.032);
 
     const W = Math.max(320, window.innerWidth);
     const H = Math.max(200, window.innerHeight);
@@ -268,15 +268,11 @@ const Game3D = {
     container.appendChild(this.renderer.domElement);
 
     // Bright, high-visibility bunker lighting so rooms & corridors are clearly visible on mobile!
-    this.hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x334155, 1.85);
+    this.hemiLight = new THREE.HemisphereLight(0x475569, 0x090d16, 0.34);
     this.scene.add(this.hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xbae6fd, 0.9);
-    dirLight.position.set(15, 25, 15);
-    this.scene.add(dirLight);
-
     // Player Tactical Flashlight
-    this.flashlight = new THREE.SpotLight(0xfffbeb, 8.5, 42, Math.PI / 3.8, 0.3, 0.9);
+    this.flashlight = new THREE.SpotLight(0xfffbeb, 11.5, 44, Math.PI / 3.8, 0.32, 0.85);
     this.flashlight.position.set(0, 0, 0);
     this.flashlight.target.position.set(0, 0, -1);
     this.camera.add(this.flashlight);
@@ -421,7 +417,7 @@ const Game3D = {
     ].forEach(pt => {
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.4), new THREE.MeshBasicMaterial({ color: 0xbae6fd }));
       lamp.position.set(pt.x, 4.12, pt.z);
-      const pl = new THREE.PointLight(0xbae6fd, 1.4, 22);
+      const pl = new THREE.PointLight(0x38bdf8, 0.32, 11);
       pl.position.set(pt.x, 3.7, pt.z);
       this.mapGroup.add(lamp, pl);
     });
@@ -910,7 +906,7 @@ const Game3D = {
     this.nvgActive = !this.nvgActive;
     if (this.hemiLight) {
       this.hemiLight.color.setHex(this.nvgActive ? 0x4ade80 : 0xe0f2fe);
-      this.hemiLight.intensity = this.nvgActive ? 2.6 : 1.85;
+      this.hemiLight.intensity = this.nvgActive ? 1.85 : (this.powerRestored ? 0.68 : 0.34);
     }
     this.showRadioToast('OPTICS', this.nvgActive ? '🥽 Night Vision ON' : '🥽 Night Vision OFF');
   },
@@ -946,14 +942,43 @@ const Game3D = {
   dropFlare() {
     const me = Net.players[Net.myId];
     if (!me || me.downed) return;
-    const fLight = new THREE.PointLight(0xef4444, 5.5, 24);
-    fLight.position.set(me.x, 0.6, me.z);
-    this.mapGroup.add(fLight);
-    this.flares.push({ x: me.x, z: me.z, light: fLight, until: performance.now() + 20000 });
-    this.decoyPos = { x: me.x, z: me.z };
+    const fx = me.x - Math.sin(me.yaw) * 0.85;
+    const fz = me.z - Math.cos(me.yaw) * 0.85;
+
+    const flareGrp = new THREE.Group();
+    const stick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.42, 12),
+      new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 })
+    );
+    stick.rotation.z = Math.PI / 2;
+    stick.rotation.y = me.yaw + 0.5;
+    stick.position.y = 0.05;
+
+    const tip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffedd5 })
+    );
+    tip.position.set(0.22, 0.06, 0);
+
+    const floorGlow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.55, 20),
+      new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 })
+    );
+    floorGlow.rotation.x = -Math.PI / 2;
+    floorGlow.position.y = 0.015;
+
+    const fLight = new THREE.PointLight(0xff2a2a, 6.5, 22);
+    fLight.position.set(0, 0.45, 0);
+
+    flareGrp.add(stick, tip, floorGlow, fLight);
+    flareGrp.position.set(fx, 0, fz);
+    this.mapGroup.add(flareGrp);
+
+    this.flares.push({ x: fx, z: fz, grp: flareGrp, light: fLight, until: performance.now() + 20000 });
+    this.decoyPos = { x: fx, z: fz };
     this.decoyUntil = performance.now() + 9000;
     SFX.torchClick();
-    this.showRadioToast('FLARE', '🧨 Red Flare deployed! Luring Subject-0 away!');
+    this.showRadioToast('FLARE', '🧨 Red Flare dropped on floor! Luring Subject-0!');
   },
 
   activateClassSkill() {
@@ -1060,7 +1085,7 @@ const Game3D = {
   restorePower() {
     if (this.powerRestored) return;
     this.powerRestored = true;
-    if (this.hemiLight) this.hemiLight.intensity = 2.2;
+    if (this.hemiLight) this.hemiLight.intensity = 0.68;
     if (this.genMesh) {
       this.genMesh.material.color.setHex(0x16a34a);
       this.genMesh.material.emissive.setHex(0x22c55e);
@@ -1197,6 +1222,15 @@ const Game3D = {
       this.syncTeammates();
 
       if (this.fuseMesh && this.fuseMesh.visible) this.fuseMesh.rotation.y += 0.04;
+      const nowFl = performance.now();
+      this.flares = this.flares.filter(fl => {
+        if (nowFl > fl.until) {
+          if (fl.grp) this.mapGroup.remove(fl.grp);
+          return false;
+        }
+        if (fl.light) fl.light.intensity = 5.5 + Math.sin(nowFl * 0.03) * 1.4;
+        return true;
+      });
       this.pickups.forEach(pk => { if (!pk.taken) pk.mesh.rotation.y += 0.03; });
       this.dataDrives.forEach(d => { if (!d.taken) d.mesh.rotation.y += 0.04; });
 
