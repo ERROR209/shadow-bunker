@@ -161,10 +161,7 @@ input[type="text"] {
   z-index: 18; pointer-events: none;
 }
 
-.radio-bar {
-  position: fixed; top: 92px; left: 8px; right: 98px; z-index: 16;
-  display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none;
-}
+.radio-bar { display: flex; gap: 5px; margin-top: 3px; pointer-events: auto; }
 .radio-btn {
   white-space: nowrap; background: rgba(15, 23, 42, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -172,7 +169,7 @@ input[type="text"] {
 }
 
 .radio-toast {
-  position: fixed; top: 126px; left: 10px; z-index: 22;
+  position: fixed; top: 132px; left: 10px; z-index: 22;
   background: rgba(220, 38, 38, 0.95); color: #fff;
   padding: 6px 12px; border-radius: 14px; font-size: 0.74rem; font-weight: 700; max-width: 240px;
 }

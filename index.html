@@ -116,17 +116,6 @@
       </div>
     </div>
 
-    <!-- Live CCTV Monitor Overlay -->
-    <div id="cctv-modal" class="hidden" style="position:fixed;inset:0;z-index:75;pointer-events:none;flex-direction:column;justify-content:space-between;border:5px solid #22c55e;">
-      <div style="background:rgba(2,6,23,0.88);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;pointer-events:auto;">
-        <span id="cctv-cam-label" style="color:#4ade80;font-family:monospace;font-weight:900;font-size:0.82rem;">📹 CAM-01 [LIVE ●]</span>
-        <div style="display:flex;gap:6px;">
-          <button id="cctv-next-btn" type="button" class="mini-btn" style="background:#0284c7;border:1px solid #38bdf8;">NEXT CAM ⏭️</button>
-          <button id="cctv-exit-btn" type="button" class="mini-btn" style="background:#dc2626;border:1px solid #f87171;">EXIT ✕</button>
-        </div>
-      </div>
-    </div>
-
     <div id="spectate-bar" class="spectate-bar hidden">👁️ SPECTATING: <span id="spectate-target-name">Mate</span> <button id="spectate-next-btn" type="button" class="mini-btn">NEXT</button></div>
 
     <div id="hud">
@@ -152,7 +141,7 @@
           </div>
         </div>
         <div id="objective-banner" class="objective-banner">CHAPTER 1: Find the Blue POWER FUSE & activate Generator!</div>
-        <div class="radio-bar">
+        <div class="radio-bar" style="position:static;margin-top:3px;display:flex;gap:5px;pointer-events:auto;">
           <button type="button" class="radio-btn" data-msg="⚠️ Monster near me!">⚠️ Monster</button>
           <button type="button" class="radio-btn" data-msg="🔋 Found Fuse / Key!">🔋 Key</button>
           <button type="button" class="radio-btn" data-msg="🔢 Terminal unlocked!">🔢 Code</button>
