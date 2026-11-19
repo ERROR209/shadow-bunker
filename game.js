@@ -1204,6 +1204,9 @@ const Game3D = {
       this.drivesUploaded = true;
       this.serverMesh.material.color.setHex(0x16a34a);
       this.serverMesh.material.emissive.setHex(0x22c55e);
+      const ob = document.getElementById('objective-banner');
+      if (ob) ob.textContent = `LVL ${this.level} • CH-4: Read Dr. Verma logs & unlock all 3 Terminals!`;
+      if (Net.isHost) Net.broadcast({ type: 'SERVER_UPLOAD' }); else Net.sendToHost({ type: 'SERVER_UPLOAD' });
       this.showRadioToast('SERVER', '✅ All 3 Data Drives uploaded! Security Terminals unlocked!');
     } else if (act.type === 'NOTE') {
       document.getElementById('note-title').textContent = `DR. VERMA LOG #${act.note.idx + 1}`;
@@ -1212,6 +1215,7 @@ const Game3D = {
       document.getElementById('note-modal')?.classList.remove('hidden');
     } else if (act.type === 'TERM') {
       if (!this.powerRestored) return this.showRadioToast('LOCKED', '⚠️ Restore Generator power first!');
+      if (!this.drivesUploaded) return this.showRadioToast('LOCKED', '⚠️ Upload all 3 Data Drives at North Server first!');
       this.activeTerminalIdx = act.term.idx;
       this.typedCode = '';
       this.updateKeypadUI();
@@ -1231,7 +1235,7 @@ const Game3D = {
     const ls = document.getElementById('locks-status');
     if (ls) ls.textContent = '⚡ ON (0/3)';
     const ob = document.getElementById('objective-banner');
-    if (ob) ob.textContent = 'CHAPTER 3: Read Dr. Verma logs & unlock all 3 Security Terminals!';
+    if (ob) ob.textContent = `LVL ${this.level} • CH-3: Collect 3 Purple Data Drives & upload at North Server!`;
     SFX.pickup();
     this.showRadioToast('POWER', '⚡ Main Bunker Power Restored!');
   },
@@ -1274,6 +1278,50 @@ const Game3D = {
       if (ob) ob.textContent = '🚨 EXIT GATE UNLOCKED! Sprint to the North-East Green Beacon!';
       SFX.siren();
     }
+  },
+
+  advanceToLevel(nextLvl) {
+    if (this.gameOver) return;
+    const lvlNames = {
+      2: 'LEVEL 2: BIO-RESEARCH LAB',
+      3: 'LEVEL 3: DEEP REACTOR CORE',
+      4: 'LEVEL 4: VENTILATION TUNNELS',
+      5: 'LEVEL 5: ROOFTOP HELIPAD ESCAPE'
+    };
+    this.hasFuse = false;
+    this.powerRestored = false;
+    this.drivesCollected = 0;
+    this.drivesUploaded = false;
+    this.locks = [false, false, false];
+    this.selfDestructActive = false;
+    this.escapeTimeLeft = 60;
+    this.battery = Math.min(100, this.battery + 35);
+    this.stunCharges = Math.min(3, this.stunCharges + 1);
+    document.getElementById('timer-badge')?.classList.add('hidden');
+    const ls = document.getElementById('locks-status');
+    if (ls) ls.textContent = '⚡ OFF';
+    const st = document.getElementById('stun-status');
+    if (st) st.textContent = `🔫 ${this.stunCharges}/2`;
+
+    this.codes = [
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899)),
+      String(Math.floor(100 + Math.random() * 899))
+    ];
+    const pool = [
+      { x: -28, z: -6 }, { x: -30, z: -28 }, { x: 4, z: 28 }, { x: 30, z: 8 },
+      { x: -10, z: -30 }, { x: 26, z: -22 }, { x: -26, z: 12 }, { x: 14, z: 26 }
+    ].sort(() => Math.random() - 0.5);
+
+    this.buildLevelMap(nextLvl, [pool[1], pool[2], pool[3]], pool[0]);
+    const me = Net.players[Net.myId];
+    if (me) { me.x = -33; me.z = 31; me.yaw = -Math.PI / 2; }
+    this.hunter.x = 26; this.hunter.z = -26;
+    if (this.hunter.mesh) this.hunter.mesh.scale.setScalar(1 + (nextLvl - 1) * 0.08);
+    const ob = document.getElementById('objective-banner');
+    if (ob) ob.textContent = `${lvlNames[nextLvl] || 'LEVEL ' + nextLvl} • CH-1: Find Blue Power Fuse!`;
+    SFX.pickup();
+    this.showRadioToast('NEXT FLOOR', `🛗 Entered ${lvlNames[nextLvl] || 'Level ' + nextLvl}! (+35% Battery)`);
   },
 
   triggerEnd(win, reason) {
@@ -1564,9 +1612,23 @@ const Game3D = {
         }
       }
 
-      // Check Exit Gate Win Condition
+      // Check Exit Gate Condition (Advances Level 1 -> 2 -> 3 -> 4 -> 5, then Final Helicopter Win!)
       if (this.selfDestructActive && Math.hypot(this.exitPos.x - me.x, this.exitPos.z - me.z) < 3.5) {
-        this.triggerEnd(true, '🚁 You escaped Sector-09 Bunker alive!');
+        if (this.level < 5) {
+          const nextLvl = this.level + 1;
+          this.advanceToLevel(nextLvl);
+          if (Net.isHost) Net.broadcast({ type: 'NEXT_LEVEL', level: nextLvl });
+          else Net.sendToHost({ type: 'NEXT_LEVEL', level: nextLvl });
+        } else {
+          const diff = Net.difficulty || 'NORMAL';
+          const mult = diff === 'INFERNO' ? 3.0 : (diff === 'NIGHTMARE' ? 1.75 : 1.0);
+          const xpEarned = Math.round(1000 * mult);
+          if (window.AgentProfile) {
+            AgentProfile.recordVictory(180);
+            AgentProfile.addXP(xpEarned);
+          }
+          this.triggerEnd(true, `🚁 All 5 Levels Cleared [${diff}]! Earned +${xpEarned} XP!`);
+        }
       }
 
       // Monster AI Movement
@@ -1593,10 +1655,14 @@ const Game3D = {
       }
 
       if (Net.isHost && !isStunned) {
+        const diff = Net.difficulty || 'NORMAL';
+        const diffMult = diff === 'INFERNO' ? 1.25 : (diff === 'NIGHTMARE' ? 1.12 : 1.0);
+        const lvlMult = 1 + (this.level - 1) * 0.06;
         const dPlayer = Math.hypot(me.x - this.hunter.x, me.z - this.hunter.z);
-        const canSee = dPlayer < (me.torch ? 18 : 9) && this.hasLineOfSight(this.hunter.x, this.hunter.z, me.x, me.z);
+        const sightRange = (me.torch ? 18 : 9) * diffMult;
+        const canSee = dPlayer < sightRange && this.hasLineOfSight(this.hunter.x, this.hunter.z, me.x, me.z);
         if (!me.hiding && !me.downed && canSee) {
-          this.moveHunterToward(me.x, me.z, 0.068);
+          this.moveHunterToward(me.x, me.z, 0.068 * diffMult * lvlMult);
           if (dPlayer < 1.35) {
             SFX.jumpscareScream();
             this.triggerEnd(false, '💀 Subject-0 caught you in the dark!');
@@ -1616,11 +1682,20 @@ const Game3D = {
         this.hunter.mesh.rotation.y = this.hunter.yaw;
       }
 
-      // Waypoint Compass Distance Update
+      // Waypoint Compass Distance Update across all 5 Chapters
       const wpDist = document.getElementById('waypoint-dist');
       if (wpDist) {
-        const tx = !this.hasFuse ? (this.fuseMesh?.position.x || -24) : (!this.powerRestored ? -35 : 0);
-        const tz = !this.hasFuse ? (this.fuseMesh?.position.z || 10) : (!this.powerRestored ? 35 : -34);
+        let tx = this.exitPos.x, tz = this.exitPos.z;
+        if (!this.hasFuse) { tx = this.fuseMesh?.position.x || -24; tz = this.fuseMesh?.position.z || 10; }
+        else if (!this.powerRestored) { tx = -35; tz = 35; }
+        else if (this.drivesCollected < 3) {
+          const nextD = this.dataDrives.find(d => !d.taken);
+          if (nextD) { tx = nextD.x; tz = nextD.z; }
+        } else if (!this.drivesUploaded) { tx = 0; tz = -34; }
+        else if (!this.selfDestructActive) {
+          const nextT = this.terminals.find((t, i) => !this.locks[i]);
+          if (nextT) { tx = nextT.x; tz = nextT.z; }
+        }
         wpDist.textContent = Math.round(Math.hypot(tx - me.x, tz - me.z)) + 'm';
       }
 
