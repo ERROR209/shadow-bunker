@@ -835,8 +835,8 @@ const Game3D = {
       if (cb) cb.textContent = this.thirdPerson ? '3RD PERSON' : '1ST PERSON';
       if (this.flashlight && this.flashlight.target) {
         if (this.thirdPerson && this.selfAvatar && this.selfAvatar.grp) {
-          this.flashlight.position.set(-0.35, 1.35, -0.55);
-          this.flashlight.target.position.set(-0.35, 1.15, -6.0);
+          this.flashlight.position.set(0, 1.45, -0.55);
+          this.flashlight.target.position.set(0, 1.15, -8.0);
           this.selfAvatar.grp.add(this.flashlight);
           this.selfAvatar.grp.add(this.flashlight.target);
         } else if (this.camera) {
@@ -1285,6 +1285,15 @@ const Game3D = {
     document.getElementById('end-modal')?.classList.remove('hidden');
   },
 
+  hasLineOfSight(x1, z1, x2, z2) {
+    const steps = 10;
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      if (this.checkCollision(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t)) return false;
+    }
+    return true;
+  },
+
   checkCollision(x, z) {
     if (x < -38.8 || x > 38.8 || z < -38.8 || z > 38.8) return true;
     for (const w of this.wallBoxes) {
@@ -1585,7 +1594,8 @@ const Game3D = {
 
       if (Net.isHost && !isStunned) {
         const dPlayer = Math.hypot(me.x - this.hunter.x, me.z - this.hunter.z);
-        if (!me.hiding && !me.downed && dPlayer < (me.torch ? 18 : 10)) {
+        const canSee = dPlayer < (me.torch ? 18 : 9) && this.hasLineOfSight(this.hunter.x, this.hunter.z, me.x, me.z);
+        if (!me.hiding && !me.downed && canSee) {
           this.moveHunterToward(me.x, me.z, 0.068);
           if (dPlayer < 1.35) {
             SFX.jumpscareScream();
