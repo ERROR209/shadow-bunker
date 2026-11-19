@@ -138,11 +138,8 @@
           <span class="badge" id="locks-status">⚡ OFF</span>
           <span class="badge hidden" id="timer-badge">☢️ 52s</span>
           <button id="mic-btn" type="button" class="mini-btn">🎤 OFF</button>
-          <button id="fs-btn" type="button" onclick="window.toggleFullScreen && window.toggleFullScreen()" class="mini-btn">⛶ FULLSCREEN</button>
-          <button id="nvg-toggle-btn" type="button" class="mini-btn" style="background:#052e16;border:1px solid #22c55e;color:#4ade80;">🥽 NVG</button>
-          <button id="sfx-toggle-btn" type="button" onclick="SFX.toggleMute()" class="mini-btn" style="background:#1e293b;border:1px solid #475569;">🔊 SFX</button>
-          <button id="cam-toggle-btn" type="button" class="mini-btn">🎥 1ST</button>
-          <span class="badge"><span id="fps-badge">FPS: 60</span></span>
+          <button id="open-settings-btn" type="button" class="mini-btn" style="background:#0284c7;border:1px solid #38bdf8;font-weight:900;">⚙️ SETTINGS</button>
+          <span class="badge"><span id="fps-badge">60 FPS</span></span>
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:2px;">
           <span id="agent-rank-pill" style="background:rgba(30,41,59,0.9);border:1px solid #facc15;color:#facc15;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:800;">🎖️ ROOKIE • 0 XP</span>
@@ -183,6 +180,58 @@
         <button id="run-btn" type="button" class="action-btn run">🏃<br>RUN</button>
         <button id="torch-btn" type="button" class="action-btn torch">🔦<br>TORCH</button>
         <button id="use-btn" type="button" class="action-btn use">🖐️<br>USE</button>
+      </div>
+    </div>
+
+    
+    <!-- HUD Layout Customizer Floating Bar -->
+    <div id="hud-editor-bar" class="hidden" style="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:95;background:rgba(9,13,22,0.96);border:2px solid #38bdf8;padding:8px 14px;border-radius:12px;display:none;align-items:center;gap:10px;box-shadow:0 8px 25px rgba(0,0,0,0.85);">
+      <span style="color:#facc15;font-size:0.74rem;font-weight:900;">🎛️ DRAG BUTTONS TO MOVE</span>
+      <button id="save-hud-btn" type="button" style="background:#16a34a;border:none;color:#fff;padding:5px 10px;border-radius:7px;font-size:0.72rem;font-weight:900;cursor:pointer;">✅ SAVE</button>
+      <button id="reset-hud-btn" type="button" style="background:#dc2626;border:none;color:#fff;padding:5px 10px;border-radius:7px;font-size:0.72rem;font-weight:900;cursor:pointer;">🔄 RESET</button>
+    </div>
+
+    <!-- Clean All-in-One Settings Modal -->
+    <div id="settings-modal" class="modal hidden" style="z-index:90;">
+      <div class="modal-box" style="max-width:340px;border:1px solid #38bdf8;background:rgba(9,13,22,0.97);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #1e293b;padding-bottom:8px;">
+          <h3 style="color:#38bdf8;font-size:1rem;margin:0;">⚙️ GAME SETTINGS</h3>
+          <button id="close-settings-btn" type="button" style="background:#334155;border:none;color:#fff;padding:4px 10px;border-radius:7px;font-weight:900;cursor:pointer;">✕</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px;text-align:left;">
+          <!-- Camera Perspective (FPP / TPP) -->
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;padding:8px 10px;border-radius:9px;border:1px solid #1e293b;">
+            <div>
+              <div style="font-size:0.8rem;font-weight:800;color:#f8fafc;">🎥 Camera View</div>
+              <div style="font-size:0.64rem;color:#94a3b8;">Switch FPP (1st) or TPP (3rd)</div>
+            </div>
+            <button id="cam-toggle-btn" type="button" style="background:#0284c7;border:none;color:#fff;padding:6px 11px;border-radius:7px;font-size:0.72rem;font-weight:900;cursor:pointer;">1ST PERSON</button>
+          </div>
+
+          <!-- Sound / SFX -->
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;padding:8px 10px;border-radius:9px;border:1px solid #1e293b;">
+            <div>
+              <div style="font-size:0.8rem;font-weight:800;color:#f8fafc;">🔊 Sound & Horror SFX</div>
+              <div style="font-size:0.64rem;color:#94a3b8;">Footsteps, monster & ambience</div>
+            </div>
+            <button id="sfx-toggle-btn" type="button" onclick="SFX.toggleMute()" style="background:#16a34a;border:none;color:#fff;padding:6px 11px;border-radius:7px;font-size:0.72rem;font-weight:900;cursor:pointer;">🔊 ON</button>
+          </div>
+
+          <!-- Night Vision & Fullscreen -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button id="nvg-toggle-btn" type="button" style="background:#052e16;border:1px solid #22c55e;color:#4ade80;padding:8px;border-radius:9px;font-size:0.74rem;font-weight:900;cursor:pointer;">🥽 NIGHT VISION</button>
+            <button id="fs-btn" type="button" onclick="window.toggleFullScreen && window.toggleFullScreen()" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;padding:8px;border-radius:9px;font-size:0.74rem;font-weight:900;cursor:pointer;">⛶ FULLSCREEN</button>
+          </div>
+
+          <!-- Custom Control / Key Mapping -->
+          <button id="edit-hud-btn" type="button" style="width:100%;background:linear-gradient(135deg,#d97706,#b45309);border:1px solid #facc15;color:#fff;padding:10px;border-radius:9px;font-size:0.78rem;font-weight:900;cursor:pointer;">🎛️ CUSTOMIZE CONTROLS / KEY MAP</button>
+
+          <!-- PC Keybinds Cheat-Sheet -->
+          <div style="background:#020617;border:1px solid #1e293b;padding:7px 9px;border-radius:8px;font-size:0.64rem;color:#94a3b8;line-height:1.45;">
+            <strong style="color:#facc15;">⌨️ PC KEY MAPPING:</strong> WASD Move • Shift Run • F Torch • E Use • Q Stun • V FPP/TPP • C Crouch • M Mic
+          </div>
+        </div>
       </div>
     </div>
 

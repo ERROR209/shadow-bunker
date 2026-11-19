@@ -42,7 +42,7 @@ const SFX = {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.85, this.ctx.currentTime, 0.05);
     }
     const btn = document.getElementById('sfx-toggle-btn');
-    if (btn) btn.textContent = this.muted ? '🔇 MUTE' : '🔊 SFX';
+    if (btn) { btn.textContent = this.muted ? '🔇 MUTED' : '🔊 ON'; btn.style.background = this.muted ? '#dc2626' : '#16a34a'; }
   },
 
   startDarkAmbience() {
@@ -1450,7 +1450,7 @@ const Game3D = {
     bindInstantTouch('stun-btn', () => this.fireStun());
     bindInstantTouch('cam-toggle-btn', () => {
       this.thirdPerson = !this.thirdPerson;
-      document.getElementById('cam-toggle-btn').textContent = this.thirdPerson ? '🎥 3RD' : '🎥 1ST';
+      const cb = document.getElementById('cam-toggle-btn'); if (cb) cb.textContent = this.thirdPerson ? '3RD PERSON' : '1ST PERSON';
     });
     bindInstantTouch('mic-btn', () => Net.toggleMic());
     bindInstantTouch('nvg-toggle-btn', () => this.toggleNightVision());
@@ -1532,34 +1532,32 @@ const Game3D = {
     this.playCutscene(1);
   },
 
-  setupHudCustomizer() {
-    const fsBtn = document.getElementById('fs-rotate-btn');
+    setupHudCustomizer() {
+    const settingsModal = document.getElementById('settings-modal');
+    const openSetBtn = document.getElementById('open-settings-btn');
+    const closeSetBtn = document.getElementById('close-settings-btn');
     const editBtn = document.getElementById('edit-hud-btn');
     const editorBar = document.getElementById('hud-editor-bar');
     const saveBtn = document.getElementById('save-hud-btn');
     const resetBtn = document.getElementById('reset-hud-btn');
     const gameScreen = document.getElementById('game-screen');
 
-    if (fsBtn) fsBtn.onclick = async () => {
-      try {
-        if (!document.fullscreenElement) {
-          await document.documentElement.requestFullscreen();
-          await screen.orientation?.lock?.('landscape').catch(() => {});
-          fsBtn.textContent = '⛶ EXIT FS';
-          fsBtn.classList.add('on');
-        } else {
-          await document.exitFullscreen();
-          fsBtn.textContent = '⛶ LANDSCAPE';
-          fsBtn.classList.remove('on');
-        }
-      } catch (e) {}
-    };
+    if (openSetBtn && settingsModal) {
+      openSetBtn.onclick = () => {
+        settingsModal.classList.remove('hidden');
+        if (document.pointerLockElement) document.exitPointerLock?.();
+      };
+    }
+    if (closeSetBtn && settingsModal) {
+      closeSetBtn.onclick = () => settingsModal.classList.add('hidden');
+    }
 
-    const draggableIds = ['joystick-zone', 'stun-btn', 'sprint-btn', 'torch-btn', 'interact-btn', 'radar-wrap', 'radio-bar'];
-    const saved = JSON.parse(localStorage.getItem('sb_hud_v2') || '{}');
+    const draggableIds = ['joystick-zone', 'stun-btn', 'run-btn', 'torch-btn', 'use-btn', 'tactical-strip', 'radar-canvas'];
+    const saved = JSON.parse(localStorage.getItem('sb09_hud_layout_v1') || '{}');
     draggableIds.forEach(id => {
       const el = document.getElementById(id);
       if (el && saved[id]) {
+        el.style.position = 'fixed';
         el.style.left = saved[id].left;
         el.style.top = saved[id].top;
         el.style.right = 'auto';
@@ -1568,59 +1566,101 @@ const Game3D = {
     });
 
     let isEditing = false;
-    if (editBtn) editBtn.onclick = () => {
-      isEditing = !isEditing;
-      gameScreen.classList.toggle('hud-editing', isEditing);
-      editorBar.classList.toggle('hidden', !isEditing);
-    };
+    if (editBtn) {
+      editBtn.onclick = () => {
+        if (settingsModal) settingsModal.classList.add('hidden');
+        isEditing = true;
+        gameScreen?.classList.add('hud-editing');
+        if (editorBar) { editorBar.classList.remove('hidden'); editorBar.style.display = 'flex'; }
+      };
+    }
 
     draggableIds.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
-      let sx = 0, sy = 0, ol = 0, ot = 0;
+      let sx = 0, sy = 0, ol = 0, ot = 0, dragging = false;
+
+      const startDrag = (cx, cy) => {
+        if (!isEditing) return;
+        dragging = true;
+        const r = el.getBoundingClientRect();
+        sx = cx; sy = cy; ol = r.left; ot = r.top;
+        el.style.position = 'fixed';
+        el.style.left = ol + 'px';
+        el.style.top = ot + 'px';
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.style.outline = '2px dashed #38bdf8';
+      };
+
+      const moveDrag = (cx, cy) => {
+        if (!isEditing || !dragging) return;
+        const nl = Math.max(4, Math.min(window.innerWidth - el.offsetWidth - 4, ol + (cx - sx)));
+        const nt = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, ot + (cy - sy)));
+        el.style.left = nl + 'px';
+        el.style.top = nt + 'px';
+      };
+
+      const endDrag = () => { dragging = false; };
+
       el.addEventListener('touchstart', (e) => {
         if (!isEditing) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const t = e.touches[0];
-        const r = el.getBoundingClientRect();
-        sx = t.clientX; sy = t.clientY; ol = r.left; ot = r.top;
-        el.style.left = ol + 'px'; el.style.top = ot + 'px';
-        el.style.right = 'auto'; el.style.bottom = 'auto';
+        e.preventDefault(); e.stopImmediatePropagation();
+        startDrag(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: false, capture: true });
 
       el.addEventListener('touchmove', (e) => {
         if (!isEditing) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const t = e.touches[0];
-        const nl = Math.max(4, Math.min(window.innerWidth - el.offsetWidth - 4, ol + (t.clientX - sx)));
-        const nt = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, ot + (t.clientY - sy)));
-        el.style.left = nl + 'px'; el.style.top = nt + 'px';
+        e.preventDefault(); e.stopImmediatePropagation();
+        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: false, capture: true });
+
+      el.addEventListener('touchend', endDrag, { capture: true });
+      el.addEventListener('mousedown', (e) => {
+        if (!isEditing) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        startDrag(e.clientX, e.clientY);
+      }, { capture: true });
+      window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+      window.addEventListener('mouseup', endDrag);
     });
 
-    if (saveBtn) saveBtn.onclick = () => {
-      const layout = {};
-      draggableIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.style.left) layout[id] = { left: el.style.left, top: el.style.top };
-      });
-      localStorage.setItem('sb_hud_v2', JSON.stringify(layout));
-      isEditing = false;
-      gameScreen.classList.remove('hud-editing');
-      editorBar.classList.add('hidden');
-      this.showRadioToast('SETTINGS', '✅ Custom button layout saved!');
-    };
+    if (saveBtn) {
+      saveBtn.onclick = () => {
+        const layout = {};
+        draggableIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.outline = '';
+            if (el.style.left) layout[id] = { left: el.style.left, top: el.style.top };
+          }
+        });
+        localStorage.setItem('sb09_hud_layout_v1', JSON.stringify(layout));
+        isEditing = false;
+        gameScreen?.classList.remove('hud-editing');
+        if (editorBar) { editorBar.classList.add('hidden'); editorBar.style.display = 'none'; }
+        this.showRadioToast('SETTINGS', '✅ Custom button layout saved!');
+      };
+    }
 
-    if (resetBtn) resetBtn.onclick = () => {
-      localStorage.removeItem('sb_hud_v2');
-      draggableIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = ''; }
-      });
-      this.showRadioToast('SETTINGS', '🔄 Reset to default button positions!');
-    };
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        localStorage.removeItem('sb09_hud_layout_v1');
+        draggableIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.outline = '';
+            el.style.position = '';
+            el.style.left = ''; el.style.top = '';
+            el.style.right = ''; el.style.bottom = '';
+          }
+        });
+        isEditing = false;
+        gameScreen?.classList.remove('hud-editing');
+        if (editorBar) { editorBar.classList.add('hidden'); editorBar.style.display = 'none'; }
+        this.showRadioToast('SETTINGS', '🔄 Controls reset to default!');
+      };
+    }
   },
 
   toggleTorch() {
