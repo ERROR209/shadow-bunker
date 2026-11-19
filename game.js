@@ -283,7 +283,7 @@ const Game3D = {
     this.scene.add(this.hemiLight);
 
     // Player Tactical Flashlight
-    this.flashlight = new THREE.SpotLight(0xfffbeb, 11.5, 44, Math.PI / 3.8, 0.32, 0.85);
+    this.flashlight = new THREE.SpotLight(0xfef3c7, 3.2, 36, Math.PI / 3.6, 0.72, 1.5);
     this.flashlight.position.set(0, 0, 0);
     this.flashlight.target.position.set(0, 0, -1);
     this.camera.add(this.flashlight);
@@ -374,7 +374,7 @@ const Game3D = {
     const t = wallTex.clone();
     t.needsUpdate = true;
     t.repeat.set(Math.max(1, Math.round(Math.max(w, d) / 4)), 1);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0.02 }));
     mesh.position.set(x, h / 2, z);
     this.mapGroup.add(mesh);
     this.wallBoxes.push({ minX: x - w / 2 - 0.45, maxX: x + w / 2 + 0.45, minZ: z - d / 2 - 0.45, maxZ: z + d / 2 + 0.45 });
@@ -403,7 +403,7 @@ const Game3D = {
 
     const floorTex = makeTexture('floor', lvl);
     floorTex.repeat.set(22, 22);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.65 }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.88, metalness: 0.02 }));
     floor.rotation.x = -Math.PI / 2;
     this.mapGroup.add(floor);
 
@@ -616,7 +616,7 @@ const Game3D = {
     const col = this.SQUAD_COLORS[slotIdx] || this.SQUAD_COLORS[0];
     const nameTag = this.makeNameTagSprite(String(slotIdx + 1), player.name || 'AGENT', col.hex);
     built.grp.add(nameTag);
-    const torchLight = new THREE.PointLight(0xbae6fd, 1.8, 9);
+    const torchLight = new THREE.PointLight(0xfef3c7, 0.9, 8);
     torchLight.position.set(-0.35, 1.35, -0.6);
     built.grp.add(torchLight);
     this.scene.add(built.grp);
